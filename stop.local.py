@@ -59,7 +59,7 @@ def stop_with_psutil():
     
     killed = 0
     
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'connections']):
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             proc_info = proc.info
             cmdline = ' '.join(proc_info.get('cmdline') or [])
