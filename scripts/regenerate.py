@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """
-scripts/regenerate.py - Regenerar Cliente API
-==============================================
+scripts/regenerate.py - Regenerar Cliente API (v2.0)
+=====================================================
 
-Este script:
-1. Verifica que el backend esté corriendo (o lo inicia temporalmente)
-2. Descarga el schema OpenAPI del backend
-3. Genera/actualiza los schemas Zod del frontend
-4. Ejecuta migraciones de Alembic si hay cambios
+Pipeline de regeneración:
+1. OpenAPI schema → docs/openapi.json
+2. Zod schemas → frontend/src/types.generated.ts
+3. API helpers con códigos HTTP → frontend/src/api.generated.ts
+4. Alembic migrations (opcional)
+
+Este script mantiene la coherencia entre Backend y Frontend.
 
 Uso:
-    python -m scripts.regenerate [--no-start] [--migrate]
+    python -m scripts.regenerate              # Regeneración completa
+    python -m scripts.regenerate --no-start   # No iniciar backend
+    python -m scripts.regenerate --migrate    # Incluir migraciones
+    python -m scripts.regenerate --validate   # Solo validar endpoints
 
-Requiere:
-    - Backend corriendo en BACKEND_PORT
-    - O permiso para iniciarlo temporalmente
+Códigos HTTP soportados:
+    200 OK, 201 Created, 204 No Content
+    400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found
+    422 Validation Error, 500 Internal Server Error
 """
 
 import sys
@@ -26,19 +32,40 @@ import logging
 import argparse
 import socket
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 
 # --- Configuración ---
+LOG_DIR = Path(__file__).parent.parent / "data" / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# Configurar logging con archivo
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_DIR / "regenerate.log", encoding='utf-8')
+    ]
 )
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 DOCS_DIR = PROJECT_ROOT / "docs"
+
+# Códigos HTTP que manejamos
+HTTP_CODES = {
+    200: "OK",
+    201: "Created",
+    204: "NoContent",
+    400: "BadRequest",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "NotFound",
+    422: "ValidationError",
+    500: "InternalServerError",
+}
 
 
 def load_env():
@@ -60,13 +87,30 @@ def load_env():
 
 
 def is_port_in_use(port: int) -> bool:
-    """Verifica si un puerto está en uso."""
+    """Verifica si un puerto está en uso intentando conectar."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
         try:
-            s.bind(('127.0.0.1', port))
+            s.connect(('127.0.0.1', port))
+            return True  # Conexión exitosa = puerto en uso
+        except (ConnectionRefusedError, TimeoutError, OSError):
             return False
-        except OSError:
-            return True
+
+
+def wait_for_backend(port: int, timeout: int = 30) -> bool:
+    """Espera a que el backend responda en el endpoint de health."""
+    import urllib.request
+    
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            with urllib.request.urlopen(f"http://localhost:{port}/api/products", timeout=2) as response:
+                if response.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(1)
+    return False
 
 
 def get_python_executable() -> str:
@@ -80,15 +124,65 @@ def get_python_executable() -> str:
 def fetch_openapi_schema(port: int) -> Optional[Dict[str, Any]]:
     """Descarga el schema OpenAPI del backend."""
     import urllib.request
+    import urllib.error
     
     url = f"http://localhost:{port}/openapi.json"
     
     try:
         with urllib.request.urlopen(url, timeout=10) as response:
+            status = response.status
+            if status != 200:
+                logger.error(f"❌ OpenAPI respondió con código {status}")
+                return None
             return json.loads(response.read().decode())
+    except urllib.error.HTTPError as e:
+        logger.error(f"❌ HTTP Error {e.code}: {e.reason}")
+        return None
     except Exception as e:
         logger.error(f"❌ Error descargando OpenAPI: {e}")
         return None
+
+
+def validate_endpoints(schema: Dict[str, Any], port: int) -> List[Tuple[str, str, int, str]]:
+    """
+    Valida que todos los endpoints respondan correctamente.
+    Retorna lista de (method, path, status_code, message).
+    """
+    import urllib.request
+    import urllib.error
+    
+    results = []
+    paths = schema.get("paths", {})
+    
+    logger.info(f"\n🔍 Validando {len(paths)} endpoints...")
+    
+    for path, methods in paths.items():
+        for method in methods:
+            if method in ("get", "post", "put", "delete", "patch"):
+                # Solo validar GET sin parámetros requeridos
+                if method == "get" and "{" not in path:
+                    url = f"http://localhost:{port}{path}"
+                    try:
+                        req = urllib.request.Request(url, method=method.upper())
+                        with urllib.request.urlopen(req, timeout=5) as response:
+                            status = response.status
+                            results.append((method.upper(), path, status, "OK"))
+                    except urllib.error.HTTPError as e:
+                        results.append((method.upper(), path, e.code, e.reason))
+                    except Exception as e:
+                        results.append((method.upper(), path, 0, str(e)))
+    
+    # Mostrar resultados
+    errors = [r for r in results if r[2] >= 400 or r[2] == 0]
+    success = [r for r in results if 200 <= r[2] < 400]
+    
+    logger.info(f"   ✓ {len(success)} endpoints OK")
+    if errors:
+        logger.warning(f"   ⚠️ {len(errors)} endpoints con errores:")
+        for method, path, code, msg in errors[:5]:
+            logger.warning(f"      {method} {path} → {code} {msg}")
+    
+    return results
 
 
 def start_backend_temp() -> Optional[subprocess.Popen]:
@@ -98,23 +192,33 @@ def start_backend_temp() -> Optional[subprocess.Popen]:
     
     logger.info(f"🚀 Iniciando backend temporalmente en puerto {port}...")
     
+    # Crear log file
+    log_file = open(LOG_DIR / "backend_temp.log", "a", encoding="utf-8")
+    
     proc = subprocess.Popen(
         [python, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", str(port)],
         cwd=PROJECT_ROOT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
     
-    # Esperar a que inicie
-    for _ in range(20):
-        time.sleep(1)
-        if is_port_in_use(port):
-            logger.info("✓ Backend iniciado")
-            return proc
+    # Esperar a que el backend responda
+    if wait_for_backend(port, timeout=25):
+        logger.info("✓ Backend iniciado y respondiendo")
+        return proc
     
     proc.terminate()
     logger.error("❌ Backend no pudo iniciar")
+    # Mostrar últimas líneas del log
+    log_file.close()
+    try:
+        with open(LOG_DIR / "backend_temp.log", "r") as f:
+            lines = f.readlines()[-10:]
+            for line in lines:
+                logger.error(f"   {line.strip()}")
+    except:
+        pass
     return None
 
 
@@ -132,22 +236,27 @@ def save_openapi_schema(schema: Dict[str, Any]) -> Path:
 
 
 def generate_zod_types_from_openapi(schema: Dict[str, Any]) -> str:
-    """
-    Genera código Zod desde el schema OpenAPI.
-    
-    Esta es una implementación simplificada. Para producción,
-    considera usar openapi-zod-client o similar.
-    """
+    """Genera código Zod desde el schema OpenAPI."""
     lines = [
         "/**",
         " * types.generated.ts",
         f" * Generado automáticamente desde OpenAPI - {datetime.now().isoformat()}",
-        " * NO EDITAR MANUALMENTE",
+        " * NO EDITAR MANUALMENTE - Usar: python -m scripts.regenerate",
         " */",
         "",
         "import { z } from 'zod';",
         "",
+        "// ========== HTTP Status Codes ==========",
+        "",
     ]
+    
+    # Añadir constantes de códigos HTTP
+    for code, name in HTTP_CODES.items():
+        lines.append(f"export const HTTP_{name.upper()} = {code};")
+    
+    lines.append("")
+    lines.append("// ========== API Schemas ==========")
+    lines.append("")
     
     schemas = schema.get("components", {}).get("schemas", {})
     
@@ -155,11 +264,18 @@ def generate_zod_types_from_openapi(schema: Dict[str, Any]) -> str:
         # Saltar schemas internos de FastAPI
         if name.startswith("HTTPValidation") or name.startswith("ValidationError"):
             continue
+        if name.startswith("Body_"):  # Pydantic body wrappers
+            continue
         
         lines.append(f"// Schema: {name}")
-        zod_schema = convert_schema_to_zod(definition, schemas, name)
-        lines.append(f"export const {name}Schema = {zod_schema};")
-        lines.append(f"export type {name} = z.infer<typeof {name}Schema>;")
+        try:
+            zod_schema = convert_schema_to_zod(definition, schemas, name)
+            lines.append(f"export const {name}Schema = {zod_schema};")
+            lines.append(f"export type {name} = z.infer<typeof {name}Schema>;")
+        except Exception as e:
+            lines.append(f"// ERROR generando schema: {e}")
+            lines.append(f"export const {name}Schema = z.unknown();")
+            lines.append(f"export type {name} = unknown;")
         lines.append("")
     
     return "\n".join(lines)
@@ -175,33 +291,50 @@ def convert_schema_to_zod(schema: Dict[str, Any], all_schemas: Dict, name: str =
     
     schema_type = schema.get("type")
     
+    # Nullable
+    nullable = schema.get("nullable", False)
+    
     # String
     if schema_type == "string":
+        result = "z.string()"
         if schema.get("format") == "date-time":
-            return "z.string().datetime()"
-        if schema.get("format") == "email":
-            return "z.string().email()"
-        if "enum" in schema:
+            result = "z.string().datetime()"
+        elif schema.get("format") == "email":
+            result = "z.string().email()"
+        elif schema.get("format") == "uuid":
+            result = "z.string().uuid()"
+        elif "enum" in schema:
             enum_values = ", ".join(f'"{v}"' for v in schema["enum"])
-            return f"z.enum([{enum_values}])"
-        return "z.string()"
+            result = f"z.enum([{enum_values}])"
+        
+        if nullable:
+            result += ".nullable()"
+        return result
     
     # Number/Integer
     if schema_type in ("integer", "number"):
-        base = "z.number()"
+        result = "z.number()"
         if schema_type == "integer":
-            base += ".int()"
-        return base
+            result += ".int()"
+        if nullable:
+            result += ".nullable()"
+        return result
     
     # Boolean
     if schema_type == "boolean":
-        return "z.boolean()"
+        result = "z.boolean()"
+        if nullable:
+            result += ".nullable()"
+        return result
     
     # Array
     if schema_type == "array":
         items = schema.get("items", {})
         item_schema = convert_schema_to_zod(items, all_schemas)
-        return f"z.array({item_schema})"
+        result = f"z.array({item_schema})"
+        if nullable:
+            result += ".nullable()"
+        return result
     
     # Object
     if schema_type == "object":
@@ -209,16 +342,21 @@ def convert_schema_to_zod(schema: Dict[str, Any], all_schemas: Dict, name: str =
         required = set(schema.get("required", []))
         
         if not properties:
-            return "z.object({})"
+            return "z.object({}).passthrough()"
         
         fields = []
         for prop_name, prop_schema in properties.items():
             prop_zod = convert_schema_to_zod(prop_schema, all_schemas)
             if prop_name not in required:
                 prop_zod += ".optional()"
-            fields.append(f"  {prop_name}: {prop_zod}")
+            # Sanitize property name
+            safe_name = prop_name if prop_name.isidentifier() else f'"{prop_name}"'
+            fields.append(f"  {safe_name}: {prop_zod}")
         
-        return "z.object({\n" + ",\n".join(fields) + "\n})"
+        result = "z.object({\n" + ",\n".join(fields) + "\n})"
+        if nullable:
+            result += ".nullable()"
+        return result
     
     # allOf / anyOf / oneOf
     if "allOf" in schema:
@@ -228,11 +366,102 @@ def convert_schema_to_zod(schema: Dict[str, Any], all_schemas: Dict, name: str =
         return f"{parts[0]}.merge({parts[1]})" if len(parts) == 2 else parts[0]
     
     if "anyOf" in schema:
-        parts = [convert_schema_to_zod(s, all_schemas) for s in schema["anyOf"]]
+        parts = []
+        for s in schema["anyOf"]:
+            if s.get("type") == "null":
+                parts.append("z.null()")
+            else:
+                parts.append(convert_schema_to_zod(s, all_schemas))
+        if len(parts) == 2 and "z.null()" in parts:
+            other = [p for p in parts if p != "z.null()"][0]
+            return f"{other}.nullable()"
         return f"z.union([{', '.join(parts)}])"
     
     # Default
     return "z.unknown()"
+
+
+def generate_api_helpers(schema: Dict[str, Any]) -> str:
+    """Genera helpers de API con manejo de errores HTTP."""
+    lines = [
+        "/**",
+        " * api.generated.ts",
+        f" * Generado automáticamente desde OpenAPI - {datetime.now().isoformat()}",
+        " * NO EDITAR MANUALMENTE - Usar: python -m scripts.regenerate",
+        " */",
+        "",
+        "import { z } from 'zod';",
+        "import * as schemas from './types.generated';",
+        "",
+        "// ========== API Error Handler ==========",
+        "",
+        "export class ApiError extends Error {",
+        "  constructor(",
+        "    public status: number,",
+        "    public statusText: string,",
+        "    public body?: unknown",
+        "  ) {",
+        "    super(`HTTP ${status}: ${statusText}`);",
+        "    this.name = 'ApiError';",
+        "  }",
+        "",
+        "  is400() { return this.status === 400; }",
+        "  is401() { return this.status === 401; }",
+        "  is403() { return this.status === 403; }",
+        "  is404() { return this.status === 404; }",
+        "  is422() { return this.status === 422; }",
+        "  is500() { return this.status >= 500; }",
+        "}",
+        "",
+        "// ========== Response Handler ==========",
+        "",
+        "export async function handleResponse<T>(",
+        "  response: Response,",
+        "  schema?: z.ZodType<T>",
+        "): Promise<T> {",
+        "  if (!response.ok) {",
+        "    let body: unknown;",
+        "    try {",
+        "      body = await response.json();",
+        "    } catch {",
+        "      body = await response.text();",
+        "    }",
+        "    throw new ApiError(response.status, response.statusText, body);",
+        "  }",
+        "",
+        "  // 204 No Content",
+        "  if (response.status === 204) {",
+        "    return undefined as T;",
+        "  }",
+        "",
+        "  const data = await response.json();",
+        "",
+        "  if (schema) {",
+        "    return schema.parse(data);",
+        "  }",
+        "",
+        "  return data as T;",
+        "}",
+        "",
+        "// ========== Logging Helper ==========",
+        "",
+        "export function logApiError(error: unknown, context: string): void {",
+        "  if (error instanceof ApiError) {",
+        "    console.error(`[API ERROR] ${context}:`, {",
+        "      status: error.status,",
+        "      statusText: error.statusText,",
+        "      body: error.body,",
+        "    });",
+        "  } else if (error instanceof Error) {",
+        "    console.error(`[ERROR] ${context}:`, error.message);",
+        "  } else {",
+        "    console.error(`[ERROR] ${context}:`, error);",
+        "  }",
+        "}",
+        "",
+    ]
+    
+    return "\n".join(lines)
 
 
 def save_generated_types(code: str) -> Path:
@@ -246,19 +475,29 @@ def save_generated_types(code: str) -> Path:
     return output_path
 
 
+def save_api_helpers(code: str) -> Path:
+    """Guarda los helpers de API."""
+    output_path = FRONTEND_DIR / "src" / "api.generated.ts"
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(code)
+    
+    logger.info(f"✓ API helpers generados en {output_path}")
+    return output_path
+
+
 def run_alembic_autogenerate() -> bool:
     """Ejecuta alembic revision --autogenerate si hay cambios."""
     python = get_python_executable()
     alembic_ini = PROJECT_ROOT / "alembic.ini"
     
     if not alembic_ini.exists():
-        logger.info("ℹ️ alembic.ini no encontrado, saltando autogenerate")
+        logger.info("ℹ️ alembic.ini no encontrado - este proyecto usa SQLite con auto-create")
         return True
     
     logger.info("📦 Verificando cambios en modelos para migración...")
     
     try:
-        # Primero verificar si hay cambios pendientes
         result = subprocess.run(
             [python, "-m", "alembic", "check"],
             cwd=PROJECT_ROOT,
@@ -271,7 +510,6 @@ def run_alembic_autogenerate() -> bool:
             logger.info("✓ No hay cambios de modelo pendientes")
             return True
         
-        # Generar migración
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         result = subprocess.run(
             [python, "-m", "alembic", "revision", "--autogenerate", "-m", f"auto_{timestamp}"],
@@ -283,8 +521,6 @@ def run_alembic_autogenerate() -> bool:
         
         if result.returncode == 0:
             logger.info(f"✓ Migración generada: auto_{timestamp}")
-            
-            # Aplicar migración
             subprocess.run(
                 [python, "-m", "alembic", "upgrade", "head"],
                 cwd=PROJECT_ROOT,
@@ -310,9 +546,12 @@ def main():
                        help="Ejecutar autogenerate de migraciones")
     parser.add_argument("--no-types", action="store_true",
                        help="No generar tipos TypeScript")
+    parser.add_argument("--validate", action="store_true",
+                       help="Solo validar endpoints sin regenerar")
     args = parser.parse_args()
     
     print("\n>>> Regenerando Cliente API <<<\n")
+    logger.info(f"Log file: {LOG_DIR / 'regenerate.log'}")
     
     # Cargar configuración
     load_env()
@@ -325,7 +564,6 @@ def main():
     if not is_port_in_use(backend_port):
         if args.no_start:
             logger.error(f"❌ Backend no está corriendo en puerto {backend_port}")
-            logger.error("   Inicia el backend o quita la opción --no-start")
             return 1
         
         backend_proc = start_backend_temp()
@@ -341,9 +579,21 @@ def main():
         schema = fetch_openapi_schema(backend_port)
         
         if not schema:
+            logger.error("❌ No se pudo obtener el schema OpenAPI")
             return 1
         
-        # 2. Guardar schema
+        # Contar endpoints y schemas
+        paths_count = len(schema.get("paths", {}))
+        schemas_count = len(schema.get("components", {}).get("schemas", {}))
+        logger.info(f"   Paths: {paths_count}, Schemas: {schemas_count}")
+        
+        # Solo validar si se pide
+        if args.validate:
+            results = validate_endpoints(schema, backend_port)
+            errors = len([r for r in results if r[2] >= 400 or r[2] == 0])
+            return 1 if errors > 0 else 0
+        
+        # 2. Guardar schema OpenAPI
         save_openapi_schema(schema)
         
         # 3. Generar tipos TypeScript/Zod
@@ -351,12 +601,21 @@ def main():
             logger.info("\n⚙️ Generando tipos Zod...")
             zod_code = generate_zod_types_from_openapi(schema)
             save_generated_types(zod_code)
+            
+            # 4. Generar API helpers
+            logger.info("\n⚙️ Generando API helpers...")
+            api_code = generate_api_helpers(schema)
+            save_api_helpers(api_code)
         
-        # 4. Ejecutar migraciones
+        # 5. Validar endpoints
+        validate_endpoints(schema, backend_port)
+        
+        # 6. Ejecutar migraciones
         if args.migrate:
             logger.info("\n📦 Ejecutando migraciones...")
             run_alembic_autogenerate()
         
+        # Resumen final
         logger.info("\n" + "=" * 60)
         logger.info("✅ Regeneración completada")
         logger.info("=" * 60)
@@ -365,12 +624,13 @@ def main():
         logger.info(f"  - docs/openapi.json")
         if not args.no_types:
             logger.info(f"  - frontend/src/types.generated.ts")
+            logger.info(f"  - frontend/src/api.generated.ts")
         logger.info("")
+        logger.info(f"Log: {LOG_DIR / 'regenerate.log'}")
         
         return 0
         
     finally:
-        # Limpiar: detener backend si lo iniciamos
         if backend_started and backend_proc:
             logger.info("🛑 Deteniendo backend temporal...")
             backend_proc.terminate()
