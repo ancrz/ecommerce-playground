@@ -1,0 +1,59 @@
+# ===== Git Attributes for farmalux-ecommerce =====
+# https://git-scm.com/docs/gitattributes
+
+# ===== Line Ending Normalization =====
+# Ensure consistent line endings across all platforms
+* text=auto
+
+# ===== Text Files (Force LF) =====
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+
+# ===== Windows-specific (Keep CRLF) =====
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ===== Binary Files =====
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.db binary
+*.sqlite binary
+
+# ===== Lock Files (Exact) =====
+package-lock.json text eol=lf -diff
+yarn.lock text eol=lf -diff
+
+# ===== Python Specific =====
+*.pyc binary
+*.pyo binary
+*.pyd binary
+
+# ===== Export Ignore (Git Archive) =====
+.gitattributes export-ignore
+.gitignore export-ignore
+.github/ export-ignore
+.vscode/ export-ignore
+tests/ export-ignore
+docs/ export-ignore
