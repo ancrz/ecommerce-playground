@@ -74,12 +74,12 @@ class ChangeHandler(FileSystemEventHandler):
     def run_regenerate(self):
         logger.info("⏳ Detectando reinicio del backend...")
         
-        # Ejecutar script de regeneración
+        # Ejecutar script de regeneración con migraciones
         python = sys.executable
-        cmd = [python, "-m", "scripts.regenerate", "--no-start"]
+        cmd = [python, "-m", "scripts.regenerate", "--no-start", "--migrate"]
         
         try:
-            logger.info("🔄 Regenerando tipos y cliente API...")
+            logger.info("🔄 Regenerando tipos, hooks y BD...")
             result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
             
             if result.returncode == 0:

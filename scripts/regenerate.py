@@ -537,17 +537,176 @@ def run_alembic_autogenerate() -> bool:
         return False
 
 
+
+def generate_react_hooks(schema: Dict[str, Any]) -> str:
+    """Genera React Hooks personalizados para cada endpoint."""
+    lines = [
+        "/**",
+        " * hooks.generated.ts",
+        f" * Generado automáticamente desde OpenAPI - {datetime.now().isoformat()}",
+        " * NO EDITAR MANUALMENTE",
+        " */",
+        "",
+        "import { useState, useEffect, useCallback } from 'react';",
+        "import * as schemas from './types.generated';",
+        "import { handleResponse, ApiError } from './api.generated';",
+        "import { config } from './config';",
+        "",
+        "// Tipos genéricos de Hook",
+        "interface QueryState<T> {",
+        "  data: T | null;",
+        "  loading: boolean;",
+        "  error: ApiError | Error | null;",
+        "  refetch: () => Promise<void>;",
+        "}",
+        "",
+        "interface MutationState<T, B> {",
+        "  data: T | null;",
+        "  loading: boolean;",
+        "  error: ApiError | Error | null;",
+        "  mutate: (body: B) => Promise<T>;",
+        "}",
+        "",
+        "const BASE_URL = config.apiUrl || 'http://localhost:8042';",
+        "",
+    ]
+    
+    paths = schema.get("paths", {})
+    
+    for path, methods in paths.items():
+        for method, operation in methods.items():
+            if method not in ("get", "post", "put", "delete", "patch"):
+                continue
+            
+            operation_id = operation.get("operationId", "")
+            if not operation_id:
+                # Generar nombre si no existe (ej: get_users)
+                clean_path = path.replace("/", "_").replace("{", "").replace("}", "")
+                operation_id = f"{method}{clean_path}"
+            
+            # Convertir snake_case a CamelCase para el nombre del hook
+            # get_all_users -> useGetAllUsers
+            parts = operation_id.split("_")
+            hook_name = "use" + "".join(p.capitalize() for p in parts)
+            
+            # Detectar tipos de response y request
+            response_schema = "z.unknown()"
+            response_type = "unknown"
+            
+            # Buscar respuesta exitosa
+            for code in ("200", "201"):
+                if code in operation.get("responses", {}):
+                    content = operation["responses"][code].get("content", {})
+                    if "application/json" in content:
+                        schema_ref = content["application/json"]["schema"]
+                        if "$ref" in schema_ref:
+                            type_name = schema_ref["$ref"].split("/")[-1]
+                            response_schema = f"schemas.{type_name}Schema"
+                            response_type = f"schemas.{type_name}"
+            
+            # Buscar request body (para mutaciones)
+            body_type = "unknown"
+            has_body = False
+            if "requestBody" in operation:
+                content = operation["requestBody"].get("content", {})
+                if "application/json" in content:
+                    has_body = True
+                    schema_ref = content["application/json"]["schema"]
+                    if "$ref" in schema_ref:
+                        type_name = schema_ref["$ref"].split("/")[-1]
+                        body_type = f"schemas.{type_name}"
+            
+            # Generar Hook
+            summary = operation.get("summary", "Sin descripción")
+            lines.append(f"/** {summary} */")
+            
+            # GET (Query)
+            if method == "get":
+                # Detectar parámetros de ruta
+                path_params = [p for p in operation.get("parameters", []) if p["in"] == "path"]
+                params_args = ", ".join(f"{p['name']}: string" for p in path_params)
+                url_expr = f"`${{BASE_URL}}{path.replace('{', '${')}`"
+                
+                lines.append(f"export function {hook_name}({params_args}) {{")
+                lines.append(f"  const [state, setState] = useState<QueryState<{response_type}>>({{")
+                lines.append("    data: null, loading: true, error: null, refetch: async () => {}")
+                lines.append("  });")
+                lines.append("")
+                lines.append("  const fetchData = useCallback(async () => {")
+                lines.append("    setState(prev => ({ ...prev, loading: true, error: null }));")
+                lines.append("    try {")
+                lines.append(f"      const res = await fetch({url_expr}, {{")
+                lines.append("        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }")
+                lines.append("      });")
+                lines.append(f"      const data = await handleResponse(res, {response_schema});")
+                lines.append("      setState({ data, loading: false, error: null, refetch: fetchData });")
+                lines.append("    } catch (err) {")
+                lines.append("      setState(prev => ({ ...prev, loading: false, error: err as Error }));")
+                lines.append("    }")
+                lines.append(f"  }}, [{', '.join(p['name'] for p in path_params)}]);")
+                lines.append("")
+                lines.append("  useEffect(() => { fetchData(); }, [fetchData]);")
+                lines.append("")
+                lines.append("  return state;")
+                lines.append("}")
+            
+            # Mutations (POST, PUT, DELETE)
+            else:
+                path_params = [p for p in operation.get("parameters", []) if p["in"] == "path"]
+                params_args = ", ".join(f"{p['name']}: string" for p in path_params)
+                params_comma = ", " if params_args else ""
+                url_expr = f"`${{BASE_URL}}{path.replace('{', '${')}`"
+                
+                lines.append(f"export function {hook_name}({params_args}) {{")
+                lines.append(f"  const [state, setState] = useState<MutationState<{response_type}, {body_type}>>({{")
+                lines.append("    data: null, loading: false, error: null, mutate: async () => null as any")
+                lines.append("  });")
+                lines.append("")
+                lines.append(f"  const mutate = async (body{':' if has_body else '?'} {body_type}) => {{")
+                lines.append("    setState(prev => ({ ...prev, loading: true, error: null }));")
+                lines.append("    try {")
+                lines.append(f"      const res = await fetch({url_expr}, {{")
+                lines.append(f"        method: '{method.upper()}',")
+                lines.append("        headers: {")
+                lines.append("          'Content-Type': 'application/json',")
+                lines.append("          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`")
+                lines.append("        },")
+                lines.append(f"        body: {'JSON.stringify(body)' if has_body else 'undefined'}")
+                lines.append("      });")
+                lines.append(f"      const data = await handleResponse(res, {response_schema});")
+                lines.append("      setState({ data, loading: false, error: null, mutate });")
+                lines.append("      return data;")
+                lines.append("    } catch (err) {")
+                lines.append("      setState(prev => ({ ...prev, loading: false, error: err as Error }));")
+                lines.append("      throw err;")
+                lines.append("    }")
+                lines.append("  };")
+                lines.append("")
+                lines.append("  return { ...state, mutate };")
+                lines.append("}")
+            
+            lines.append("")
+    
+    return "\n".join(lines)
+
+
+def save_hooks(code: str) -> Path:
+    """Guarda los hooks generados."""
+    output_path = FRONTEND_DIR / "src" / "hooks.generated.ts"
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(code)
+    logger.info(f"✓ Hooks generados en {output_path}")
+    return output_path
+
+
 def main():
     """Entry point principal."""
     parser = argparse.ArgumentParser(description="Regenerar cliente API")
-    parser.add_argument("--no-start", action="store_true", 
-                       help="No iniciar backend si no está corriendo")
-    parser.add_argument("--migrate", action="store_true",
-                       help="Ejecutar autogenerate de migraciones")
-    parser.add_argument("--no-types", action="store_true",
-                       help="No generar tipos TypeScript")
-    parser.add_argument("--validate", action="store_true",
-                       help="Solo validar endpoints sin regenerar")
+    parser.add_argument("--no-start", action="store_true", help="No iniciar backend si no está corriendo")
+    parser.add_argument("--migrate", action="store_true", help="Ejecutar autogenerate de migraciones")
+    parser.add_argument("--no-types", action="store_true", help="No generar tipos TypeScript")
+    parser.add_argument("--validate", action="store_true", help="Solo validar endpoints sin regenerar")
+    # Argumento implícito: siempre genera hooks si genera types
     args = parser.parse_args()
     
     print("\n>>> Regenerando Cliente API <<<\n")
@@ -596,18 +755,24 @@ def main():
         # 2. Guardar schema OpenAPI
         save_openapi_schema(schema)
         
-        # 3. Generar tipos TypeScript/Zod
+        # 3. Generar Código Frontend
         if not args.no_types:
+            # Tipos Zod
             logger.info("\n⚙️ Generando tipos Zod...")
             zod_code = generate_zod_types_from_openapi(schema)
             save_generated_types(zod_code)
             
-            # 4. Generar API helpers
+            # API Helpers
             logger.info("\n⚙️ Generando API helpers...")
             api_code = generate_api_helpers(schema)
             save_api_helpers(api_code)
+            
+            # React Hooks
+            logger.info("\n⚙️ Generando React Hooks...")
+            hooks_code = generate_react_hooks(schema)
+            save_hooks(hooks_code)
         
-        # 5. Validar endpoints
+        # 5. Validar endpoints (después de generar, para aprovechar tiempo)
         validate_endpoints(schema, backend_port)
         
         # 6. Ejecutar migraciones
@@ -625,6 +790,7 @@ def main():
         if not args.no_types:
             logger.info(f"  - frontend/src/types.generated.ts")
             logger.info(f"  - frontend/src/api.generated.ts")
+            logger.info(f"  - frontend/src/hooks.generated.ts")
         logger.info("")
         logger.info(f"Log: {LOG_DIR / 'regenerate.log'}")
         
