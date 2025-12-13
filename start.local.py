@@ -450,7 +450,7 @@ def main():
     # Inicializar componentes
     detector = SystemDetector()
     lock = LockFile(LOCK_FILE)
-    # processes se llenará al iniciar servicios
+    processes: List[Dict] = []
     
     # Verificar si ya está corriendo (via .lock)
     existing_lock = lock.read()
@@ -489,7 +489,8 @@ def main():
     
     
     # Iniciar servicios
-    processes = []
+    
+    # Iniciar servicios
     
     if not args.frontend_only:
         backend_info = start_backend(detector)

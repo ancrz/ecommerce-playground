@@ -121,29 +121,43 @@ export default function App() {
 
   // Cargar datos iniciales (públicos)
   const loadInitialData = async () => {
-    try {
-      const [business, custom, curr, regs] = await Promise.all([
-        api.getBusinessInfo(),
-        api.getCustomization(),
-        api.getCurrencies(),
-        api.getRegions(), // <-- REFACTOR FASE 5
-      ]);
+    // Helper para llamadas seguras que no rompen la app
+    const safeFetch = async <T,>(
+      fn: () => Promise<T>,
+      fallback: T | null = null
+    ) => {
+      try {
+        return await fn();
+      } catch (error) {
+        console.warn("Fallo en carga inicial opcional:", error);
+        return fallback;
+      }
+    };
 
-      setBusinessInfo(business);
+    const business = await safeFetch(() => api.getBusinessInfo());
+    const custom = await safeFetch(() => api.getCustomization());
+
+    // Currencies y Regions son arrays, fallback []
+    const curr = (await safeFetch(() => api.getCurrencies())) || [];
+    const regs = (await safeFetch(() => api.getRegions())) || [];
+
+    if (business) setBusinessInfo(business);
+    if (custom) {
       setCustomization(custom);
       applyGlobalStyles(custom);
-      setCurrencies(curr);
-      setRegions(regs); // <-- REFACTOR FASE 5
+    }
 
-      // REFACTOR FASE 3: Setear el objeto completo
+    setCurrencies(curr);
+    setRegions(regs);
+
+    // REFACTOR FASE 3: Setear el objeto completo
+    if (curr.length > 0) {
       const baseCurrency = curr.find((c) => c.is_base);
       if (baseCurrency) {
         setSelectedCurrency(baseCurrency);
-      } else if (curr.length > 0) {
+      } else {
         setSelectedCurrency(curr[0]);
       }
-    } catch (error) {
-      console.error("Error loading initial data:", error);
     }
   };
 
@@ -275,8 +289,11 @@ export default function App() {
   const getCartItemCount = () => cart?.item_count ?? 0; // <-- REFACTOR FASE 5
 
   // REFACTOR FASE 3: Actualizado para usar el objeto selectedCurrency
-  const formatPrice = (priceInBase: number | null | undefined) => {
-    const price = priceInBase ?? 0; // Default to 0 if null or undefined
+  const formatPrice = (priceInBase: number | string | null | undefined) => {
+    const raw = priceInBase ?? 0;
+    const price = typeof raw === "string" ? parseFloat(raw) : raw;
+
+    if (isNaN(price)) return "N/A";
 
     if (!selectedCurrency) {
       // Fallback antes de que carguen las monedas
@@ -356,12 +373,7 @@ export default function App() {
           onClose={() => setShowLogin(false)}
           onLogin={handleLogin}
         />
-        <CartModal
-          isOpen={showCart}
-          onClose={() => setShowCart(false)}
-          clientCartItems={cart?.items || []} // <-- REFACTOR FASE 5
-          onCheckoutSuccess={() => setCart(null)} // Limpiar carrito
-        />
+        <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
 
         {/* Rutas de la aplicación (E2E Test) */}
         <div data-testid="app-container">

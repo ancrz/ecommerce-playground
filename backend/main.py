@@ -220,8 +220,8 @@ app.include_router(
 app.include_router(
     tax_admin.router, 
     prefix="/api/admin/tax", 
-    tags=["Admin: Impuestos y Regiones"],
-    dependencies=[Depends(is_finance_manager)] # ¡Protegido!
+    tags=["Admin: Impuestos y Regiones"]
+    # dependencies=[Depends(is_finance_manager)] <-- ELIMINADO: Controlado internamente en tax_admin.py
 )
 # Módulo de Gestión de Imágenes (Admin y Managers de Contenido/Productos)
 app.include_router(
@@ -233,7 +233,7 @@ app.include_router(
     dependencies=[Depends(is_content_manager | is_products_manager)] 
 )
 # Módulo de Gestión de Personalización (Admin y Content Manager)
-app.include_router(customization.router, prefix="/api/admin/customization", tags=["Admin: Personalización"], dependencies=[Depends(is_content_manager)]) # NEW
+app.include_router(customization.router, prefix="/api/admin/customization", tags=["Admin: Personalización"]) # NEW - Controlado internamente
 # Módulo de Gestión de Productos (Admin y Products)
 # (NOTA: Los endpoints públicos de products.py ya están registrados arriba)
 # (Aquí podríamos registrar endpoints *solo* de admin si los tuviéramos separados)

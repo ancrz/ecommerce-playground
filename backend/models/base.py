@@ -71,7 +71,7 @@ class Product(BaseEntity):
         return ProductCard(
             id=self.id,
             name=self.name,
-            description=self.description,
+            description=self.description or "", # Force string
             price=self.price,
             final_price=final_price,
             image_url=self.image_url,
@@ -83,7 +83,7 @@ class Product(BaseEntity):
 class ProductCard(BaseModel):
     id: str
     name: str
-    description: Optional[str]
+    description: str = "" # Force string (no Optional)
     price: Decimal
     final_price: Decimal
     image_url: Optional[str]

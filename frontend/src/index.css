@@ -1,21 +1,17 @@
-/**
- * src/index.css
- * Estilos globales con TailwindCSS
- * 
- * REFACTORIZADO: Integración de TailwindCSS con custom properties
- * para colores dinámicos desde el backend (Customization module).
- */
-
-/* TailwindCSS Directives */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* 
  * Custom Properties (CSS Variables)
  * Estos colores se pueden sobrescribir desde App.tsx
  * basándose en la configuración del Customization module.
  */
+@theme {
+  --color-primary: #264192;
+  --color-secondary: #ffdd00;
+  --color-accent: #ffffff;
+  --font-family-sans: "Poppins", system-ui, sans-serif;
+}
+
 :root {
   --color-primary: #264192;
   --color-secondary: #ffdd00;
@@ -48,10 +44,11 @@
     color: var(--color-accent);
   }
   .btn-primary:hover {
-    @apply brightness-110;
+    filter: brightness(1.1);
   }
   .btn-primary:disabled {
-    @apply bg-gray-400 cursor-not-allowed brightness-100;
+    @apply bg-gray-400 cursor-not-allowed;
+    filter: brightness(1);
   }
 
   /* Botón secundario */
@@ -145,12 +142,8 @@
 
 /* Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {

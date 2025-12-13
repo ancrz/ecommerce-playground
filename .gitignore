@@ -111,3 +111,4 @@ docs/openapi.json
 # ===== OS-Specific =====
 *.lnk
 desktop.ini
+docs/

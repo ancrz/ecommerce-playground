@@ -32,7 +32,7 @@ import logging
 import argparse
 import socket
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Set
 from datetime import datetime
 
 # --- Configuración ---
@@ -260,7 +260,66 @@ def generate_zod_types_from_openapi(schema: Dict[str, Any]) -> str:
     
     schemas = schema.get("components", {}).get("schemas", {})
     
-    for name, definition in schemas.items():
+    # --- Topological Sort ---
+    def get_dependencies(definition: Any) -> Set[str]:
+        """Extrae dependencias ($ref) de un schema recursivamente."""
+        deps = set()
+        if isinstance(definition, dict):
+            if "$ref" in definition:
+                ref = definition["$ref"]
+                if ref.startswith("#/components/schemas/"):
+                    deps.add(ref.split("/")[-1])
+            for value in definition.values():
+                deps.update(get_dependencies(value))
+        elif isinstance(definition, list):
+            for item in definition:
+                deps.update(get_dependencies(item))
+        return deps
+
+    # Construir grafo de dependencias
+    # graph: nombre -> set de dependencias directas
+    graph = {name: get_dependencies(defi) for name, defi in schemas.items()}
+    
+    # Kahn's Algorithm para topological sort
+    sorted_names = []
+    # Nodos sin dependencias pendientes
+    # (Inicialmente, aquellos cuyas dependencias ya están en 'visited' o no tienen)
+    # Pero aquí es al revés: queremos emitir primero los que NO dependen de nadie (hojas)
+    # OJO: Si A depende de B, B debe emitirse primero.
+    
+    # Vamos a usar una lista de "ya emitidos"
+    emitted = set()
+    while len(emitted) < len(schemas):
+        progress = False
+        remaining = [n for n in schemas if n not in emitted]
+        
+        # Ordenar alfabéticamente para determinismo en caso de empate
+        remaining.sort()
+        
+        for name in remaining:
+            deps = graph[name]
+            # Si todas mis dependencias ya fueron emitidas (o son dependencias externas/ignoradas)
+            # Ignoramos dependencias a uno mismo (recursión simple)
+            real_deps = {d for d in deps if d in schemas and d != name}
+            
+            if real_deps.issubset(emitted):
+                sorted_names.append(name)
+                emitted.add(name)
+                progress = True
+        
+        if not progress:
+            # Ciclo detectado - Romper el ciclo arbitrariamente (o usar z.lazy después)
+            # Tomamos el primero que quede para desbloquear
+            logger.warning("⚠️ Ciclo de dependencia detectado en schemas. Rompiendo ciclo.")
+            # Emitir todos los restantes (Zod fallará en runtime si no usamos lazy, pero es mejor que bucle infinito)
+            unemitted = [n for n in schemas if n not in emitted]
+            sorted_names.extend(unemitted)
+            break
+            
+    # Iterar en orden topológico
+    for name in sorted_names:
+        definition = schemas[name]
+        
         # Saltar schemas internos de FastAPI
         if name.startswith("HTTPValidation") or name.startswith("ValidationError"):
             continue
@@ -269,6 +328,8 @@ def generate_zod_types_from_openapi(schema: Dict[str, Any]) -> str:
         
         lines.append(f"// Schema: {name}")
         try:
+            # Pasamos 'emitted' (o sea 'sorted_names' hasta ahora) para saber si podemos referenciar directamente?
+            # Por ahora confiamos en el orden.
             zod_schema = convert_schema_to_zod(definition, schemas, name)
             lines.append(f"export const {name}Schema = {zod_schema};")
             lines.append(f"export type {name} = z.infer<typeof {name}Schema>;")
@@ -294,6 +355,18 @@ def convert_schema_to_zod(schema: Dict[str, Any], all_schemas: Dict, name: str =
     # Nullable
     nullable = schema.get("nullable", False)
     
+    # Parche de Robustez Financiera: Pydantic v2 a veces emite float, OpenAPI dice string(decimal)
+    financial_fields = [
+        "price", "final_price", "subtotal", "tax_amount", 
+        "total", "total_with_tax", "exchange_rate", 
+        "rate", "discount_percentage", "amount"
+    ]
+    if name in financial_fields:
+        base = "z.union([z.string(), z.number()])"
+        if nullable:
+            base += ".nullable()"
+        return base
+
     # String
     if schema_type == "string":
         result = "z.string()"
@@ -346,7 +419,8 @@ def convert_schema_to_zod(schema: Dict[str, Any], all_schemas: Dict, name: str =
         
         fields = []
         for prop_name, prop_schema in properties.items():
-            prop_zod = convert_schema_to_zod(prop_schema, all_schemas)
+            # Recursion: Pasamos prop_name como name
+            prop_zod = convert_schema_to_zod(prop_schema, all_schemas, name=prop_name)
             if prop_name not in required:
                 prop_zod += ".optional()"
             # Sanitize property name
@@ -567,7 +641,7 @@ def generate_react_hooks(schema: Dict[str, Any]) -> str:
         "  mutate: (body: B) => Promise<T>;",
         "}",
         "",
-        "const BASE_URL = config.apiUrl || 'http://localhost:8042';",
+        "const BASE_URL = ''; // Paths de OpenAPI ya incluyen prefijo",
         "",
     ]
     
@@ -662,7 +736,7 @@ def generate_react_hooks(schema: Dict[str, Any]) -> str:
                 lines.append("    data: null, loading: false, error: null, mutate: async () => null as any")
                 lines.append("  });")
                 lines.append("")
-                lines.append(f"  const mutate = async (body{':' if has_body else '?'} {body_type}) => {{")
+                lines.append(f"  const mutate = async (body{':' if has_body else '?:'} {body_type}) => {{")
                 lines.append("    setState(prev => ({ ...prev, loading: true, error: null }));")
                 lines.append("    try {")
                 lines.append(f"      const res = await fetch({url_expr}, {{")
