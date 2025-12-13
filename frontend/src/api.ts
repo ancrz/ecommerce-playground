@@ -7,6 +7,7 @@
  * 3. CADA respuesta JSON del backend es validada (parseada) por Zod
  * antes de ser devuelta. Si la validación falla (el "contrato"
  * está roto), se lanza un error.
+ * 4. Usa variables de entorno a través de config.ts
  */
 import { z, ZodType } from 'zod';
 import type { 
@@ -31,7 +32,11 @@ import {
   MessageResponseSchema // Un esquema genérico para { message: "..." }
 } from './schemas';
 
-const API_URL = '/api';
+// Importar configuración centralizada
+import { config } from './config';
+
+// URL base del API desde configuración (variable de entorno VITE_API_URL)
+const API_URL = config.apiUrl;
 
 // --- Wrapper de Fetch (Manejo de Errores y Token) ---
 
@@ -379,13 +384,24 @@ export const getCart = (cartId: string): Promise<Cart> => {
   return authFetch<Cart>(`/cart/${cartId}`, { method: 'GET' }, CartSchema);
 };
 
+/**
+ * HOMOLOGACIÓN: Crear carrito para usuario invitado.
+ * Usa el nuevo endpoint /cart/guest que genera automáticamente el ID del invitado.
+ */
+export const createGuestCart = (region_id: string, currency_id: string): Promise<Cart> => {
+  const params = new URLSearchParams();
+  params.append('region_id', region_id);
+  params.append('currency_id', currency_id);
+  return authFetch<Cart>(`/cart/guest?${params.toString()}`, { method: 'POST' }, CartSchema);
+};
+
 export const createCart = (customer_name: string, customer_id: string, region_id: string, currency_id: string): Promise<Cart> => {
   const params = new URLSearchParams();
   params.append('customer_name', customer_name);
   params.append('customer_id', customer_id);
   params.append('region_id', region_id);
   params.append('currency_id', currency_id);
-  return authFetch<Cart>(`/cart/?${params.toString()}`, { method: 'POST' }, CartSchema); // <-- Validar
+  return authFetch<Cart>(`/cart/?${params.toString()}`, { method: 'POST' }, CartSchema);
 };
 
 export const addItem = (cartId: string, productId: string, quantity: number): Promise<Cart> => {
@@ -428,5 +444,45 @@ export const closeDay = (): Promise<DailyReport> => {
 };
 
 export const getPendingCarts = (): Promise<Cart[]> => {
-  return authFetch<Cart[]>('/cart/', { method: 'GET' }, z.array(CartSchema)); // <-- Validar
+  return authFetch<Cart[]>('/cart/', { method: 'GET' }, z.array(CartSchema));
+};
+
+// ==================== HOMOLOGACIÓN: Funciones faltantes ====================
+
+/** Obtener un producto por ID */
+export const getProductById = (productId: string): Promise<Product> => {
+  return authFetch<Product>(`/products/${productId}`, { method: 'GET' }, ProductSchema);
+};
+
+/** Obtener la moneda base del sistema */
+export const getBaseCurrency = (): Promise<Currency> => {
+  return authFetch<Currency>('/finance/currencies/base', { method: 'GET' }, CurrencySchema);
+};
+
+/** Eliminar una región fiscal */
+export const deleteRegion = (regionId: string): Promise<{ message: string }> => {
+  return authFetch(`/admin/tax/regions/${regionId}`, { method: 'DELETE' }, MessageResponseSchema);
+};
+
+/** Actualizar una tasa de impuesto existente */
+export const updateTaxRate = (taxRateId: string, updates: Partial<TaxRate>): Promise<TaxRate> => {
+  return authFetch<TaxRate>(`/admin/tax/tax-rates/${taxRateId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  }, TaxRateSchema);
+};
+
+/** Eliminar una tasa de impuesto */
+export const deleteTaxRate = (taxRateId: string): Promise<{ message: string }> => {
+  return authFetch(`/admin/tax/tax-rates/${taxRateId}`, { method: 'DELETE' }, MessageResponseSchema);
+};
+
+/** Obtener el código QR de un carrito */
+export const getCartQR = (cartId: string): Promise<{ qr_code: string }> => {
+  return authFetch<{ qr_code: string }>(`/cart/${cartId}/qr`, { method: 'GET' }, z.object({ qr_code: z.string() }));
+};
+
+/** Eliminar la imagen de un producto */
+export const deleteProductImage = (productId: string): Promise<Product> => {
+  return authFetch<Product>(`/admin/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
 };

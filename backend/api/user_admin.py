@@ -52,7 +52,7 @@ async def get_all_users(
     return users
 
 @router.post(
-    "/users", 
+    "/", 
     response_model=User, 
     status_code=status.HTTP_201_CREATED
 )
@@ -75,7 +75,7 @@ async def create_new_user(
         raise HTTPException(status_code=500, detail="Error interno al crear usuario.")
 
 @router.get(
-    "/users/{user_id}", 
+    "/{user_id}", 
     response_model=User
 )
 async def get_user_by_id(
@@ -92,7 +92,7 @@ async def get_user_by_id(
     return user
 
 @router.put(
-    "/users/{user_id}", 
+    "/{user_id}", 
     response_model=User
 )
 async def update_user(
