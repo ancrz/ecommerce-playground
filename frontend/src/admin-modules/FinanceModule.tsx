@@ -1,0 +1,223 @@
+/**
+ * src/pages/admin-modules/FinanceModule.tsx
+ * "Chunk" para la pestaña de Gestión de Monedas (Lógica SAP).
+ * REFACTORIZADO (FASE 4):
+ * 1. Botones usan clases .btn-primary, .btn-secondary, .btn-link
+ */
+import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
+
+// Importar API y Contexto
+import * as api from '../api';
+import type { Currency } from '../../types';
+
+// Importar componentes reutilizables
+import { Modal } from '../components/Modal';
+import { Input, Checkbox } from '../components/FormControls';
+
+// --- Componente Principal del Módulo ---
+export default function FinanceModule() {
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  
+  const loadCurrencies = async () => {
+    setLoading(true);
+    try {
+      setCurrencies(await api.getCurrencies());
+    } catch (e: any) { alert("Error cargando monedas: " + e.message); }
+    setLoading(false);
+  };
+  
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      setLoading(true);
+      try {
+        setCurrencies(await api.getCurrencies());
+      } catch (e: any) { alert("Error cargando monedas: " + e.message); }
+      setLoading(false);
+    };
+    fetchCurrencies();
+  }, []);
+  
+  const handleSave = async (data: any) => {
+    try {
+      const payload = {
+        name: data.name,
+        symbol: data.symbol,
+        is_base: data.is_base,
+        exchange_rate: parseFloat(data.exchange_rate),
+      };
+      await api.createCurrency(payload);
+      alert('✓ Moneda creada');
+      loadCurrencies();
+      setShowForm(false);
+    } catch (error: any) {
+      alert('Error creando moneda: ' + error.message);
+    }
+  };
+  
+  const handleUpdateRate = async (id: string, name: string, isBase: boolean) => {
+    if (isBase) {
+      alert("No se puede cambiar la tasa de la moneda base (es 1.0 por definición).");
+      return;
+    }
+    const newRate = prompt(`Nueva tasa de cambio para ${name}:\n(Cuántas unidades de la Moneda Base cuestan 1 unidad de esta moneda)`);
+    if (newRate && !isNaN(parseFloat(newRate))) {
+      try {
+        await api.updateCurrencyRate(id, parseFloat(newRate));
+        loadCurrencies();
+      } catch (error: any) {
+        alert('Error actualizando tasa: ' + error.message);
+      }
+    }
+  };
+
+  const handleSetBase = async (id: string, name: string) => {
+    if (confirm(`¿Está seguro de establecer ${name} como la nueva moneda base?\n\n¡ADVERTENCIA! Esta acción recalculará TODAS las demás tasas de cambio en relación a esta.`)) {
+      try {
+        await api.setBaseCurrency(id);
+        alert(`✓ ${name} es ahora la nueva moneda base.`);
+        loadCurrencies();
+      } catch (error: any) {
+        alert('Error estableciendo moneda base: ' + error.message);
+      }
+    }
+  };
+  
+  const handleDelete = async (id: string, name: string, isBase: boolean) => {
+    if (isBase) {
+      alert("No se puede eliminar la moneda base. Primero debe asignar otra moneda como base.");
+      return;
+    }
+    if (confirm(`¿Desactivar moneda "${name}"? (No se puede deshacer)`)) {
+      try {
+        await api.deleteCurrency(id);
+        loadCurrencies();
+      } catch (error: any) {
+        alert('Error eliminando moneda: ' + error.message);
+      }
+    }
+  };
+  
+  return (
+    <>
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Gestión de Monedas (SAP)</h2>
+        {/* REFACTOR FASE 4: Botón Primario */}
+        <button 
+          onClick={() => setShowForm(true)} 
+          className="btn-primary"
+          data-testid="finance-add-currency-btn"
+        >
+          <Plus size={20} /> Nueva Moneda
+        </button>
+      </div>
+      
+      {showForm && (
+        <Modal title="Nueva Moneda" isOpen={showForm} onClose={() => setShowForm(false)} size="md">
+          <CurrencyForm onSave={handleSave} onCancel={() => setShowForm(false)} currencies={currencies} />
+        </Modal>
+      )}
+      
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Nombre</th>
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Tasa (1 [Moneda] = X [Base])</th>
+              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {loading ? (
+              <tr><td colSpan={3} className="text-center p-8 text-gray-500">Cargando monedas...</td></tr>
+            ) : (
+              currencies.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50" data-testid={`currency-row-${c.id}`}>
+                  <td className="p-3">
+                    <div className="font-semibold">{c.name} ({c.symbol})</div>
+                    {c.is_base && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">BASE</span>}
+                  </td>
+                  <td className="p-3">{c.exchange_rate.toFixed(4)}</td>
+                  <td className="p-3 text-center space-x-2 whitespace-nowrap">
+                    {/* REFACTOR FASE 4: Botones de Enlace */}
+                    <button 
+                      onClick={() => handleUpdateRate(c.id, c.name, c.is_base)} 
+                      className="btn-link text-blue-600 disabled:text-gray-400" 
+                      disabled={c.is_base}
+                      data-testid={`update-rate-btn-${c.id}`}
+                    >
+                      Tasa
+                    </button>
+                    <button 
+                      onClick={() => handleSetBase(c.id, c.name)} 
+                      className="btn-link text-green-600 disabled:text-gray-400" 
+                      disabled={c.is_base}
+                      data-testid={`set-base-btn-${c.id}`}
+                    >
+                      Hacer Base
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(c.id, c.name, c.is_base)} 
+                      className="btn-link text-red-600 disabled:text-gray-400" 
+                      disabled={c.is_base}
+                      data-testid={`delete-currency-btn-${c.id}`}
+                    >
+                      Desactivar
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// --- Componente: Formulario de Moneda (Interno) ---
+function CurrencyForm({ onSave, onCancel, currencies }: { onSave: (data: any) => void, onCancel: () => void, currencies: Currency[] }) {
+  const [data, setData] = useState({ name: '', symbol: '', is_base: false, exchange_rate: 1.0 });
+  const baseCurrency = currencies.find(c => c.is_base);
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (data.is_base && baseCurrency) {
+      alert(`Error: Ya existe una moneda base (${baseCurrency.name}).`);
+      return;
+    }
+    onSave(data);
+  };
+  
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <Input label="Nombre (ej. Dólares)" value={data.name} onChange={(e) => setData({...data, name: e.target.value})} required data-testid="currency-name-input" />
+      <Input label="Símbolo (ej. $)" value={data.symbol} onChange={(e) => setData({...data, symbol: e.target.value})} required data-testid="currency-symbol-input" />
+      <Checkbox 
+        label="Es Moneda Base" 
+        checked={data.is_base} 
+        onChange={(e) => setData({...data, is_base: e.target.checked, exchange_rate: 1.0})} 
+        disabled={!!baseCurrency}
+        data-testid="currency-isbase-check"
+      />
+      {!data.is_base && (
+        <Input 
+          label={`Tasa (1 ${baseCurrency?.symbol || 'BASE'} = X ${data.symbol || 'MONEDA'})`} 
+          type="number" 
+          step="0.0001" 
+          value={data.exchange_rate} 
+          onChange={(e) => setData({...data, exchange_rate: parseFloat(e.target.value) || 0})} 
+          required 
+          data-testid="currency-rate-input"
+        />
+      )}
+      {/* REFACTOR FASE 4: Botón Primario y Secundario */}
+      <div className="flex gap-3 pt-4 border-t mt-4">
+        <button type="submit" className="btn-primary flex-1" data-testid="currency-save-button">Guardar</button>
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancelar</button>
+      </div>
+    </form>
+  );
+}
