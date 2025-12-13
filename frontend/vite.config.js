@@ -9,12 +9,12 @@ export default defineConfig({
     proxy: {
       // Proxy para las llamadas a la API
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8042',
         changeOrigin: true
       },
       // Proxy para las imágenes (uploads)
       '/uploads': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8042',
         changeOrigin: true
       }
     }

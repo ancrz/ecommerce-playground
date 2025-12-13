@@ -1,11 +1,13 @@
 """
 API Router para el Carrito de Compras
 REFACTORIZADO: Expone el CartService con lógica de impuestos y seguridad.
+HOMOLOGACIÓN: Endpoint /guest para inicialización de carritos anónimos.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from typing import List, Dict
 from pydantic import BaseModel
+import uuid
 
 # Importar los DTOs (Modelos)
 from ..models.base import Cart, CartItem
@@ -47,6 +49,30 @@ def get_cart_service(request: Request):
 
 # --- Endpoints de la API del Carrito ---
 
+@router.post("/guest", response_model=Cart, status_code=201)
+async def create_guest_cart(
+    region_id: str = Query(..., description="ID de la Región fiscal (para impuestos)"),
+    currency_id: str = Query(..., description="ID de la Moneda (para visualización)"),
+    service: CartService = Depends(get_cart_service)
+):
+    """
+    HOMOLOGACIÓN: Crear un carrito para usuario invitado.
+    Este endpoint centraliza la lógica que antes estaba en el frontend.
+    Genera automáticamente un ID único para el invitado.
+    """
+    try:
+        guest_id = f"guest-{uuid.uuid4().hex[:8]}"
+        cart = await service.create_cart(
+            customer_name="Invitado",
+            customer_id=guest_id,
+            region_id=region_id,
+            currency_id=currency_id
+        )
+        return cart
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/", response_model=Cart, status_code=201)
 async def create_cart(
     customer_name: str = Query(..., description="Nombre del cliente"),
@@ -56,7 +82,7 @@ async def create_cart(
     service: CartService = Depends(get_cart_service)
 ):
     """
-    Crear un nuevo carrito de compras.
+    Crear un nuevo carrito de compras con datos de cliente específicos.
     REFACTOR: Ahora requiere region_id y currency_id.
     """
     try:

@@ -1,13 +1,18 @@
 """
 Modelos base del sistema con encapsulamiento y decoradores
 REFACTORIZADO: (RBAC + Autogestión de Correo/Contraseña)
+HOMOLOGACIÓN: Sincronizado con frontend/src/schemas.ts
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, computed_field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
+import os
+
+# URL base para generar URLs completas de imágenes
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8042")
 
 
 class BaseEntity(BaseModel):
@@ -51,8 +56,10 @@ class Product(BaseEntity):
             return Decimal(str(v))
         return v
     
+    @computed_field
     @property
     def final_price(self) -> Decimal:
+        """Precio final calculado con descuento aplicado."""
         if self.is_discount and self.discount_percentage > 0:
             discount = self.price * (self.discount_percentage / 100)
             final = self.price - discount
@@ -196,13 +203,16 @@ class TaxRate(BaseEntity):
 # (Validados en auditoría anterior)
 
 class CartItem(BaseModel):
+    """Item individual en un carrito de compras."""
     product_id: str
     product_name: str
     quantity: int = Field(..., gt=0)
-    price: Decimal = Field(..., gt=0) # Precio unitario (final_price, sin impuestos)
+    price: Decimal = Field(..., gt=0)  # Precio unitario (final_price, sin impuestos)
     
+    @computed_field
     @property
     def subtotal(self) -> Decimal:
+        """Subtotal calculado (precio * cantidad)."""
         return (self.price * self.quantity).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     
     class Config:
@@ -210,19 +220,22 @@ class CartItem(BaseModel):
         from_attributes = True
 
 class Cart(BaseEntity):
+    """Carrito de compras con items, impuestos y totales."""
     customer_name: str = Field(..., min_length=1)
     customer_id: str = Field(..., min_length=1)
     items: List[CartItem] = Field(default_factory=list)
     status: str = Field(default="pending")
-    currency_id: Optional[str] = None
-    region_id: Optional[str] = None # Región fiscal del cliente
+    currency_id: str = Field(...)  # REQUERIDO - sincronizado con frontend
+    region_id: str = Field(...)    # REQUERIDO - sincronizado con frontend
     subtotal: Decimal = Field(default=0)
     tax_amount: Decimal = Field(default=0)
     total_with_tax: Decimal = Field(default=0)
     qr_code: Optional[str] = None
     
+    @computed_field
     @property
     def item_count(self) -> int:
+        """Cantidad total de items en el carrito."""
         return sum(item.quantity for item in self.items)
 
 
@@ -275,13 +288,21 @@ class DailyReport(BaseModel):
 
 
 # ==================== MODELOS DE CONFIGURACIÓN ====================
-# (Validados en auditoría anterior)
+# (HOMOLOGACIÓN: SocialNetwork sincronizado con frontend/src/schemas.ts)
+
+class SocialNetwork(BaseModel):
+    """Modelo de red social para BusinessInfo. Sincronizado con frontend."""
+    name: str
+    url: str
+    icon: Optional[str] = None
+
 
 class BusinessInfo(BaseModel):
+    """Información del negocio."""
     name: str = "E-Commerce"
     rif: Optional[str] = None
     contact: Optional[str] = None
-    social_networks: List[Dict[str, Any]] = Field(default_factory=list)
+    social_networks: List[SocialNetwork] = Field(default_factory=list)  # TIPADO FUERTE
     logo_url: Optional[str] = None
     icon_url: Optional[str] = None
     banner_url: Optional[str] = None
@@ -289,8 +310,9 @@ class BusinessInfo(BaseModel):
     
     @validator('logo_url', 'icon_url', 'banner_url', pre=True, always=True)
     def add_host_to_url(cls, v):
+        """Añade el host base a URLs relativas."""
         if v and not v.startswith('http'):
-            return f"http://localhost:8000{v}"
+            return f"{BACKEND_URL}{v}"
         return v
 
     class Config:
@@ -317,8 +339,9 @@ class Customization(BaseModel):
     
     @validator('icon_products_url', 'icon_business_url', 'icon_customization_url', 'icon_finance_url', 'icon_sales_url', 'icon_users_url', 'icon_tax_url', pre=True, always=True)
     def add_host_to_icon_url(cls, v):
+        """Añade el host base a URLs relativas de iconos."""
         if v and not v.startswith('http'):
-            return f"http://localhost:8000{v}"
+            return f"{BACKEND_URL}{v}"
         return v
 
     class Config:
