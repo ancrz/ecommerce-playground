@@ -7,6 +7,7 @@
  * 3. CADA respuesta JSON del backend es validada (parseada) por Zod
  * antes de ser devuelta. Si la validación falla (el "contrato"
  * está roto), se lanza un error.
+ * 4. Usa variables de entorno a través de config.ts
  */
 import { z, ZodType } from 'zod';
 import type { 
@@ -31,7 +32,11 @@ import {
   MessageResponseSchema // Un esquema genérico para { message: "..." }
 } from './schemas';
 
-const API_URL = '/api';
+// Importar configuración centralizada
+import { config } from './config';
+
+// URL base del API desde configuración (variable de entorno VITE_API_URL)
+const API_URL = config.apiUrl;
 
 // --- Wrapper de Fetch (Manejo de Errores y Token) ---
 
