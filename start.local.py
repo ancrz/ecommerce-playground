@@ -439,6 +439,7 @@ def main():
     parser.add_argument("--frontend-only", action="store_true", help="Solo iniciar frontend")
     parser.add_argument("--force", "-f", action="store_true", help="Forzar reinicio si ya está corriendo")
     parser.add_argument("--no-bootstrap", action="store_true", help="No ejecutar bootstrap automático")
+    parser.add_argument("--no-watch", action="store_true", help="Deshabilitar watcher automático")
     args = parser.parse_args()
     
     print("\n>>> Iniciando farmalux-ecommerce <<<\n")
@@ -449,7 +450,7 @@ def main():
     # Inicializar componentes
     detector = SystemDetector()
     lock = LockFile(LOCK_FILE)
-    processes: List[Dict] = []
+    # processes se llenará al iniciar servicios
     
     # Verificar si ya está corriendo (via .lock)
     existing_lock = lock.read()
@@ -486,7 +487,10 @@ def main():
         except AttributeError:
             pass
     
+    
     # Iniciar servicios
+    processes = []
+    
     if not args.frontend_only:
         backend_info = start_backend(detector)
         if backend_info:
@@ -496,7 +500,44 @@ def main():
         frontend_info = start_frontend(detector)
         if frontend_info:
             processes.append(frontend_info)
-    
+            
+    # Iniciar Watcher (si no se deshabilita)
+    if not args.no_watch and not args.frontend_only and not args.backend_only:
+        watch_script = PROJECT_ROOT / "scripts" / "watch.py"
+        if watch_script.exists():
+            logger.info("👀 Iniciando Watcher de cambios...")
+            python = detector.find_python()
+            
+            # Flags para nueva ventana en Windows (para que se vea el output del watcher)
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP if detector.is_windows() else 0
+            
+            # En Windows queremos ver el watcher en consola, pero si estamos en start.local podemos
+            # simplemente lanzarlo. Para simplificar y mejorar la DX, sería ideal tenerlo visible.
+            # Por ahora lo lanzamos como proceso background y sus logs irán a archivo o consola compartida.
+            
+            cmd = [python, "-m", "scripts.watch"]
+            
+            # Redirigir log para no mezclar outputs si no es nueva ventana
+            log_dir = PROJECT_ROOT / "data" / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = open(log_dir / "watcher.log", "a", encoding="utf-8")
+            
+            proc = subprocess.Popen(
+                cmd, 
+                cwd=PROJECT_ROOT,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                creationflags=creation_flags
+            )
+            
+            processes.append({
+                "type": "watcher",
+                "pid": proc.pid,
+                "port": 0, # No usa puerto
+                "cmd": cmd
+            })
+            logger.info(f"✓ Watcher activado (PID: {proc.pid}) - Logs en data/logs/watcher.log")
+
     if not processes:
         logger.info("\nℹ️ No se iniciaron servicios nuevos (ya estaban corriendo)")
         return 0
