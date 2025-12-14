@@ -38,13 +38,14 @@ A **Single Page Application (SPA)** e-commerce platform designed as a developmen
 
 ### Backend
 
-| Technology         | Purpose                              |
-| ------------------ | ------------------------------------ |
-| **FastAPI**        | High-performance async API framework |
-| **Pydantic v2**    | Data validation & serialization      |
-| **SQLite/Alembic** | Database & migrations                |
-| **PyJWT**          | Authentication & RBAC                |
-| **aiosqlite**      | Async database operations            |
+| Technology      | Purpose                              |
+| --------------- | ------------------------------------ |
+| **FastAPI**     | High-performance async API framework |
+| **Pydantic v2** | Data validation & serialization      |
+| **SQLAlchemy**  | ORM (Relational Mapping)             |
+| **Alembic**     | Database migrations                  |
+| **PyJWT**       | Authentication & RBAC                |
+| **aiosqlite**   | Async database driver                |
 
 </td>
 <td width="50%">
@@ -56,6 +57,7 @@ A **Single Page Application (SPA)** e-commerce platform designed as a developmen
 | **React 18**     | UI component library      |
 | **TypeScript**   | Type-safe development     |
 | **Vite**         | Lightning-fast build tool |
+| **React Query**  | State & Cache Management  |
 | **Zod**          | Runtime schema validation |
 | **Lucide React** | Modern icon library       |
 
@@ -92,7 +94,7 @@ python start.local.py
 
 # Access the application
 # Frontend → http://localhost:5173
-# Backend API → http://localhost:8000/docs
+# Backend API → http://localhost:8042/docs
 ```
 
 ### Stop Servers
