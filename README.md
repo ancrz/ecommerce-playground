@@ -38,13 +38,14 @@ A **Single Page Application (SPA)** e-commerce platform designed as a developmen
 
 ### Backend
 
-| Technology         | Purpose                              |
-| ------------------ | ------------------------------------ |
-| **FastAPI**        | High-performance async API framework |
-| **Pydantic v2**    | Data validation & serialization      |
-| **SQLite/Alembic** | Database & migrations                |
-| **PyJWT**          | Authentication & RBAC                |
-| **aiosqlite**      | Async database operations            |
+| Technology      | Purpose                              |
+| --------------- | ------------------------------------ |
+| **FastAPI**     | High-performance async API framework |
+| **Pydantic v2** | Data validation & serialization      |
+| **SQLAlchemy**  | ORM (Relational Mapping)             |
+| **Alembic**     | Database migrations                  |
+| **PyJWT**       | Authentication & RBAC                |
+| **aiosqlite**   | Async database driver                |
 
 </td>
 <td width="50%">
@@ -56,6 +57,7 @@ A **Single Page Application (SPA)** e-commerce platform designed as a developmen
 | **React 18**     | UI component library      |
 | **TypeScript**   | Type-safe development     |
 | **Vite**         | Lightning-fast build tool |
+| **React Query**  | State & Cache Management  |
 | **Zod**          | Runtime schema validation |
 | **Lucide React** | Modern icon library       |
 
@@ -92,7 +94,7 @@ python start.local.py
 
 # Access the application
 # Frontend → http://localhost:5173
-# Backend API → http://localhost:8000/docs
+# Backend API → http://localhost:8042/docs
 ```
 
 ### Stop Servers
@@ -130,30 +132,26 @@ ecommerce-playground/
 
 ## 🔑 Key Features
 
-<table>
-<tr>
-<td>
+## 🌟 Current System Status
 
-### Core E-Commerce
+### 🏢 Core Modules (Admin Panel)
 
-- 🛍️ Product catalog with categories
-- 🛒 Shopping cart with real-time updates
-- 💳 Multi-payment support
-- 📊 Sales & daily reports
+- **Finance (SAP-like):** Multi-currency engine with "Base Currency" logic and real-time exchange rate conversion.
+- **Tax Management:** Dynamic regional tax rules (States, Cities) and cumulative tax rate calculations.
+- **User Management (RBAC):** Granular Role-Based Access Control enforcing specific permissions for Admins and Managers.
+- **Product Catalogue:** Currency-aware pricing, inventory management, and image handling.
 
-</td>
-<td>
+### 👁️ Observability & Logging
 
-### Administration
+- **Centralized Logging:** Unified storage in `data/logs/` for both Backend and Frontend events.
+- **Remote Client Logging:** Captures browser errors and `console.log` and ships them to the backend for analysis.
+- **Log Rotation:** Automated session-based log rotation with timestamps.
 
-- 👥 Role-Based Access Control (RBAC)
-- 🏪 Business customization
-- 💰 Multi-currency support
-- 📋 Regional tax management
+### ⚡ Modern Architecture
 
-</td>
-</tr>
-</table>
+- **Sync Engine:** `scripts/regenerate.py` automatically synchronizes Backend OpenAPI schemas with Frontend Zod types and TypeScript interfaces.
+- **State Management:** Powered by **React Query** for automatic cache invalidation and data freshness.
+- **UI/UX:** Glassmorphism design system using TailwindCSS (Backdrop Blur modals).
 
 ---
 

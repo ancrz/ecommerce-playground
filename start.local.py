@@ -310,6 +310,27 @@ def run_bootstrap(detector: SystemDetector) -> bool:
     return True
 
 
+def rotate_log_file(file_path: Path):
+    """Rota un archivo de log usando timestamp."""
+    if file_path.exists():
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Formato: backend.20251213_191200.log
+        backup = file_path.with_name(f"{file_path.stem}.{timestamp}{file_path.suffix}")
+        try:
+            # Rename puede fallar en Windows si el archivo está abierto (locked)
+            # Pero start.local.py asume que si inicia, el anterior ya murió.
+            # Si falla (WinError 32), intentamos ignorar.
+            try:
+                file_path.rename(backup)
+                logger.debug(f"📜 Log rotado: {file_path.name} -> {backup.name}")
+            except OSError:
+                # Si está bloqueado, no podemos rotarlo (probablemente proceso zombie).
+                pass 
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo rotar {file_path.name}: {e}")
+
+
+
 def start_backend(detector: SystemDetector) -> Optional[Dict[str, Any]]:
     """Inicia el servidor backend."""
     backend_port = int(os.getenv("BACKEND_PORT", "8042"))
@@ -340,7 +361,12 @@ def start_backend(detector: SystemDetector) -> Optional[Dict[str, Any]]:
     # Crear archivo de log para el backend
     log_dir = PROJECT_ROOT / "data" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = open(log_dir / "backend.log", "a", encoding="utf-8")
+    
+    # Rotar log anterior
+    log_path = log_dir / "backend.log"
+    rotate_log_file(log_path)
+    
+    log_file = open(log_path, "a", encoding="utf-8")
     
     proc = subprocess.Popen(
         cmd,
@@ -386,7 +412,12 @@ def start_frontend(detector: SystemDetector) -> Optional[Dict[str, Any]]:
     # Crear archivo de log para el frontend
     log_dir = PROJECT_ROOT / "data" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = open(log_dir / "frontend.log", "a", encoding="utf-8")
+    
+    # Rotar log anterior
+    log_path = log_dir / "frontend.log"
+    rotate_log_file(log_path)
+    
+    log_file = open(log_path, "a", encoding="utf-8")
     
     proc = subprocess.Popen(
         cmd,

@@ -106,6 +106,8 @@ def is_process_running(pid: int) -> bool:
         return True
     except OSError:
         return False
+    except SystemError:
+        return False
 
 
 def kill_process(pid: int, force: bool = False) -> bool:
