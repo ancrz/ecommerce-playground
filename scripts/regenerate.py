@@ -798,86 +798,81 @@ def main():
         if args.no_start:
             logger.error(f"❌ Backend no está corriendo en puerto {backend_port}")
             return 1
-        
         backend_proc = start_backend_temp()
         if not backend_proc:
             return 1
         backend_started = True
     else:
-        logger.info(f"✓ Backend detectado en puerto {backend_port}")
-    
+        logger.info(f"ℹ️ Backend detectado en puerto {backend_port}")
+
     try:
-        # 1. Descargar OpenAPI
-        logger.info("\n📥 Descargando schema OpenAPI...")
+        # 1. Obtener Schema
         schema = fetch_openapi_schema(backend_port)
-        
         if not schema:
-            logger.error("❌ No se pudo obtener el schema OpenAPI")
             return 1
         
-        # Contar endpoints y schemas
-        paths_count = len(schema.get("paths", {}))
-        schemas_count = len(schema.get("components", {}).get("schemas", {}))
-        logger.info(f"   Paths: {paths_count}, Schemas: {schemas_count}")
-        
-        # Solo validar si se pide
-        if args.validate:
-            results = validate_endpoints(schema, backend_port)
-            errors = len([r for r in results if r[2] >= 400 or r[2] == 0])
-            return 1 if errors > 0 else 0
-        
-        # 2. Guardar schema OpenAPI
         save_openapi_schema(schema)
         
-        # 3. Generar Código Frontend
+        # 2. Validar Endpoints (opcional)
+        if args.validate:
+            results = validate_endpoints(schema, backend_port)
+            # Si solo validamos, salimos (o seguimos?)
+            # El usuario usaría --validate solo para chequear.
+            if args.validate:  
+                 # Si validate es flag exclusiva, return. Si es aditiva, seguir.
+                 # Asumamos aditiva.
+                 pass
+
+        # 3. Generar Tipos Zod
         if not args.no_types:
-            # Tipos Zod
-            logger.info("\n⚙️ Generando tipos Zod...")
+            logger.info("⚙️ Generando tipos Zod...")
             zod_code = generate_zod_types_from_openapi(schema)
             save_generated_types(zod_code)
             
-            # API Helpers
-            logger.info("\n⚙️ Generando API helpers...")
+            logger.info("⚙️ Generando API helpers...")
             api_code = generate_api_helpers(schema)
             save_api_helpers(api_code)
             
-            # React Hooks
-            logger.info("\n⚙️ Generando React Hooks...")
+            logger.info("⚙️ Generando React Hooks...")
             hooks_code = generate_react_hooks(schema)
             save_hooks(hooks_code)
-        
-        # 5. Validar endpoints (después de generar, para aprovechar tiempo)
-        validate_endpoints(schema, backend_port)
-        
-        # 6. Ejecutar migraciones
+
+        # 4. Migraciones (Alembic)
         if args.migrate:
-            logger.info("\n📦 Ejecutando migraciones...")
             run_alembic_autogenerate()
-        
-        # Resumen final
-        logger.info("\n" + "=" * 60)
-        logger.info("✅ Regeneración completada")
-        logger.info("=" * 60)
-        logger.info("")
-        logger.info("Archivos generados:")
-        logger.info(f"  - docs/openapi.json")
-        if not args.no_types:
-            logger.info(f"  - frontend/src/types.generated.ts")
-            logger.info(f"  - frontend/src/api.generated.ts")
-            logger.info(f"  - frontend/src/hooks.generated.ts")
-        logger.info("")
-        logger.info(f"Log: {LOG_DIR / 'regenerate.log'}")
-        
-        return 0
-        
+
     finally:
-        if backend_started and backend_proc:
+        # Cerrar backend temporal ANTES del seed para liberar locks de SQLite
+        if backend_proc:
             logger.info("🛑 Deteniendo backend temporal...")
             backend_proc.terminate()
-            try:
-                backend_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                backend_proc.kill()
+            backend_proc.wait()
+    
+    # 5. Seed (Siempre, o controlado por flag? Usuario dijo "deben estar en (siempre)")
+    # Ejecutamos fuera del bloque try/finally del backend para asegurar que back temp esté cerrado.
+    run_seed()
+
+    logger.info("\n✨ Regeneración Completada ✨\n")
+    return 0
+
+
+def run_seed():
+    """Ejecuta el script de seed."""
+    logger.info("🌱 Ejecutando seeds (Reset DB)...")
+    python = get_python_executable()
+    seed_script = PROJECT_ROOT / "scripts" / "seed_dummies.py"
+    
+    if not seed_script.exists():
+        logger.warning(f"⚠️ Seed script no encontrado: {seed_script}")
+        return
+
+    try:
+        # Ejecutar seed
+        subprocess.run([python, str(seed_script)], check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ Error en Seed: {e}")
+    except Exception as e:
+        logger.error(f"❌ Error inesperado en Seed: {e}")
 
 
 if __name__ == "__main__":

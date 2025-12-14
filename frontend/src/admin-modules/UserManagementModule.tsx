@@ -6,7 +6,8 @@
  * 1. Botones usan clases .btn-primary, .btn-secondary, .btn-icon
  * 2. Corregidas rutas de importación de Fase 2.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, KeyRound, Loader2, Save } from "lucide-react";
 
 // Importar API y Contexto
@@ -27,10 +28,51 @@ const AVAILABLE_ROLES = [
   { id: "content_manager", label: "Gestor de Contenido (Marca/Tema)" },
 ];
 
-// --- Componente Principal del Módulo ---
+// --- Componente Principal del Módulo (Refactorizado con React Query) ---
 export default function UserManagementModule() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  // Queries
+  const {
+    data: users = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["users"],
+    queryFn: api.getAllUsers,
+  });
+
+  // Mutations
+  const saveMutation = useMutation({
+    mutationFn: async ({
+      data,
+      isNew,
+      id,
+    }: {
+      data: Partial<UserCreateRequest | UserUpdateRequest>;
+      isNew: boolean;
+      id?: string;
+    }) => {
+      if (isNew) {
+        return api.createNewUser(data as UserCreateRequest);
+      } else {
+        if (!id) throw new Error("ID requerido para actualizar");
+        return api.updateUser(id, data as UserUpdateRequest);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      alert(
+        variables.isNew
+          ? "✓ Usuario creado exitosamente."
+          : "✓ Usuario actualizado exitosamente."
+      );
+      handleCloseForm();
+    },
+    onError: (err: any) => {
+      alert("Error guardando usuario: " + (err.message || err));
+    },
+  });
 
   // Estado para los modales
   const [showUserForm, setShowUserForm] = useState(false);
@@ -39,21 +81,7 @@ export default function UserManagementModule() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [userToReset, setUserToReset] = useState<User | null>(null);
 
-  const loadUsers = async () => {
-    setLoading(true);
-    try {
-      const fetchedUsers = await api.getAllUsers();
-      setUsers(fetchedUsers);
-    } catch (e: any) {
-      alert("Error cargando usuarios: " + e.message);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
+  // Manejadores
   const handleNewUser = () => {
     setEditingUser(null);
     setShowUserForm(true);
@@ -69,23 +97,15 @@ export default function UserManagementModule() {
     setEditingUser(null);
   };
 
-  const handleSaveUser = async (
+  const handleSaveUser = (
     data: Partial<UserCreateRequest | UserUpdateRequest>,
     isNew: boolean
   ) => {
-    try {
-      if (isNew) {
-        await api.createNewUser(data as UserCreateRequest);
-        alert("✓ Usuario creado exitosamente.");
-      } else if (editingUser) {
-        await api.updateUser(editingUser.id, data as UserUpdateRequest);
-        alert("✓ Usuario actualizado exitosamente.");
-      }
-      handleCloseForm();
-      loadUsers(); // Recargar la lista
-    } catch (e: any) {
-      alert("Error guardando usuario: " + e.message);
-    }
+    saveMutation.mutate({
+      data,
+      isNew,
+      id: editingUser?.id,
+    });
   };
 
   const handleResetPassword = (user: User) => {
@@ -97,6 +117,14 @@ export default function UserManagementModule() {
     setShowResetModal(false);
     setUserToReset(null);
   };
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 text-red-600 rounded">
+        Error cargando usuarios: {(error as any).message}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -110,7 +138,7 @@ export default function UserManagementModule() {
         >
           <UserFormModal
             user={editingUser}
-            onSave={handleSaveUser}
+            onSave={(data, isNew) => handleSaveUser(data, isNew)}
             onCancel={handleCloseForm}
           />
         </Modal>
@@ -171,10 +199,12 @@ export default function UserManagementModule() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {loading ? (
+            {isLoading ? (
               <tr>
                 <td colSpan={6} className="text-center p-8 text-gray-500">
-                  Cargando usuarios...
+                  <div className="flex justify-center items-center gap-2">
+                    <Loader2 className="animate-spin" /> Cargando usuarios...
+                  </div>
                 </td>
               </tr>
             ) : (

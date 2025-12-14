@@ -28,6 +28,15 @@ logger = logging.getLogger(__name__)
 auth_logger = logging.getLogger("backend.utils.auth")
 auth_logger.setLevel(logging.DEBUG)
 
+# Configurar logs por módulo
+try:
+    from .utils.logging import setup_logs
+    setup_logs()
+except ImportError:
+    logger.warning("No se pudo cargar backend.utils.logging")
+except Exception as e:
+    logger.error(f"Error configurando logs granulares: {e}")
+
 # --- 1. Importar Módulos Base ---
 from .database.manager import DatabaseManager # [cite: 124]
 from .models.base import Product, User, Region, TaxRate # (y otros DTOs) [cite: 126]
@@ -49,7 +58,7 @@ from .api import (
     auth, business, cart, customization, finance, 
     images, products, sales, 
     # (Importar routers nuevos)
-    tax_admin, user_admin
+    tax_admin, user_admin, client_logs # NEW
 )
 
 # --- 4. Importar Guardianes RBAC ---
@@ -190,6 +199,7 @@ app.include_router(products.router, prefix="/api/products", tags=["Productos (Ti
 app.include_router(finance.router, prefix="/api/finance", tags=["Finanzas (Tienda)"])
 app.include_router(business.router, prefix="/api/business", tags=["Negocio (Tienda)"])
 app.include_router(cart.router, prefix="/api/cart", tags=["Carrito (Tienda)"])
+app.include_router(client_logs.router, prefix="/api/client-logs", tags=["Observabilidad"]) # NEW
 
 # --- APIs de Administración (Protegidas por RBAC) ---
 # (Solo usuarios logueados con roles específicos pueden acceder)
