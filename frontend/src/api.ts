@@ -270,6 +270,36 @@ export const deleteProduct = (productId: string): Promise<{ message: string }> =
   return authFetch(`/products/${productId}`, { method: 'DELETE' }, MessageResponseSchema); // <-- Validar
 };
 
+/**
+ * Crear producto con imagen en una sola llamada.
+ * Usa multipart/form-data para enviar datos + archivo.
+ */
+export const createProductWithImage = async (
+  data: ProductCreate,
+  file?: File
+): Promise<Product> => {
+  const formData = new FormData();
+  
+  // Añadir campos del producto
+  formData.append('name', data.name);
+  formData.append('price', String(data.price));
+  formData.append('description', data.description || '');
+  formData.append('sku', data.sku || '');
+  formData.append('stock', String(data.stock || 0));
+  formData.append('category', data.category || '');
+  formData.append('is_featured', String(data.is_featured || false));
+  formData.append('is_discount', String(data.is_discount || false));
+  formData.append('discount_percentage', String(data.discount_percentage || 0));
+  formData.append('banner_assignment', data.banner_assignment || 'main');
+  
+  // Añadir archivo si existe
+  if (file) {
+    formData.append('file', file);
+  }
+  
+  return authFetchForm<Product>('/products/with-image', formData, ProductSchema);
+};
+
 // ==================== API de Admin: Imágenes (Orquestador) ====================
 
 export const uploadProductImage = (productId: string, file: File): Promise<Product> => {

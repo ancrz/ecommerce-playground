@@ -14,9 +14,9 @@ import { Upload, X, Save, Plus, Trash2, Image, Edit2 } from "lucide-react";
 // Importar API y Contexto
 import * as api from "../api";
 import { useApp } from "../App";
-import type { Product, Currency } from "../../types"; // <-- REFACTOR FASE 3: Importar Currency
+import type { Product, Currency } from "../types"; // <-- REFACTOR FASE 3: Importar Currency
 // Importar los DTOs de Intención (deben estar en types.ts)
-import type { ProductCreate, ProductUpdate } from "../../types";
+import type { ProductCreate, ProductUpdate } from "../types";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -31,14 +31,12 @@ export default function ProductsModule() {
   // REFACTOR FASE 3: Consumir la moneda seleccionada
   const { selectedCurrency } = useApp();
 
-  const handleSaveProduct = async (formData: Partial<Product>) => {
+  const handleSaveProduct = async (formData: Partial<Product>, imageFile?: File) => {
     setIsSaving(true);
     try {
       const isNew = !formData.id;
 
-      // 1. Usar los DTOs de Intención (ProductCreate / ProductUpdate)
-      // (formData.price ya está en la MONEDA BASE gracias a la
-      // lógica del formulario 'currency-aware')
+      // Construir payload
       const payload: ProductCreate | ProductUpdate = {
         name: formData.name!,
         description: formData.description || "",
@@ -46,7 +44,7 @@ export default function ProductsModule() {
         price: formData.price || 0,
         stock: formData.stock || 0,
         category: formData.category || "",
-        image_url: formData.image_url || null,
+        image_url: formData.image_url || undefined,
         is_featured: formData.is_featured || false,
         is_discount: formData.is_discount || false,
         discount_percentage: formData.discount_percentage || 0,
@@ -55,24 +53,30 @@ export default function ProductsModule() {
 
       let savedProduct: Product;
       if (isNew) {
-        // (A) Endpoint de Creación (solo datos)
-        savedProduct = await api.createProduct(payload as ProductCreate);
+        // NUEVO: Usar endpoint unificado si hay imagen
+        if (imageFile) {
+          savedProduct = await api.createProductWithImage(payload as ProductCreate, imageFile);
+        } else {
+          savedProduct = await api.createProduct(payload as ProductCreate);
+        }
       } else {
-        // (B) Endpoint de Actualización (solo datos)
+        // Actualización: Datos primero, luego imagen si hay
         savedProduct = await api.updateProduct(
           formData.id!,
           payload as ProductUpdate
         );
+        
+        // Si hay nueva imagen, subirla después
+        if (imageFile) {
+          savedProduct = await api.uploadProductImage(formData.id!, imageFile);
+        }
       }
 
       if (savedProduct.id) {
         alert(isNew ? "✓ Producto creado" : "✓ Producto actualizado");
-        // REFACTOR (Flujo de Imagen):
-        // Mantenemos al usuario en el formulario (en modo edición)
-        // para que ahora pueda subir la imagen.
-        setEditingProduct(savedProduct);
-        setShowForm(true);
-        setRefreshKey((k) => k + 1); // Refrescar lista en segundo plano
+        setShowForm(false);
+        setEditingProduct(null);
+        setRefreshKey((k) => k + 1);
       }
     } catch (error: any) {
       console.error(error);
@@ -225,9 +229,10 @@ function ProductList({
                 <td className="px-4 py-3">
                   {product.image_url ? (
                     <img
-                      src={`${SERVER_URL}${product.image_url}?t=${product.updated_at}`}
+                      src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
                       alt={product.name}
                       className="w-16 h-16 object-cover rounded image-preview"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
@@ -253,7 +258,7 @@ function ProductList({
                   </div>
                   {product.is_discount && (
                     <div className="text-xs text-red-600">
-                      Desc: {formatPrice(product.final_price)} (-
+                      Desc: {formatPrice(product.final_price ?? product.price)} (-
                       {product.discount_percentage}%)
                     </div>
                   )}
@@ -326,14 +331,16 @@ function ProductForm({
   selectedCurrency,
 }: {
   product: Product | null;
-  onSave: (data: Partial<Product>) => void;
+  onSave: (data: Partial<Product>, imageFile?: File) => void;
   onCancel: () => void;
   isSaving: boolean;
   selectedCurrency: Currency | null;
 }) {
   const [formData, setFormData] = useState<Partial<Product>>(product || {});
   const [displayPrice, setDisplayPrice] = useState("0");
-  const [isUploading, setIsUploading] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   useEffect(() => {
     const basePrice = product?.price || 0;
@@ -351,6 +358,9 @@ function ProductForm({
         image_url: "",
       }
     );
+    // Reset image state when product changes
+    setPendingImageFile(null);
+    setImagePreview(product?.image_url || null);
 
     if (selectedCurrency && !selectedCurrency.is_base) {
       setDisplayPrice((basePrice / selectedCurrency.exchange_rate).toFixed(2));
@@ -361,7 +371,7 @@ function ProductForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave(formData, pendingImageFile || undefined);
   };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,19 +388,15 @@ function ProductForm({
     setFormData({ ...formData, price: newBasePrice });
   };
 
-  const handleImageUpload = async (file: File) => {
-    if (!formData.id) return;
-    setIsUploading(true);
-    try {
-      const updatedProduct = await api.uploadProductImage(formData.id, file);
-      setFormData((prev) => ({ ...prev, image_url: updatedProduct.image_url }));
-      alert("✓ Imagen subida exitosamente");
-    } catch (error: any) {
-      alert("Error subiendo imagen: " + error.message);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleImageSelect = (file: File) => {
+    setPendingImageFile(file);
+    // Create local preview
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
+
+  const currentImageUrl = imagePreview || formData.image_url;
 
   return (
     <form
@@ -489,21 +495,39 @@ function ProductForm({
 
         {/* Columna Derecha: Imagen */}
         <div>
-          {formData.id ? (
-            <ImageUploader
-              label="Imagen del Producto"
-              currentImageUrl={formData.image_url}
-              onFileSelect={handleImageUpload}
-              isUploading={isUploading}
-            />
-          ) : (
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 h-64 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Image size={48} className="mx-auto mb-2" />
-                <p className="text-sm font-semibold">
-                  Guarde el producto primero
-                </p>
-                <p className="text-xs">para poder subir una imagen</p>
+          <ImageUploader
+            label="Imagen del Producto"
+            currentImageUrl={currentImageUrl}
+            onFileSelect={handleImageSelect}
+            isUploading={isSaving}
+          />
+          {pendingImageFile && !formData.id && (
+            <p className="text-xs text-blue-600 mt-2">
+              ✓ Imagen seleccionada. Se subirá al guardar el producto.
+            </p>
+          )}
+          
+          {/* Modal de preview */}
+          {showImageModal && currentImageUrl && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+              onClick={() => setShowImageModal(false)}
+            >
+              <div className="relative max-w-4xl max-h-[90vh]">
+                <button 
+                  onClick={() => setShowImageModal(false)}
+                  className="absolute -top-10 right-0 text-white hover:text-gray-300"
+                >
+                  <X size={32} />
+                </button>
+                <img 
+                  src={currentImageUrl.startsWith('data:') 
+                    ? currentImageUrl 
+                    : `${SERVER_URL}${currentImageUrl}?t=${Date.now()}`
+                  }
+                  alt="Preview"
+                  className="max-w-full max-h-[85vh] object-contain rounded-lg"
+                />
               </div>
             </div>
           )}
@@ -514,7 +538,7 @@ function ProductForm({
       <div className="flex gap-3 mt-6 pt-6 border-t">
         <button
           type="submit"
-          disabled={isSaving || isUploading || !formData.name || !displayPrice}
+          disabled={isSaving || !formData.name || !displayPrice}
           data-testid="product-form-save-button"
           className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 flex items-center justify-center gap-2"
         >
@@ -528,7 +552,7 @@ function ProductForm({
         <button
           type="button"
           onClick={onCancel}
-          disabled={isSaving || isUploading}
+          disabled={isSaving}
           className="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition font-semibold"
         >
           Cancelar

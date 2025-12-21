@@ -37,6 +37,8 @@ dependencies = [
     # Async HTTP & Email
     "httpx>=0.26.0",
     "aiosmtplib>=3.0.0",
+    "watchdog>=3.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]

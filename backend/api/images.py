@@ -69,12 +69,12 @@ async def upload_product_image(
     try:
         file_data = await file.read()
         
-        # Paso 1: Guardar el archivo físico
+        # Paso 1: Guardar el archivo físico (Full + Thumbnail)
         # Usa el product_id como nombre de archivo para evitar duplicados
-        image_url = image_service.process_and_save(
+        image_url = image_service.process_and_save_multi_size(
             file_data=file_data,
             original_filename=file.filename,
-            save_filename=product_id, # Guarda como "product_id.jpg"
+            save_filename=product_id, # Guarda como "product_id.jpg" + "product_id_thumb.jpg"
             folder="products"
         )
         
@@ -87,7 +87,7 @@ async def upload_product_image(
         update_dto = ProductUpdate(image_url=image_url)
         updated_product = await product_service.update_product(
             product_id, 
-            updates=update_dto.model_dump()
+            updates=update_dto.model_dump(exclude_none=True)
         )
         
         return updated_product
@@ -123,11 +123,10 @@ async def delete_product_image(
         # Paso 1: Borrar el archivo físico
         image_service.delete_image(product.image_url)
         
-        # Paso 2: Actualizar la URL en la base de datos
-        update_dto = ProductUpdate(image_url=None) # Poner a NULL
+        # Paso 2: Actualizar la URL en la base de datos (Poner a NULL explícitamente)
         updated_product = await product_service.update_product(
             product_id, 
-            updates=update_dto.model_dump()
+            updates={"image_url": None}
         )
         return updated_product
         

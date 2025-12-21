@@ -773,107 +773,149 @@ def save_hooks(code: str) -> Path:
     return output_path
 
 
-def main():
-    """Entry point principal."""
-    parser = argparse.ArgumentParser(description="Regenerar cliente API")
-    parser.add_argument("--no-start", action="store_true", help="No iniciar backend si no está corriendo")
-    parser.add_argument("--migrate", action="store_true", help="Ejecutar autogenerate de migraciones")
-    parser.add_argument("--no-types", action="store_true", help="No generar tipos TypeScript")
-    parser.add_argument("--validate", action="store_true", help="Solo validar endpoints sin regenerar")
-    # Argumento implícito: siempre genera hooks si genera types
-    args = parser.parse_args()
-    
-    print("\n>>> Regenerando Cliente API <<<\n")
-    logger.info(f"Log file: {LOG_DIR / 'regenerate.log'}")
-    
-    # Cargar configuración
-    load_env()
-    
-    backend_port = int(os.getenv("BACKEND_PORT", "8042"))
-    backend_started = False
-    backend_proc = None
-    
-    # Verificar si backend está corriendo
-    if not is_port_in_use(backend_port):
-        if args.no_start:
-            logger.error(f"❌ Backend no está corriendo en puerto {backend_port}")
-            return 1
-        backend_proc = start_backend_temp()
-        if not backend_proc:
-            return 1
-        backend_started = True
-    else:
-        logger.info(f"ℹ️ Backend detectado en puerto {backend_port}")
 
-    try:
-        # 1. Obtener Schema
-        schema = fetch_openapi_schema(backend_port)
-        if not schema:
-            return 1
-        
-        save_openapi_schema(schema)
-        
-        # 2. Validar Endpoints (opcional)
-        if args.validate:
-            results = validate_endpoints(schema, backend_port)
-            # Si solo validamos, salimos (o seguimos?)
-            # El usuario usaría --validate solo para chequear.
-            if args.validate:  
-                 # Si validate es flag exclusiva, return. Si es aditiva, seguir.
-                 # Asumamos aditiva.
-                 pass
-
-        # 3. Generar Tipos Zod
-        if not args.no_types:
-            logger.info("⚙️ Generando tipos Zod...")
-            zod_code = generate_zod_types_from_openapi(schema)
-            save_generated_types(zod_code)
-            
-            logger.info("⚙️ Generando API helpers...")
-            api_code = generate_api_helpers(schema)
-            save_api_helpers(api_code)
-            
-            logger.info("⚙️ Generando React Hooks...")
-            hooks_code = generate_react_hooks(schema)
-            save_hooks(hooks_code)
-
-        # 4. Migraciones (Alembic)
-        if args.migrate:
-            run_alembic_autogenerate()
-
-    finally:
-        # Cerrar backend temporal ANTES del seed para liberar locks de SQLite
-        if backend_proc:
-            logger.info("🛑 Deteniendo backend temporal...")
-            backend_proc.terminate()
-            backend_proc.wait()
-    
-    # 5. Seed (Siempre, o controlado por flag? Usuario dijo "deben estar en (siempre)")
-    # Ejecutamos fuera del bloque try/finally del backend para asegurar que back temp esté cerrado.
-    run_seed()
-
-    logger.info("\n✨ Regeneración Completada ✨\n")
-    return 0
-
-
-def run_seed():
-    """Ejecuta el script de seed."""
-    logger.info("🌱 Ejecutando seeds (Reset DB)...")
+def manage_service(action: str):
+    """Start or stop the main service using start.local.py / stop.local.py"""
     python = get_python_executable()
-    seed_script = PROJECT_ROOT / "scripts" / "seed_dummies.py"
+    script = PROJECT_ROOT / f"{action}.local.py"
     
-    if not seed_script.exists():
-        logger.warning(f"⚠️ Seed script no encontrado: {seed_script}")
+    if not script.exists():
+        logger.warning(f"Script {script} not found")
         return
 
-    try:
-        # Ejecutar seed
-        subprocess.run([python, str(seed_script)], check=True)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"❌ Error en Seed: {e}")
-    except Exception as e:
-        logger.error(f"❌ Error inesperado en Seed: {e}")
+    logger.info(f"⚙️ Executing {action}.local.py...")
+    subprocess.run([python, str(script)], check=False)
 
+
+def run_seed_hard():
+    """Ejecuta el reset completo de la BD (Seed Dummies)."""
+    logger.info("💀 HARD RESET: Limpiando y repoblando Base de Datos...")
+    python = get_python_executable()
+    seed_script = PROJECT_ROOT / "scripts" / "seed_dummies.py"
+    try:
+        subprocess.run([python, str(seed_script)], check=True)
+        logger.info("✓ Seed completado")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ Error en seed: {e}")
+        sys.exit(1)
+
+
+def run_migrations_soft():
+    """Ejecuta migraciones de Alembic (Soft Sync)."""
+    logger.info("🔄 SOFT SYNC: Verificando migraciones...")
+    if not run_alembic_autogenerate():
+        logger.warning("⚠️ Hubo problemas con las migraciones")
+
+
+def regenerate_frontend_artifacts(port: int):
+    """Core logic: Fetch OpenAPI -> Generate Zod -> Generate Hooks -> Generate Helpers"""
+    logger.info(f"⚡ Regenerando artefactos frontend desde http://localhost:{port}...")
+    
+    # 1. Fetch Schema
+    schema = fetch_openapi_schema(port)
+    if not schema:
+        logger.error("❌ No se pudo obtener el schema OpenAPI. Abortando frontend gen.")
+        return
+
+    # 2. Save OpenAPI.json
+    save_openapi_schema(schema)
+
+    # 3. Validate Endpoints
+    # validate_endpoints(schema, port) 
+
+    # 4. Generate Zod Types
+    logger.info("⚙️ Generando Tipos Zod...")
+    zod_code = generate_zod_types_from_openapi(schema)
+    save_generated_types(zod_code)
+
+    # 5. Generate API Helpers
+    logger.info("⚙️ Generando API Helpers...")
+    helpers_code = generate_api_helpers(schema)
+    save_api_helpers(helpers_code)
+
+    # 6. Generate React Hooks
+    logger.info("⚙️ Generando React Hooks...")
+    hooks_code = generate_react_hooks(schema)
+    save_hooks(hooks_code)
+
+
+def main():
+    """Entry point principal con modos estilo dev-pipeline.sh"""
+    parser = argparse.ArgumentParser(description="Regenerar ecosistema (Hybrid Pipeline)")
+    
+    # Modos mutuamente excluyentes
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--hard", action="store_true", help="Hard Reset: Stop -> Wipe DB -> Seed -> Start -> Regen")
+    group.add_argument("--soft", action="store_true", help="Soft Sync: Migrations -> Regen Front")
+    group.add_argument("--front", action="store_true", help="Front Only: Regen Front (requires backend running)")
+    group.add_argument("--validate", action="store_true", help="Validation Only")
+    
+    args = parser.parse_args()
+    
+    mode = "soft"
+    if args.hard: mode = "hard"
+    elif args.front: mode = "front"
+    elif args.validate: mode = "validate"
+    
+    print(f"\n>>> Pipeline: {mode.upper()} MODE <<<\n")
+    logger.info(f"Log file: {LOG_DIR / 'regenerate.log'}")
+    
+    load_env()
+    backend_port = int(os.getenv("BACKEND_PORT", "8042"))
+
+    # === HARD MODE ===
+    if mode == "hard":
+        manage_service("stop")
+        run_seed_hard()
+        manage_service("start")
+        
+        logger.info("⏳ Esperando a que el backend esté saludable...")
+        if not wait_for_backend(backend_port, timeout=60):
+            logger.error("❌ Backend no respondió tras reinicio")
+            return 1
+            
+        regenerate_frontend_artifacts(backend_port)
+
+    # === SOFT MODE ===
+    elif mode == "soft":
+        run_migrations_soft()
+        if not is_port_in_use(backend_port):
+            logger.warning("⚠️ Backend no está corriendo. Iniciando temporalmente...")
+            proc = start_backend_temp()
+            if proc:
+                try:
+                    regenerate_frontend_artifacts(backend_port)
+                finally:
+                    logger.info("🛑 Deteniendo backend temporal...")
+                    proc.terminate()
+                    proc.wait()
+        else:
+             regenerate_frontend_artifacts(backend_port)
+
+    # === FRONT MODE ===
+    elif mode == "front":
+        if not is_port_in_use(backend_port):
+            logger.error(f"❌ Backend no está corriendo en puerto {backend_port}. Inícialo o usa --soft/--hard.")
+            return 1
+        regenerate_frontend_artifacts(backend_port)
+
+    # === VALIDATE MODE ===
+    elif mode == "validate":
+         if not is_port_in_use(backend_port):
+             proc = start_backend_temp()
+             if proc:
+                 try:
+                     schema = fetch_openapi_schema(backend_port)
+                     validate_endpoints(schema, backend_port)
+                 finally:
+                     proc.terminate()
+                     proc.wait()
+         else:
+             schema = fetch_openapi_schema(backend_port)
+             validate_endpoints(schema, backend_port)
+
+    logger.info("\n✨ Pipeline Finalizado ✨\n")
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

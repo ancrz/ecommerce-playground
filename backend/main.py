@@ -181,6 +181,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware para headers de caché en /uploads/ (compatible con Traefik/CDN)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response
+
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """Añade headers de caché para archivos estáticos servidos desde /uploads/"""
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: Response = await call_next(request)
+        
+        # Solo para rutas de uploads y respuestas exitosas
+        if request.url.path.startswith("/uploads/") and response.status_code == 200:
+            # Cache por 1 año (inmutable, versionado por ?t=timestamp)
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            # ETag para validación condicional (Traefik lo usará)
+            # El timestamp en la URL (?t=...) ya actúa como versionador
+        
+        return response
+
+app.add_middleware(CacheControlMiddleware)
+
 # Montar carpeta de uploads como archivos estáticos [cite: 214]
 # (Permite que el frontend vea /uploads/products/abc.jpg)
 app.mount(

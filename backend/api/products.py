@@ -6,7 +6,7 @@ REFACTORIZADO:
 - Se actualizó el inyector de dependencias.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Form, File, UploadFile
 from typing import List, Optional, Dict, Any
 
 import logging
@@ -185,6 +185,81 @@ async def delete_product(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error al eliminar producto '{product_id}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/with-image", response_model=Product, status_code=201)
+async def create_product_with_image(
+    request: Request,
+    name: str = Form(...),
+    price: float = Form(...),
+    description: str = Form(""),
+    sku: str = Form(""),
+    stock: int = Form(0),
+    category: str = Form(""),
+    is_featured: str = Form("false"),  # Recibir como string
+    is_discount: str = Form("false"),  # Recibir como string
+    discount_percentage: float = Form(0.0),
+    banner_assignment: str = Form("main"),
+    file: Optional[UploadFile] = File(None),
+    service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Crear un producto con imagen en una sola llamada.
+    Compatible con formularios multipart/form-data.
+    Genera automáticamente thumbnail + imagen full size.
+    """
+    from ..services.image_service import ImageService
+    
+    # Parsear booleans desde strings (FormData siempre envía strings)
+    is_featured_bool = is_featured.lower() in ("true", "1", "yes")
+    is_discount_bool = is_discount.lower() in ("true", "1", "yes")
+    
+    try:
+        # 1. Crear el producto
+        product_data = ProductCreate(
+            name=name,
+            price=price,
+            description=description,
+            sku=sku,
+            stock=stock,
+            category=category,
+            is_featured=is_featured_bool,
+            is_discount=is_discount_bool,
+            discount_percentage=discount_percentage,
+            banner_assignment=banner_assignment
+        )
+        product = Product(**product_data.model_dump())
+        new_product = await service.create_product(product)
+        
+        # 2. Si hay imagen, procesarla con múltiples tamaños
+        if file and file.filename:
+            image_service: ImageService = request.app.state.image_service
+            if not image_service:
+                logger.warning("ImageService no disponible, producto creado sin imagen")
+            else:
+                file_data = await file.read()
+                # Genera imagen full + thumbnail
+                image_url = image_service.process_and_save_multi_size(
+                    file_data=file_data,
+                    original_filename=file.filename,
+                    save_filename=new_product.id,
+                    folder="products"
+                )
+                # Actualizar el producto con la URL de la imagen
+                new_product = await service.update_product(
+                    new_product.id,
+                    {"image_url": image_url}
+                )
+        
+        return new_product
+        
+    except ValueError as e:
+        logger.warning(f"Error de validación al crear producto con imagen: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error al crear producto con imagen: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

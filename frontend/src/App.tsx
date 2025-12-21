@@ -366,7 +366,12 @@ export default function App() {
 
   return (
     <AppContext.Provider value={contextValue}>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         {/* Modales Globales */}
         <LoginModal
           isOpen={showLogin}
