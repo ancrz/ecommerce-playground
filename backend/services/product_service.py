@@ -275,6 +275,11 @@ class ProductService:
         
         # Obtener el siguiente display_order
         existing = await self.get_product_images(product_id)
+        if len(existing) >= 5:
+             # Ojo: Si estamos editando podríamos querer reemplazar, pero esta función es "add".
+             # El frontend debe borrar antes o manejar el reemplazo.
+             raise ValueError("El producto ha alcanzado el límite máximo de 5 imágenes.")
+             
         next_order = len(existing)
         
         # Crear la imagen

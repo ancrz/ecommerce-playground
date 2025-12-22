@@ -17,7 +17,8 @@ import type {
   BusinessInfo, BusinessInfoUpdate, Customization,
   User, TokenResponse, 
   UserCreateRequest, UserUpdateRequest, 
-  PasswordChangeRequest, PasswordResetRequest, PasswordResetValidate
+  PasswordChangeRequest, PasswordResetRequest, PasswordResetValidate,
+  ProductImage
 } from './types';
 
 // Importar los esquemas (la nueva "fuente de verdad")
@@ -29,7 +30,7 @@ import {
   UserPublicSchema, TokenResponseSchema,
   UserCreateRequestSchema, UserUpdateRequestSchema,
   PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetValidateSchema,
-  MessageResponseSchema // Un esquema genérico para { message: "..." }
+  MessageResponseSchema, ProductImageSchema // Un esquema genérico para { message: "..." }
 } from './schemas';
 
 // Importar configuración centralizada
@@ -228,6 +229,8 @@ export const getAllProducts = (): Promise<Product[]> => {
 export const searchProducts = (query: string): Promise<Product[]> => {
   return authFetch<Product[]>(`/products/search?q=${encodeURIComponent(query)}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
 };
+
+// (Moved to Gallery Section at the end)
 
 export const getSliderProducts = (type: 'main' | 'featured' | 'discount'): Promise<ProductCard[]> => {
   return authFetch<ProductCard[]>(`/products/slider/${type}`, { method: 'GET' }, z.array(ProductCardSchema)); // <-- Validar
@@ -512,75 +515,36 @@ export const getCartQR = (cartId: string): Promise<{ qr_code: string }> => {
   return authFetch<{ qr_code: string }>(`/cart/${cartId}/qr`, { method: 'GET' }, z.object({ qr_code: z.string() }));
 };
 
-/** Eliminar la imagen principal de un producto */
-export const deleteProductImage = (productId: string): Promise<Product> => {
+/** Eliminar la imagen principal de un producto (Legacy) */
+export const removeProductMainImage = (productId: string): Promise<Product> => {
   return authFetch<Product>(`/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
 };
 
 // ==================== GALERÍA DE IMÁGENES ====================
 
-/** Schema para imágenes de galería */
-const ProductImageSchema = z.object({
-  id: z.string(),
-  product_id: z.string(),
-  image_url: z.string(),
-  thumbnail_url: z.string().nullable().optional(),
-  is_main: z.boolean(),
-  display_order: z.number(),
-  alt_text: z.string().nullable().optional(),
-  created_at: z.string().optional(),
-});
-
-export type ProductImageType = z.infer<typeof ProductImageSchema>;
+// ==================== GALERÍA DE IMÁGENES ====================
+// (Usa ProductImageSchema importado de schemas.ts)
 
 /** Obtener todas las imágenes de la galería de un producto */
-export const getProductGallery = (productId: string): Promise<ProductImageType[]> => {
-  return authFetch<ProductImageType[]>(
-    `/images/products/${productId}/gallery`, 
-    { method: 'GET' }, 
-    z.array(ProductImageSchema)
-  );
+export const getProductImages = (productId: string): Promise<ProductImage[]> => {
+  return authFetch<ProductImage[]>(`/products/${productId}/images`, { method: 'GET' }, z.array(ProductImageSchema));
 };
 
 /** Subir una imagen a la galería del producto */
-export const uploadGalleryImage = async (
-  productId: string, 
-  file: File, 
-  isMain: boolean = false
-): Promise<ProductImageType> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('is_main', String(isMain));
-  
-  const token = localStorage.getItem('token');
-  const response = await fetch(`${API_URL}/images/products/${productId}/gallery`, {
-    method: 'POST',
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
-    throw new Error(error.detail || 'Error al subir imagen');
-  }
-  
-  return response.json();
+export const addProductImage = async (productId: string, file: File, isMain: boolean = false): Promise<ProductImage> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('is_main', String(isMain));
+    // AuthFetchForm maneja el token y headers
+    return authFetchForm<ProductImage>(`/products/${productId}/images`, formData, ProductImageSchema);
 };
 
 /** Establecer una imagen como principal */
-export const setMainGalleryImage = (productId: string, imageId: string): Promise<{ message: string }> => {
-  return authFetch(
-    `/images/products/${productId}/gallery/${imageId}/set-main`,
-    { method: 'PUT' },
-    z.object({ message: z.string(), image_id: z.string() })
-  );
+export const setMainImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}/main`, { method: 'PUT' }, MessageResponseSchema);
 };
 
 /** Eliminar una imagen de la galería */
-export const deleteGalleryImage = (productId: string, imageId: string): Promise<{ message: string }> => {
-  return authFetch(
-    `/images/products/${productId}/gallery/${imageId}`,
-    { method: 'DELETE' },
-    z.object({ message: z.string(), image_id: z.string() })
-  );
+export const deleteProductImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}`, { method: 'DELETE' }, MessageResponseSchema);
 };

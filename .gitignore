@@ -116,3 +116,8 @@ desktop.ini
 docs/
 example/
 
+
+# Local Logs and Temps
+logs/
+*.log
+backend_running

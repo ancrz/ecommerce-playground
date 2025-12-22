@@ -263,6 +263,87 @@ async def create_product_with_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# REFACTOR: Endpoint 'upload_product_image' ELIMINADO.
-# Esta lógica ahora vive centralizada en 'backend/api/images.py',
-# que es el siguiente módulo que auditaremos.
+# REFACTOR: Endpoint 'upload_product_image' ELIMINADO en favor de api/images.py
+# PERO: Añadimos endpoints para MULTI-IMAGEN (nueva feature)
+
+@router.get("/{product_id}/images", response_model=List[Dict[str, Any]])
+async def get_product_images(
+    product_id: str,
+    service: ProductService = Depends(get_product_service)
+):
+    """Obtener todas las imágenes de un producto."""
+    images = await service.get_product_images(product_id)
+    return images
+
+@router.post("/{product_id}/images", status_code=201)
+async def add_product_image(
+    product_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    is_main: bool = Form(False),
+    service: ProductService = Depends(get_product_service)
+):
+    """
+    Subir una imagen adicional a un producto existente (Máximo 5).
+    """
+    from ..services.image_service import ImageService
+    
+    try:
+        image_service: ImageService = request.app.state.image_service
+        if not image_service:
+            raise HTTPException(status_code=503, detail="Servicio de imágenes no disponible.")
+            
+        file_data = await file.read()
+        import uuid
+        image_uuid = str(uuid.uuid4())
+        
+        # Procesar imagen (Guardar física)
+        # Usamos image_uuid como nombre de archivo para evitar colisiones
+        image_url = image_service.process_and_save_multi_size(
+            file_data=file_data,
+            original_filename=file.filename or "image.jpg",
+            save_filename=f"{product_id}_{image_uuid}",
+            folder="products"
+        )
+        
+        # Registrar en DB
+        result = await service.add_product_image(product_id, image_url, is_main=is_main)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error subiendo imagen extra: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{product_id}/images/{image_id}")
+async def delete_product_image(
+    product_id: str,
+    image_id: str,
+    service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """Eliminar una imagen específica."""
+    try:
+        await service.delete_product_image(product_id, image_id)
+        return {"message": "Imagen eliminada"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error eliminando imagen {image_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error interno")
+
+@router.put("/{product_id}/images/{image_id}/main")
+async def set_main_image(
+    product_id: str,
+    image_id: str,
+    service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """Establecer imagen como principal."""
+    try:
+        await service.set_main_image(product_id, image_id)
+        return {"message": "Imagen principal actualizada"}
+    except Exception as e:
+        logger.error(f"Error setting main image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

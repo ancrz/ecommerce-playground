@@ -59,6 +59,15 @@ export const ProductCreateSchema = z.object({
 
 export const ProductUpdateSchema = ProductCreateSchema.partial();
 
+export const ProductImageSchema = z.object({
+  id: z.string().uuid(),
+  product_id: z.string().uuid(),
+  image_url: z.string(),
+  thumbnail_url: z.string().nullable().optional(),
+  is_main: z.boolean(),
+  display_order: z.number().int(),
+});
+
 // ==================== FINANCIEROS ====================
 
 export const CurrencySchema = BaseEntitySchema.extend({

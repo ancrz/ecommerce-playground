@@ -571,6 +571,30 @@ function ProductForm({
           )}
         </div>
       </div>
+      </div> 
+      {/* Fin Tab Detalles */}
+
+      {/* TAB IMÁGENES */}
+      {activeTab === 'images' && formData.id && (
+        <ProductImageManager productId={formData.id} />
+      )}
+
+      {/* TAB CONFIGURACIÓN */}
+      {activeTab === 'config' && (
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold text-lg mb-4">Configuración Avanzada</h3>
+          <p className="text-gray-500 mb-4">Opciones de SKU, SEO y Logística (Próximamente)</p>
+          <div className="grid grid-cols-1 gap-4 opacity-50 pointer-events-none">
+             <Input label="SKU (Stock Keeping Unit)" value={formData.sku || ''} disabled />
+             <Input label="Meta Title (SEO)" disabled />
+             <Input label="Meta Description (SEO)" disabled />
+          </div>
+        </div>
+      )}
+
+      {/* Botones (Solo en tab detalles o global? Dejémoslo global pero oculto en images si se desea) */}
+      {activeTab !== 'images' && (
+      <div className="flex gap-3 mt-6 pt-6 border-t">
 
       {/* Botones */}
       <div className="flex gap-3 mt-6 pt-6 border-t">
@@ -599,6 +623,136 @@ function ProductForm({
     </form>
   );
 }
+
+// --- Componente: Gestor de Imágenes (Galería) ---
+function ProductImageManager({ productId }: { productId: string }) {
+  const [images, setImages] = useState<ProductImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useFeedback();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadImages = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getProductImages(productId);
+      setImages(data);
+    } catch (error) {
+      console.error("Error loading images:", error);
+      showToast("Error al cargar galería", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [productId, showToast]);
+
+  useEffect(() => {
+    loadImages();
+  }, [loadImages]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (images.length >= 5) {
+      showToast("Máximo 5 imágenes permitidas", "warning");
+      return;
+    }
+
+    try {
+      await addProductImage(productId, file);
+      showToast("Imagen subida exitosamente", "success");
+      loadImages();
+    } catch (error: any) {
+      showToast(error.message || "Error al subir imagen", "error");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (imageId: string) => {
+    if (!confirm("¿Eliminar esta imagen?")) return;
+    try {
+      await deleteProductImage(productId, imageId);
+      showToast("Imagen eliminada", "success");
+      loadImages();
+    } catch (error) {
+      showToast("Error al eliminar", "error");
+    }
+  };
+
+  const handleSetMain = async (imageId: string) => {
+    try {
+      await setMainImage(productId, imageId);
+      showToast("Imagen principal actualizada", "success");
+      loadImages();
+    } catch (error) {
+      showToast("Error al actualizar principal", "error");
+    }
+  };
+
+  if (loading && images.length === 0) return <div className="p-8 text-center">Cargando imágenes...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Galería de Imágenes ({images.length}/5)</h3>
+        {images.length < 5 && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Upload size={18} /> Subir Imagen
+            </button>
+        )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handleUpload}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {images.map((img) => (
+          <div key={img.id} className={`relative group border rounded-lg p-2 ${img.is_main ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'}`}>
+            <div className="w-full h-32 bg-gray-50 rounded flex items-center justify-center overflow-hidden mb-2">
+              <img 
+                src={`${SERVER_URL}${img.image_url}`} 
+                alt="Product" 
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            
+            <div className="flex justify-between items-center px-1">
+                {img.is_main ? (
+                  <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
+                    <Star size={12} fill="currentColor" /> Principal
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleSetMain(img.id)}
+                    className="text-xs text-gray-500 hover:text-blue-600 underline"
+                  >
+                    Hacer Principal
+                  </button>
+                )}
+                
+                <button 
+                  onClick={() => handleDelete(img.id)}
+                  className="text-red-500 hover:text-red-700 p-1"
+                  title="Eliminar"
+                >
+                  <Trash2 size={16} />
+                </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 // --- Componente: Subidor de Imágenes de Producto (Simplificado) ---
 function ImageUploader({
@@ -652,32 +806,32 @@ function ImageUploader({
           type="file"
           accept="image/*"
           onChange={handleFileChange}
-          className="hidden"
-          disabled={isUploading}
-        />
-        {preview ? (
-          <div className="relative group">
-            <img
-              src={
-                preview.startsWith("data:")
-                  ? preview
-                  : `${SERVER_URL}${preview}?t=${new Date().getTime()}`
-              }
-              alt="Preview"
-              className="w-full h-48 object-contain rounded-lg bg-gray-50 image-preview"
+              className="hidden"
+              disabled={isUploading}
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="opacity-0 group-hover:opacity-100 transition bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                {isUploading ? "Subiendo..." : "Cambiar Imagen"}
-              </button>
-            </div>
-          </div>
-        ) : (
+            {preview ? (
+              <div className="relative group w-full h-48 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                <img
+                  src={
+                    preview.startsWith("data:")
+                      ? preview
+                      : `${SERVER_URL}${preview}?t=${new Date().getTime()}`
+                  }
+                  alt="Preview"
+                  className="max-w-full max-h-full object-contain"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="opacity-0 group-hover:opacity-100 transition bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    {isUploading ? "Subiendo..." : "Cambiar Imagen"}
+                  </button>
+                </div>
+              </div>
+            ) : (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
