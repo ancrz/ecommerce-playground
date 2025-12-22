@@ -512,7 +512,75 @@ export const getCartQR = (cartId: string): Promise<{ qr_code: string }> => {
   return authFetch<{ qr_code: string }>(`/cart/${cartId}/qr`, { method: 'GET' }, z.object({ qr_code: z.string() }));
 };
 
-/** Eliminar la imagen de un producto */
+/** Eliminar la imagen principal de un producto */
 export const deleteProductImage = (productId: string): Promise<Product> => {
-  return authFetch<Product>(`/admin/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
+  return authFetch<Product>(`/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
+};
+
+// ==================== GALERÍA DE IMÁGENES ====================
+
+/** Schema para imágenes de galería */
+const ProductImageSchema = z.object({
+  id: z.string(),
+  product_id: z.string(),
+  image_url: z.string(),
+  thumbnail_url: z.string().nullable().optional(),
+  is_main: z.boolean(),
+  display_order: z.number(),
+  alt_text: z.string().nullable().optional(),
+  created_at: z.string().optional(),
+});
+
+export type ProductImageType = z.infer<typeof ProductImageSchema>;
+
+/** Obtener todas las imágenes de la galería de un producto */
+export const getProductGallery = (productId: string): Promise<ProductImageType[]> => {
+  return authFetch<ProductImageType[]>(
+    `/images/products/${productId}/gallery`, 
+    { method: 'GET' }, 
+    z.array(ProductImageSchema)
+  );
+};
+
+/** Subir una imagen a la galería del producto */
+export const uploadGalleryImage = async (
+  productId: string, 
+  file: File, 
+  isMain: boolean = false
+): Promise<ProductImageType> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('is_main', String(isMain));
+  
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/images/products/${productId}/gallery`, {
+    method: 'POST',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Error desconocido' }));
+    throw new Error(error.detail || 'Error al subir imagen');
+  }
+  
+  return response.json();
+};
+
+/** Establecer una imagen como principal */
+export const setMainGalleryImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+  return authFetch(
+    `/images/products/${productId}/gallery/${imageId}/set-main`,
+    { method: 'PUT' },
+    z.object({ message: z.string(), image_id: z.string() })
+  );
+};
+
+/** Eliminar una imagen de la galería */
+export const deleteGalleryImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+  return authFetch(
+    `/images/products/${productId}/gallery/${imageId}`,
+    { method: 'DELETE' },
+    z.object({ message: z.string(), image_id: z.string() })
+  );
 };

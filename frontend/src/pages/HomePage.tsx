@@ -18,7 +18,9 @@ import {
 import * as api from "../api";
 import * as hooks from "../hooks.generated";
 import { useApp } from "../App";
+import { useFeedback } from "../components/ui/FeedbackModal";
 import type { Product, ProductCard } from "../types";
+import ProductDetailModal from "../components/ProductDetailModal";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -28,15 +30,33 @@ function ProductSlider({
   title,
   products,
   customization,
+  onProductClick,
 }: {
   title: string;
   products: (Product | ProductCard)[];
   customization: any;
+  onProductClick?: (product: Product | ProductCard) => void;
 }) {
   // REFACTOR: Consume el contexto para precio y carrito
   const { addToCart, formatPrice } = useApp();
+  const { showToast } = useFeedback();
   const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [addingProductId, setAddingProductId] = React.useState<string | null>(null);
   const itemsPerPage = 4; // Mostrar 4 productos a la vez
+
+  // Handler para agregar al carrito con feedback
+  const handleAddToCart = async (productId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAddingProductId(productId);
+    try {
+      await addToCart(productId, 1);
+      showToast('¡Producto agregado al carrito!', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'Error al agregar', 'error');
+    } finally {
+      setAddingProductId(null);
+    }
+  };
 
   const next = () => {
     if (currentIndex < products.length - itemsPerPage) {
@@ -90,8 +110,9 @@ function ProductSlider({
         {visibleProducts.map((product) => (
           <div
             key={product.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col"
+            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col cursor-pointer"
             data-testid={`product-card-${product.id}`}
+            onClick={() => onProductClick?.(product)}
           >
             <div className="relative h-48 bg-gray-100 flex items-center justify-center">
               {product.image_url ? (
@@ -151,14 +172,18 @@ function ProductSlider({
               </div>
 
               <button
-                onClick={() => addToCart(product.id, 1)}
+                onClick={(e) => handleAddToCart(product.id, e)}
+                disabled={addingProductId === product.id}
                 style={{
                   backgroundColor: customization?.primary_color || "#264192",
                 }}
-                className="w-full text-white py-2 rounded-lg hover:opacity-90 transition font-semibold"
+                className="w-full text-white py-2 rounded-lg hover:opacity-90 transition font-semibold disabled:opacity-70 flex items-center justify-center gap-2"
                 data-testid={`add-to-cart-${product.id}`}
               >
-                Agregar al Carrito
+                {addingProductId === product.id ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : null}
+                {addingProductId === product.id ? 'Agregando...' : 'Agregar al Carrito'}
               </button>
             </div>
           </div>
@@ -192,6 +217,17 @@ export default function HomePage() {
   );
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  
+  // Estado para el modal de detalle de producto
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Handler para abrir el modal de detalle
+  const handleProductClick = (product: Product | ProductCard) => {
+    // Convertir ProductCard a Product si es necesario (fetch completo)
+    setSelectedProduct(product as Product);
+    setIsDetailModalOpen(true);
+  };
 
   // REFACTOR: Lógica de búsqueda
   const handleSearch = async () => {
@@ -257,6 +293,7 @@ export default function HomePage() {
           title={`Resultados para "${searchQuery}"`}
           products={searchResults}
           customization={customization}
+          onProductClick={handleProductClick}
         />
       ) : (
         /* Ocultar sliders principales si hay búsqueda */
@@ -266,6 +303,7 @@ export default function HomePage() {
               title="⭐ Productos Destacados"
               products={featuredProducts}
               customization={customization}
+              onProductClick={handleProductClick}
             />
           )}
 
@@ -274,6 +312,7 @@ export default function HomePage() {
               title="🔥 Productos en Descuento"
               products={discountProducts}
               customization={customization}
+              onProductClick={handleProductClick}
             />
           )}
 
@@ -282,10 +321,18 @@ export default function HomePage() {
               title="💊 Todos los Productos"
               products={mainProducts}
               customization={customization}
+              onProductClick={handleProductClick}
             />
           )}
         </>
       )}
+
+      {/* Modal de Detalle de Producto */}
+      <ProductDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        product={selectedProduct}
+      />
     </div>
   );
 }

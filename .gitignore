@@ -106,8 +106,6 @@ alembic/versions/*.py
 
 # ===== Generated Files (by scripts/regenerate.py) =====
 frontend/src/api/generated/
-frontend/src/types.generated.ts
-*.generated.ts
 docs/openapi.json
 
 # ===== OS-Specific =====
@@ -116,4 +114,5 @@ desktop.ini
 
 # ===== Folders =====
 docs/
+example/
 

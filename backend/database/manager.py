@@ -57,6 +57,19 @@ _SCHEMAS_POSTGRES = {
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         );
+    """, """
+        CREATE TABLE IF NOT EXISTS product_images (
+            id VARCHAR(36) PRIMARY KEY,
+            product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            image_url TEXT NOT NULL,
+            thumbnail_url TEXT,
+            is_main BOOLEAN DEFAULT false,
+            display_order INTEGER DEFAULT 0,
+            alt_text VARCHAR(200),
+            created_at TIMESTAMPTZ NOT NULL
+        );
+    """, """
+        CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
     """],
     "cart": ["""
         CREATE TABLE IF NOT EXISTS carts (
@@ -236,6 +249,8 @@ _SCHEMAS_SQLITE = {
                   .replace("VARCHAR(100)", "TEXT")
                   .replace("VARCHAR(50)", "TEXT")
                   .replace("TIMESTAMPTZ", "TEXT")
+                  .replace("REFERENCES products(id)", "REFERENCES products (id)")
+                  .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX IF NOT EXISTS")
                   for s in _SCHEMAS_POSTGRES["products"]],
     "cart": [s.replace("NUMERIC(10, 2)", "REAL")
               .replace("VARCHAR(36)", "TEXT")

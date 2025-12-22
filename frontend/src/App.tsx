@@ -49,6 +49,7 @@ interface AppContextType {
   setSelectedCurrency: (currency: Currency) => void; // <-- REFACTOR FASE 3
   addToCart: (productId: string, quantity: number) => Promise<void>; // <-- REFACTOR FASE 5
   removeFromCart: (productId: string) => Promise<void>; // <-- REFACTOR FASE 5
+  setCart: (cart: Cart) => void; // <-- Exponer para CartModal
   getCartItemCount: () => number;
   formatPrice: (priceInBase: number) => string; // Refactorizado
   forceAppUpdate: () => void;
@@ -260,18 +261,15 @@ export default function App() {
 
   const addToCart = async (productId: string, quantity: number) => {
     if (!cart) {
-      alert(
-        "El carrito no está inicializado. Por favor, espere o recargue la página."
-      );
-      return;
+      throw new Error("El carrito no está inicializado. Por favor, recargue la página.");
     }
     try {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart);
-      alert("Producto agregado al carrito"); // Feedback al usuario
+      // Feedback se maneja en el componente que llama (ProductDetailModal, HomePage)
     } catch (error: any) {
       console.error("Error al agregar al carrito:", error);
-      alert(`Error: ${error.message}`);
+      throw error; // Re-lanzar para que el componente lo maneje
     }
   };
 
@@ -282,7 +280,7 @@ export default function App() {
       setCart(updatedCart);
     } catch (error: any) {
       console.error("Error al eliminar del carrito:", error);
-      alert(`Error: ${error.message}`);
+      throw error;
     }
   };
 
@@ -356,6 +354,7 @@ export default function App() {
     setSelectedCurrency, // <-- REFACTOR FASE 3
     addToCart,
     removeFromCart,
+    setCart, // <-- Para CartModal
     getCartItemCount,
     formatPrice,
     forceAppUpdate: () => setAppKey((k) => k + 1),

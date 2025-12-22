@@ -95,6 +95,27 @@ class ProductCard(BaseModel):
         json_encoders = {Decimal: lambda v: float(v)}
         from_attributes = True
 
+
+class ProductImage(BaseModel):
+    """
+    Imagen asociada a un producto.
+    Soporta múltiples imágenes por producto con una imagen principal (is_main).
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str = Field(...)
+    image_url: str = Field(...)
+    thumbnail_url: Optional[str] = None
+    is_main: bool = Field(default=False)
+    display_order: int = Field(default=0)
+    alt_text: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() + 'Z'
+        }
+
 class ProductCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None

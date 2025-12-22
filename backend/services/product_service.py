@@ -199,6 +199,29 @@ class ProductService:
                 (quantity_change, product_id)
             )
             logger.info(f"Stock atómico actualizado para {product_id}. Cambio: {quantity_change}")
+            
+            # === [NEW] Evento de Real-Time (WebSocket & Webhook) ===
+            try:
+                # Recuperar nueva cantidad para informar
+                product = await self.get_product(product_id)
+                if product:
+                    # Importación local para evitar dependencias circulares si las hubiera
+                    from ..api.websocket import emit_stock_update, emit_product_out_of_stock
+                    from ..services.webhook_service import emit_product_event, WebhookEvents
+                    
+                    # 1. Emitir WebSocket Update
+                    await emit_stock_update(product_id, product.stock, product.name)
+                    
+                    # 2. Verificar Agotado
+                    if product.stock <= 0:
+                        await emit_product_out_of_stock(product_id, product.name)
+                        # 3. Webhook (Integración ERP)
+                        await emit_product_event(WebhookEvents.PRODUCT_OUT_OF_STOCK, product_id, product.name)
+                        
+            except Exception as hook_error:
+                # No bloquear la transacción por fallo de notificación
+                logger.error(f"Error emitiendo eventos de stock: {hook_error}")
+            
             return True
         except ValueError as e:
             # Captura el 'IntegrityError' (CHECK(stock >= 0))
@@ -217,3 +240,135 @@ class ProductService:
         except Exception as e:
             logger.error(f"Error al validar fila de producto: {e}. Fila: {row}", exc_info=True)
             return None
+
+    # ==================== GALERÍA DE IMÁGENES ====================
+    
+    async def add_product_image(
+        self, 
+        product_id: str, 
+        image_url: str, 
+        thumbnail_url: Optional[str] = None,
+        is_main: bool = False,
+        alt_text: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Añade una imagen a la galería de un producto.
+        Si is_main=True, desmarca cualquier otra imagen como principal.
+        """
+        from ..models.base import ProductImage
+        import uuid
+        
+        # Verificar que el producto existe
+        product = await self.get_product(product_id)
+        if not product:
+            raise ValueError(f"Producto {product_id} no encontrado.")
+        
+        # Si es main, desmarcar las otras
+        if is_main:
+            await self.db_manager.execute(
+                "products",
+                "UPDATE product_images SET is_main = ? WHERE product_id = ?",
+                (False, product_id)
+            )
+            # También actualizar la image_url principal del producto
+            await self.update_product(product_id, {"image_url": image_url})
+        
+        # Obtener el siguiente display_order
+        existing = await self.get_product_images(product_id)
+        next_order = len(existing)
+        
+        # Crear la imagen
+        image_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        await self.db_manager.execute(
+            "products",
+            """
+            INSERT INTO product_images (id, product_id, image_url, thumbnail_url, is_main, display_order, alt_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (image_id, product_id, image_url, thumbnail_url, is_main, next_order, alt_text, now)
+        )
+        
+        logger.info(f"Imagen {image_id} añadida al producto {product_id}")
+        
+        return {
+            "id": image_id,
+            "product_id": product_id,
+            "image_url": image_url,
+            "thumbnail_url": thumbnail_url,
+            "is_main": is_main,
+            "display_order": next_order
+        }
+    
+    async def get_product_images(self, product_id: str) -> List[Dict[str, Any]]:
+        """Obtiene todas las imágenes de un producto ordenadas por display_order."""
+        rows = await self.db_manager.fetchall(
+            "products",
+            """
+            SELECT id, product_id, image_url, thumbnail_url, is_main, display_order, alt_text, created_at
+            FROM product_images
+            WHERE product_id = ?
+            ORDER BY display_order ASC
+            """,
+            (product_id,)
+        )
+        return rows
+    
+    async def set_main_image(self, product_id: str, image_id: str) -> bool:
+        """Establece una imagen como principal del producto."""
+        # Desmarcar todas
+        await self.db_manager.execute(
+            "products",
+            "UPDATE product_images SET is_main = ? WHERE product_id = ?",
+            (False, product_id)
+        )
+        # Marcar la seleccionada
+        await self.db_manager.execute(
+            "products",
+            "UPDATE product_images SET is_main = ? WHERE id = ? AND product_id = ?",
+            (True, image_id, product_id)
+        )
+        
+        # Obtener la URL de la imagen para actualizar el producto
+        row = await self.db_manager.fetchone(
+            "products",
+            "SELECT image_url FROM product_images WHERE id = ?",
+            (image_id,)
+        )
+        if row:
+            await self.update_product(product_id, {"image_url": row["image_url"]})
+        
+        logger.info(f"Imagen {image_id} establecida como principal de producto {product_id}")
+        return True
+    
+    async def delete_product_image(self, product_id: str, image_id: str) -> bool:
+        """Elimina una imagen de la galería."""
+        # Verificar si era la imagen principal
+        row = await self.db_manager.fetchone(
+            "products",
+            "SELECT is_main, image_url FROM product_images WHERE id = ? AND product_id = ?",
+            (image_id, product_id)
+        )
+        
+        if not row:
+            raise ValueError(f"Imagen {image_id} no encontrada para producto {product_id}")
+        
+        # Eliminar
+        await self.db_manager.execute(
+            "products",
+            "DELETE FROM product_images WHERE id = ? AND product_id = ?",
+            (image_id, product_id)
+        )
+        
+        # Si era la principal, buscar otra para poner como principal
+        if row.get("is_main"):
+            remaining = await self.get_product_images(product_id)
+            if remaining:
+                await self.set_main_image(product_id, remaining[0]["id"])
+            else:
+                # No hay más imágenes, limpiar la del producto
+                await self.update_product(product_id, {"image_url": None})
+        
+        logger.info(f"Imagen {image_id} eliminada del producto {product_id}")
+        return True

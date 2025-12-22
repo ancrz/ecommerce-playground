@@ -243,3 +243,137 @@ async def upload_business_banner(
     except Exception as e:
         logger.error(f"Error al subir banner: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Endpoints de Galería de Imágenes de Producto ---
+
+@router.get("/products/{product_id}/gallery", response_model=List[Dict[str, Any]])
+async def get_product_gallery(
+    product_id: str,
+    product_service: ProductService = Depends(get_product_service)
+):
+    """
+    Obtiene todas las imágenes de la galería de un producto.
+    Endpoint público para mostrar en ProductDetailModal.
+    """
+    product = await product_service.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    images = await product_service.get_product_images(product_id)
+    return images
+
+
+@router.post("/products/{product_id}/gallery", response_model=Dict[str, Any])
+async def upload_to_product_gallery(
+    product_id: str,
+    file: UploadFile = File(...),
+    is_main: bool = Form(False),
+    alt_text: Optional[str] = Form(None),
+    image_service: ImageService = Depends(get_image_service),
+    product_service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Añade una nueva imagen a la galería del producto.
+    Si is_main=True, esta imagen se convierte en la principal.
+    """
+    product = await product_service.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    try:
+        file_data = await file.read()
+        
+        # Generar nombre único para la imagen
+        import uuid
+        image_id = str(uuid.uuid4())[:8]
+        filename = f"{product_id}_{image_id}"
+        
+        # Procesar y guardar (full + thumbnail)
+        image_url = image_service.process_and_save_multi_size(
+            file_data=file_data,
+            original_filename=file.filename,
+            save_filename=filename,
+            folder="products"
+        )
+        
+        # Inferir thumbnail URL
+        thumbnail_url = image_url.replace(".jpg", "_thumb.jpg")
+        
+        # Añadir a la galería en la BD
+        result = await product_service.add_product_image(
+            product_id=product_id,
+            image_url=image_url,
+            thumbnail_url=thumbnail_url,
+            is_main=is_main,
+            alt_text=alt_text
+        )
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error al añadir imagen a galería de {product_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/products/{product_id}/gallery/{image_id}/set-main", response_model=Dict[str, Any])
+async def set_main_gallery_image(
+    product_id: str,
+    image_id: str,
+    product_service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Establece una imagen de la galería como la imagen principal del producto.
+    """
+    try:
+        await product_service.set_main_image(product_id, image_id)
+        return {"message": "Imagen establecida como principal", "image_id": image_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error al establecer imagen principal: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/products/{product_id}/gallery/{image_id}", response_model=Dict[str, Any])
+async def delete_gallery_image(
+    product_id: str,
+    image_id: str,
+    image_service: ImageService = Depends(get_image_service),
+    product_service: ProductService = Depends(get_product_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Elimina una imagen de la galería del producto.
+    """
+    # Obtener la imagen antes de eliminarla para borrar el archivo físico
+    images = await product_service.get_product_images(product_id)
+    target_image = next((img for img in images if img["id"] == image_id), None)
+    
+    if not target_image:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    
+    try:
+        # Eliminar de la BD
+        await product_service.delete_product_image(product_id, image_id)
+        
+        # Eliminar archivos físicos
+        if target_image.get("image_url"):
+            image_service.delete_image(target_image["image_url"])
+        if target_image.get("thumbnail_url"):
+            try:
+                image_service.delete_image(target_image["thumbnail_url"])
+            except:
+                pass  # El thumbnail puede no existir
+        
+        return {"message": "Imagen eliminada", "image_id": image_id}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error al eliminar imagen de galería: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

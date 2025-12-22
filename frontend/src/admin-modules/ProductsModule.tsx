@@ -14,7 +14,8 @@ import { Upload, X, Save, Plus, Trash2, Image, Edit2 } from "lucide-react";
 // Importar API y Contexto
 import * as api from "../api";
 import { useApp } from "../App";
-import type { Product, Currency } from "../types"; // <-- REFACTOR FASE 3: Importar Currency
+import { useFeedback } from "../components/ui/FeedbackModal";
+import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
 import type { ProductCreate, ProductUpdate } from "../types";
 
@@ -73,14 +74,13 @@ export default function ProductsModule() {
       }
 
       if (savedProduct.id) {
-        alert(isNew ? "✓ Producto creado" : "✓ Producto actualizado");
         setShowForm(false);
         setEditingProduct(null);
         setRefreshKey((k) => k + 1);
       }
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + error.message);
+      throw error; // Re-lanzar para que el modal maneje el feedback
     } finally {
       setIsSaving(false);
     }
@@ -92,44 +92,79 @@ export default function ProductsModule() {
   };
 
   const handleNewProduct = () => {
-    setEditingProduct(null); // Limpiar
-    setShowForm(true); // Mostrar formulario vacío
+    setEditingProduct(null);
+    setShowForm(true);
   };
+
+  // Usar sistema de feedback global
+  const { showToast } = useFeedback();
 
   return (
     <>
-      {showForm ? (
-        <ProductForm
-          product={editingProduct}
-          onSave={handleSaveProduct}
-          isSaving={isSaving}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingProduct(null);
-          }}
-          // REFACTOR FASE 3: Pasar la moneda al formulario
-          selectedCurrency={selectedCurrency}
-        />
-      ) : (
-        <>
-          <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Lista de Productos
-            </h2>
-            <button
-              onClick={handleNewProduct}
-              data-testid="add-product-button"
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2"
+      {/* Lista de Productos - Siempre visible */}
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Lista de Productos
+        </h2>
+        <button
+          onClick={handleNewProduct}
+          data-testid="add-product-button"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Nuevo Producto
+        </button>
+      </div>
+      <ProductList
+        onEdit={handleEdit}
+        refreshKey={refreshKey}
+      />
+
+      {/* Modal de Formulario */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative animate-slideUp">
+            {/* Header del Modal con color del tema */}
+            <div 
+              className="sticky top-0 px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl text-white"
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              <Plus size={20} />
-              Nuevo Producto
-            </button>
+              <h2 className="text-xl font-bold">
+                {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingProduct(null);
+                }}
+                className="p-2 hover:bg-white/20 rounded-full transition"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Contenido del Modal */}
+            <div className="p-6">
+              <ProductForm
+                product={editingProduct}
+                onSave={async (data, file) => {
+                  try {
+                    await handleSaveProduct(data, file);
+                    showToast(editingProduct ? 'Producto actualizado' : 'Producto creado');
+                  } catch (err: any) {
+                    showToast(err.message || 'Error al guardar', 'error');
+                  }
+                }}
+                isSaving={isSaving}
+                onCancel={() => {
+                  setShowForm(false);
+                  setEditingProduct(null);
+                }}
+                selectedCurrency={selectedCurrency}
+              />
+            </div>
           </div>
-          <ProductList
-            onEdit={handleEdit}
-            refreshKey={refreshKey} // Usar la key para forzar recarga
-          />
-        </>
+        </div>
       )}
     </>
   );
@@ -152,6 +187,7 @@ function ProductList({
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
+  const { showToast, confirm } = useFeedback();
 
   const loadProducts = async () => {
     setLoading(true);
@@ -170,16 +206,22 @@ function ProductList({
   }, [refreshKey]);
 
   const handleDelete = async (productId: string, productName: string) => {
-    if (
-      !confirm(`¿Eliminar "${productName}"? Esta acción no se puede deshacer.`)
-    )
-      return;
+    const confirmed = await confirm({
+      title: 'Eliminar Producto',
+      message: `¿Eliminar "${productName}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+    });
+    
+    if (!confirmed) return;
+    
     try {
       await api.deleteProduct(productId);
-      alert("✓ Producto eliminado");
+      showToast('Producto eliminado', 'success');
       loadProducts(); // Recargar lista
     } catch (error: any) {
-      alert("Error: " + error.message);
+      showToast('Error: ' + error.message, 'error');
     }
   };
 
@@ -401,12 +443,8 @@ function ProductForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto mb-8"
       data-testid="product-form"
     >
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">
-        {formData.id ? "Editar Producto" : "Nuevo Producto"}
-      </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Columna Izquierda: Datos */}
         <div className="md:col-span-2 space-y-4">
@@ -576,6 +614,7 @@ function ImageUploader({
 }) {
   const [preview, setPreview] = useState(currentImageUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useFeedback();
 
   useEffect(() => {
     setPreview(currentImageUrl);
@@ -585,11 +624,11 @@ function ImageUploader({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      alert("Por favor selecciona una imagen válida");
+      showToast("Por favor selecciona una imagen válida", "warning");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("La imagen es muy grande. Máximo 5MB.");
+      showToast("La imagen es muy grande. Máximo 5MB.", "warning");
       return;
     }
 

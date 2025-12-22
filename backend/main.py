@@ -58,7 +58,8 @@ from .api import (
     auth, business, cart, customization, finance, 
     images, products, sales, 
     # (Importar routers nuevos)
-    tax_admin, user_admin, client_logs # NEW
+    tax_admin, user_admin, client_logs, # NEW
+    websocket  # WebSocket para real-time
 )
 
 # --- 4. Importar Guardianes RBAC ---
@@ -254,17 +255,21 @@ app.include_router(
     tags=["Admin: Impuestos y Regiones"]
     # dependencies=[Depends(is_finance_manager)] <-- ELIMINADO: Controlado internamente en tax_admin.py
 )
-# Módulo de Gestión de Imágenes (Admin y Managers de Contenido/Productos)
+
+# Módulo de Gestión de Imágenes - Público (Galería de Productos)
+# (Sin restricciones para permitir ver la galería de productos en el detalle)
 app.include_router(
     images.router, 
-    prefix="/api/admin/images", 
-    tags=["Admin: Carga de Imágenes"],
-    # Proteger a nivel de endpoint es más granular,
-    # pero para este módulo, lo protegemos para roles de contenido.
-    dependencies=[Depends(is_content_manager | is_products_manager)] 
+    prefix="/api/images", 
+    tags=["Imágenes (Tienda)"]
 )
+
 # Módulo de Gestión de Personalización (Admin y Content Manager)
 app.include_router(customization.router, prefix="/api/admin/customization", tags=["Admin: Personalización"]) # NEW - Controlado internamente
+
+# WebSocket para actualizaciones en tiempo real (Público)
+app.include_router(websocket.router, prefix="/api", tags=["WebSocket (Real-Time)"])
+
 # Módulo de Gestión de Productos (Admin y Products)
 # (NOTA: Los endpoints públicos de products.py ya están registrados arriba)
 # (Aquí podríamos registrar endpoints *solo* de admin si los tuviéramos separados)

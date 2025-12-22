@@ -39,6 +39,7 @@ dependencies = [
     "aiosmtplib>=3.0.0",
     "watchdog>=3.0.0",
     "requests>=2.31.0",
+    "websockets>=12.0", # Para scripts de prueba de ws
 ]
 
 [project.optional-dependencies]

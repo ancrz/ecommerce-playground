@@ -622,6 +622,7 @@ def generate_react_hooks(schema: Dict[str, Any]) -> str:
         " */",
         "",
         "import { useState, useEffect, useCallback } from 'react';",
+        "import { z } from 'zod';",
         "import * as schemas from './types.generated';",
         "import { handleResponse, ApiError } from './api.generated';",
         "import { config } from './config';",
