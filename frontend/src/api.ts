@@ -521,14 +521,15 @@ export const removeProductMainImage = (productId: string): Promise<Product> => {
 };
 
 // ==================== GALERÍA DE IMÁGENES ====================
-
-// ==================== GALERÍA DE IMÁGENES ====================
 // (Usa ProductImageSchema importado de schemas.ts)
 
 /** Obtener todas las imágenes de la galería de un producto */
 export const getProductImages = (productId: string): Promise<ProductImage[]> => {
   return authFetch<ProductImage[]>(`/products/${productId}/images`, { method: 'GET' }, z.array(ProductImageSchema));
 };
+
+/** Alias para consistencia con el componente ProductDetailModal */
+export const getProductGallery = getProductImages;
 
 /** Subir una imagen a la galería del producto */
 export const addProductImage = async (productId: string, file: File, isMain: boolean = false): Promise<ProductImage> => {
