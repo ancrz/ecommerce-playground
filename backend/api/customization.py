@@ -4,15 +4,17 @@ FARMALUX E-COMMERCE - API de Personalización
 ================================================================================
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Request
-from ..models.base import Customization
-from ..utils.auth import get_current_user
-from ..services.customization_service import CustomizationService, CustomizationUpdate
-from ..services.image_service import ImageService
 import logging
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+
+from ..models import Customization
+from ..services.customization_service import CustomizationService, CustomizationUpdate
+from ..utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
 
 def get_customization_service(request: Request) -> CustomizationService:
     """Inyector para el servicio de personalización"""
@@ -22,17 +24,16 @@ def get_customization_service(request: Request) -> CustomizationService:
 
 
 @router.get("/", response_model=Customization)
-async def get_customization(
-    service: CustomizationService = Depends(get_customization_service)
-):
+async def get_customization(service: CustomizationService = Depends(get_customization_service)):
     """Obtener configuración de personalización"""
     return await service.get_customization()
+
 
 @router.put("/", response_model=Customization)
 async def update_customization(
     updates: CustomizationUpdate,
     current_user: dict = Depends(get_current_user),
-    service: CustomizationService = Depends(get_customization_service)
+    service: CustomizationService = Depends(get_customization_service),
 ):
     """Actualizar personalización (campos de texto)"""
     try:
@@ -41,7 +42,9 @@ async def update_customization(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error al actualizar customization: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al actualizar la base de datos: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al actualizar la base de datos: {e}"
+        )
 
 
 @router.post("/icon/{module_name}", response_model=Customization)
@@ -49,7 +52,7 @@ async def upload_module_icon(
     module_name: str,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
-    service: CustomizationService = Depends(get_customization_service)
+    service: CustomizationService = Depends(get_customization_service),
 ):
     """
     Subir, formatear y reducir un icono para un módulo del admin.

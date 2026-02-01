@@ -6,22 +6,22 @@ REFACTORIZADO:
 - Se actualizó el inyector de dependencias.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Form, File, UploadFile
-from typing import List, Optional, Dict, Any
-
 import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
 logger = logging.getLogger(__name__)
 
 # REFACTOR: Importar los DTOs de Intención
-from ..models.base import Product, ProductCard, ProductCreate, ProductUpdate
+from ..models import Product, ProductCard, ProductCreate, ProductUpdate
 from ..services.product_service import ProductService
-from ..database.manager import DatabaseManager
 from ..utils.auth import get_current_user
 
 router = APIRouter()
 
 # --- Inyección de Dependencias ---
+
 
 def get_product_service(request: Request):
     """
@@ -32,35 +32,33 @@ def get_product_service(request: Request):
         raise HTTPException(status_code=503, detail="Servicio de productos no inicializado.")
     return request.app.state.product_service
 
+
 # --- Endpoints Públicos (Lectura) ---
 
-@router.get("/", response_model=List[Product])
+
+@router.get("/", response_model=list[Product])
 async def get_products(
-    category: Optional[str] = Query(None, description="Filtrar por categoría"),
+    category: str | None = Query(None, description="Filtrar por categoría"),
     featured: bool = Query(False, description="Obtener solo productos destacados"),
     discount: bool = Query(False, description="Obtener solo productos con descuento"),
-    service: ProductService = Depends(get_product_service)
+    service: ProductService = Depends(get_product_service),
 ):
     """
     Obtener lista de productos con filtros opcionales.
     (Cumple con 'single-e-commerce-demo.docx' - sliders)
     """
     try:
-        products = await service.get_all_products(
-            category=category,
-            featured_only=featured,
-            discount_only=discount
-        )
+        products = await service.get_all_products(category=category, featured_only=featured, discount_only=discount)
         return products
     except Exception as e:
         logger.error(f"Error al obtener productos: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/search", response_model=List[Product])
+@router.get("/search", response_model=list[Product])
 async def search_products(
     q: str = Query(..., min_length=2, description="Término de búsqueda"),
-    service: ProductService = Depends(get_product_service)
+    service: ProductService = Depends(get_product_service),
 ):
     """
     Buscar productos por nombre, descripción, SKU o categoría.
@@ -74,11 +72,8 @@ async def search_products(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/slider/{slider_type}", response_model=List[ProductCard])
-async def get_slider_products(
-    slider_type: str,
-    service: ProductService = Depends(get_product_service)
-):
+@router.get("/slider/{slider_type}", response_model=list[ProductCard])
+async def get_slider_products(slider_type: str, service: ProductService = Depends(get_product_service)):
     """
     Obtener productos formateados para un slider (main, featured, discount).
     (Cumple con 'single-e-commerce-demo.docx' - sliders)
@@ -94,10 +89,7 @@ async def get_slider_products(
 
 
 @router.get("/{product_id}", response_model=Product)
-async def get_product(
-    product_id: str,
-    service: ProductService = Depends(get_product_service)
-):
+async def get_product(product_id: str, service: ProductService = Depends(get_product_service)):
     """Obtener un producto específico por su ID."""
     product = await service.get_product(product_id)
     if not product:
@@ -105,13 +97,15 @@ async def get_product(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return product
 
+
 # --- Endpoints de Admin (Escritura Protegida) ---
+
 
 @router.post("/", response_model=Product, status_code=201)
 async def create_product(
-    product_data: ProductCreate, # REFACTOR: Usa el DTO de Creación
+    product_data: ProductCreate,  # REFACTOR: Usa el DTO de Creación
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Crear un nuevo producto.
@@ -134,9 +128,9 @@ async def create_product(
 @router.put("/{product_id}", response_model=Product)
 async def update_product(
     product_id: str,
-    product_updates: ProductUpdate, # REFACTOR: Usa el DTO de Actualización
+    product_updates: ProductUpdate,  # REFACTOR: Usa el DTO de Actualización
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Actualizar un producto existente.
@@ -146,7 +140,7 @@ async def update_product(
         # .model_dump(exclude_unset=True) envía *solo* los campos que
         # el frontend envió, perfecto para una actualización parcial (PATCH).
         updates_dict = product_updates.model_dump(exclude_unset=True)
-        
+
         if not updates_dict:
             raise HTTPException(status_code=400, detail="No se enviaron campos para actualizar.")
 
@@ -163,11 +157,11 @@ async def update_product(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{product_id}", response_model=Dict[str, str])
+@router.delete("/{product_id}", response_model=dict[str, str])
 async def delete_product(
     product_id: str,
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Eliminar un producto.
@@ -177,7 +171,7 @@ async def delete_product(
         success = await service.delete_product(product_id)
         if success:
             return {"message": "Producto eliminado exitosamente"}
-        
+
         logger.warning(f"Intento de eliminar producto no existente: {product_id}")
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     except ValueError as e:
@@ -201,9 +195,9 @@ async def create_product_with_image(
     is_discount: str = Form("false"),  # Recibir como string
     discount_percentage: float = Form(0.0),
     banner_assignment: str = Form("main"),
-    file: Optional[UploadFile] = File(None),
+    file: UploadFile | None = File(None),
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Crear un producto con imagen en una sola llamada.
@@ -211,11 +205,11 @@ async def create_product_with_image(
     Genera automáticamente thumbnail + imagen full size.
     """
     from ..services.image_service import ImageService
-    
+
     # Parsear booleans desde strings (FormData siempre envía strings)
     is_featured_bool = is_featured.lower() in ("true", "1", "yes")
     is_discount_bool = is_discount.lower() in ("true", "1", "yes")
-    
+
     try:
         # 1. Crear el producto
         product_data = ProductCreate(
@@ -228,11 +222,11 @@ async def create_product_with_image(
             is_featured=is_featured_bool,
             is_discount=is_discount_bool,
             discount_percentage=discount_percentage,
-            banner_assignment=banner_assignment
+            banner_assignment=banner_assignment,
         )
         product = Product(**product_data.model_dump())
         new_product = await service.create_product(product)
-        
+
         # 2. Si hay imagen, procesarla con múltiples tamaños
         if file and file.filename:
             image_service: ImageService = request.app.state.image_service
@@ -245,16 +239,13 @@ async def create_product_with_image(
                     file_data=file_data,
                     original_filename=file.filename,
                     save_filename=new_product.id,
-                    folder="products"
+                    folder="products",
                 )
                 # Actualizar el producto con la URL de la imagen
-                new_product = await service.update_product(
-                    new_product.id,
-                    {"image_url": image_url}
-                )
-        
+                new_product = await service.update_product(new_product.id, {"image_url": image_url})
+
         return new_product
-        
+
     except ValueError as e:
         logger.warning(f"Error de validación al crear producto con imagen: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -266,14 +257,13 @@ async def create_product_with_image(
 # REFACTOR: Endpoint 'upload_product_image' ELIMINADO en favor de api/images.py
 # PERO: Añadimos endpoints para MULTI-IMAGEN (nueva feature)
 
-@router.get("/{product_id}/images", response_model=List[Dict[str, Any]])
-async def get_product_images(
-    product_id: str,
-    service: ProductService = Depends(get_product_service)
-):
+
+@router.get("/{product_id}/images", response_model=list[dict[str, Any]])
+async def get_product_images(product_id: str, service: ProductService = Depends(get_product_service)):
     """Obtener todas las imágenes de un producto."""
     images = await service.get_product_images(product_id)
     return images
+
 
 @router.post("/{product_id}/images", status_code=201)
 async def add_product_image(
@@ -281,47 +271,49 @@ async def add_product_image(
     request: Request,
     file: UploadFile = File(...),
     is_main: bool = Form(False),
-    service: ProductService = Depends(get_product_service)
+    service: ProductService = Depends(get_product_service),
 ):
     """
     Subir una imagen adicional a un producto existente (Máximo 5).
     """
     from ..services.image_service import ImageService
-    
+
     try:
         image_service: ImageService = request.app.state.image_service
         if not image_service:
             raise HTTPException(status_code=503, detail="Servicio de imágenes no disponible.")
-            
+
         file_data = await file.read()
         import uuid
+
         image_uuid = str(uuid.uuid4())
-        
+
         # Procesar imagen (Guardar física)
         # Usamos image_uuid como nombre de archivo para evitar colisiones
         image_url = image_service.process_and_save_multi_size(
             file_data=file_data,
             original_filename=file.filename or "image.jpg",
             save_filename=f"{product_id}_{image_uuid}",
-            folder="products"
+            folder="products",
         )
-        
+
         # Registrar en DB
         result = await service.add_product_image(product_id, image_url, is_main=is_main)
         return result
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error subiendo imagen extra: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.delete("/{product_id}/images/{image_id}")
 async def delete_product_image(
     product_id: str,
     image_id: str,
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Eliminar una imagen específica."""
     try:
@@ -333,12 +325,13 @@ async def delete_product_image(
         logger.error(f"Error eliminando imagen {image_id}: {e}")
         raise HTTPException(status_code=500, detail="Error interno")
 
+
 @router.put("/{product_id}/images/{image_id}/main")
 async def set_main_image(
     product_id: str,
     image_id: str,
     service: ProductService = Depends(get_product_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Establecer imagen como principal."""
     try:

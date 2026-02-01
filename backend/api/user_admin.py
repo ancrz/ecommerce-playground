@@ -4,28 +4,24 @@ API Router para la Administración de Usuarios (RBAC).
 Estos endpoints son SOLO para usuarios con el rol 'admin'.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Body, status, Request
-from typing import List, Dict, Any
-
 import logging
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+
 # Importar Modelos DTO
-from ..models.base import (
-    User, 
-    UserCreateRequest, 
-    UserUpdateRequest, 
-    AdminPasswordResetRequest
-)
+from ..models import AdminPasswordResetRequest, User, UserCreateRequest, UserUpdateRequest
+
 # Importar el Servicio
 from ..services.user_service import UserService
-# REFACTOR: Importar el guardián de rol "admin"
-from ..utils.auth import is_admin # Keep import for clarity, but not used directly in endpoint dependencies
 
-logger = logging.getLogger(__name__) # Initialize logger
+# REFACTOR: Importar el guardián de rol "admin"
+
+logger = logging.getLogger(__name__)  # Initialize logger
 
 router = APIRouter()
 
 # --- Inyección de Dependencias ---
+
 
 def get_user_service(request: Request) -> UserService:
     """Inyector para el servicio de usuarios"""
@@ -33,15 +29,12 @@ def get_user_service(request: Request) -> UserService:
         raise HTTPException(status_code=503, detail="Servicio de usuarios no inicializado.")
     return request.app.state.user_service
 
+
 # --- Endpoints de Administración de Usuarios (Protegidos por Rol "admin") ---
 
-@router.get(
-    "/", 
-    response_model=List[User]
-)
-async def get_all_users(
-    service: UserService = Depends(get_user_service)
-):
+
+@router.get("/", response_model=list[User])
+async def get_all_users(service: UserService = Depends(get_user_service)):
     """
     Obtiene una lista de todos los usuarios en el sistema.
     (Solo para 'admin')
@@ -51,15 +44,9 @@ async def get_all_users(
     users = await service.get_all_users()
     return users
 
-@router.post(
-    "/", 
-    response_model=User, 
-    status_code=status.HTTP_201_CREATED
-)
-async def create_new_user(
-    request: UserCreateRequest = Body(...),
-    service: UserService = Depends(get_user_service)
-):
+
+@router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
+async def create_new_user(request: UserCreateRequest = Body(...), service: UserService = Depends(get_user_service)):
     """
     Crea un nuevo usuario (empleado) en el sistema.
     (Solo para 'admin')
@@ -74,14 +61,9 @@ async def create_new_user(
         logger.error(f"Error al crear usuario: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno al crear usuario.")
 
-@router.get(
-    "/{user_id}", 
-    response_model=User
-)
-async def get_user_by_id(
-    user_id: str,
-    service: UserService = Depends(get_user_service)
-):
+
+@router.get("/{user_id}", response_model=User)
+async def get_user_by_id(user_id: str, service: UserService = Depends(get_user_service)):
     """
     Obtiene los detalles de un usuario específico por ID.
     (Solo para 'admin')
@@ -91,14 +73,10 @@ async def get_user_by_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     return user
 
-@router.put(
-    "/{user_id}", 
-    response_model=User
-)
+
+@router.put("/{user_id}", response_model=User)
 async def update_user(
-    user_id: str,
-    updates: UserUpdateRequest = Body(...),
-    service: UserService = Depends(get_user_service)
+    user_id: str, updates: UserUpdateRequest = Body(...), service: UserService = Depends(get_user_service)
 ):
     """
     Actualiza el perfil de un usuario (roles, estado, nombre, email).
@@ -110,13 +88,10 @@ async def update_user(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.post(
-    "/reset-password", 
-    response_model=Dict[str, str]
-)
+
+@router.post("/reset-password", response_model=dict[str, str])
 async def admin_reset_password(
-    request: AdminPasswordResetRequest = Body(...),
-    service: UserService = Depends(get_user_service)
+    request: AdminPasswordResetRequest = Body(...), service: UserService = Depends(get_user_service)
 ):
     """
     Permite a un admin forzar una nueva contraseña para cualquier usuario.
