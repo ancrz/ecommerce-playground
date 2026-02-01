@@ -1,39 +1,69 @@
-FARMALUX-ECOMMERCE SOURCE AVAILABLE LICENSE (PLAYGROUND EDITION)
-Version 1.0
+# LEGAL NOTICE AND CONTEXT (CONTEXTO LEGAL)
 
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+This software is licensed under a HYBRID RESTRICTIVE LICENSE.
+It combines the standard terms of the **Apache License 2.0** with specific
+**"Poison Pill" Clauses** inspired by the "React/Facebook BSD+Patents" controversy
+and the "Commons Clause" model.
 
-1. PREAMBLE
-   This software "Farmalux-Ecommerce" (the "Software") is provided STRICTLY for educational, experimental, and non-commercial testing purposes (the "Playground Purpose").
-   Any use of this Software for commercial gain, production environments, or business logic execution is EXPRESSLY PROHIBITED.
+PURPOSE:
 
-2. GRANT OF LICENSE
-   Subject to the terms and conditions of this License, the Licensor hereby grants you a personal, worldwide, royalty-free, non-exclusive license to:
-   (a) Read and study the Source Code.
-   (b) Run the Software locally for the sole purpose of testing, debugging, and experimentation ("Playground Use").
-   (c) Modify the Software for personal, non-commercial learning.
+1.  To leverage the robust legal definitions of Apache 2.0.
+2.  To STRICTLY PROHIBIT any commercial use (Playground/Educational Only).
+3.  To enforce a "Litigation Termination" clause (Facebook Style) that revokes
+    rights immediately upon any legal challenge or commercial misuse.
 
-3. RESTRICTIONS
-   You may NOT:
-   (a) Use the Software, in whole or in part, for any commercial purpose, including but not limited to:
-       - Selling, renting, or licensing the Software.
-       - Using the Software to provide services to third parties (SaaS).
-       - Integrating the Software into a production environment.
-   (b) Distribute the Software or Derivative Works to any third party without this specific License Agreement attached.
-   (c) Remove or alter any copyright, proprietary notices, or this License text.
+---
 
-4. REPERCUSSIONS OF UNAUTHORIZED USE
-   (a) BREACH OF CONTRACT: Any use of the Software outside the scope of the Playground Purpose constitutes a material breach of this License Agreement.
-   (b) INTELLECTUAL PROPERTY VIOLATION: Unauthorized commercial use constitutes willful copyright infringement.
-   (c) LEGAL ACTION: The Licensor reserves the right to seek all available legal remedies, including but not limited to:
-       - Immediate injunctive relief to stop the unauthorized use.
-       - Monetary damages for lost profits and unjust enrichment.
-       - Statutory damages and legal fees to the fullest extent permitted by applicable law.
+FARMALUX-ECOMMERCE LICENSE (APACHE 2.0 + RESTRICTIVE ADDENDUM)
 
-5. DISCLAIMER OF WARRANTY
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+TERMS AND CONDITIONS
 
-6. TERMINATION
-   This License allows for immediate termination by the Licensor if you fail to comply with any term or condition of this License. Upon termination, you must cease all use of the Software and destroy all copies in your possession.
+I. STANDARD APACHE 2.0 TERMS
+(The standard Apache 2.0 definitions apply to "Work", "Source", "Object", etc.,
+EXCEPT where explicitly overridden by the Addendum below.)
+[See http://www.apache.org/licenses/LICENSE-2.0 for standard definitions]
 
-END OF TERMS AND CONDITIONS
+II. RESTRICTIVE ADDENDUM (THE "PLAYGROUND" & "POISON PILL" CLAUSES)
+
+1.  COMMERCIAL USE PROHIBITION ("The Playground Clause")
+    Notwithstanding the grant of rights in the Standard Apache 2.0 Terms,
+    NO RIGHT is granted for any "Commercial Use".
+    "Commercial Use" includes, but is not limited to:
+    (a) Use of the Software in a production environment.
+    (b) Use of the Software to provide services to third parties (SaaS).
+    (c) Integrating the Software into a product for which a fee is charged.
+    (d) Use by any commercial entity for purposes other than internal testing/evaluation.
+
+    The License granted strictly allows for "Playground Use" (testing,
+    experimentation, education, and development) ONLY.
+
+2.  LITIGATION TERMINATION ("The Facebook/React Clause")
+    The license granted hereunder will terminate, automatically and without notice,
+    if you (or any of your subsidiaries, corporate affiliates or agents):
+    (a) Initiate directly or indirectly, or take a direct financial interest in,
+    any Patent Assertion: (i) against the Licensor or any Contributor,
+    (ii) constituting a direct or contributory infringement claim.
+    (b) Initiate any legal action claiming that the Software constitutes
+    commercial infringement or unfair competition.
+
+3.  SEVERABILITY AND PRECEDENCE
+    In the event of a conflict between the Standard Apache 2.0 Terms and this
+    Restrictive Addendum, the **Restrictive Addendum shall control**.
+    Any use of the Software in violation of these restrictions constitutes
+    unlicensed usage and immediate breach of contract, subject to all
+    legal remedies available under applicable law.
+
+4.  ACCEPTANCE
+    By downloading, accessing, or using the Software, you irrevocably accept
+    these Hybrid Terms. If you do not agree to the Commercial Prohibition
+    or the Litigation Termination clause, you have NO RIGHTS to use the Software.
+
+---
+
+[Standard Apache License 2.0 Text follows for Definition Reference Only...]
+
+1.  Definitions...
+    "License" shall mean the terms and conditions... as MODIFIED by the Addendum.
+    "Licensor" shall mean the copyright owner...
+    ...
+    [Full Apache 2.0 text continues as reference base]
