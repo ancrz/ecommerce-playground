@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 start.local.py - Inicio Inteligente del Ecosistema (v2.0)
 ==========================================================
@@ -532,7 +531,7 @@ def main():
     parser.add_argument("--no-watch", action="store_true", help="Deshabilitar watcher automático")
     args = parser.parse_args()
 
-    print("\n>>> Iniciando farmalux-ecommerce <<<\n")
+    print("\n>>> Iniciando ecommerce-playground <<<\n")
 
     # Cargar configuración
     load_env()
