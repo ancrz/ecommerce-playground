@@ -106,6 +106,7 @@ alembic/versions/*.py
 
 # ===== Generated Files (by scripts/regenerate.py) =====
 frontend/src/api/generated/
+frontend/src/api/model/
 docs/openapi.json
 
 # ===== OS-Specific =====

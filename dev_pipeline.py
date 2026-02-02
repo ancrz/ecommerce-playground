@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dev Pipeline Script - farmalux-ecommerce
+Dev Pipeline Script - ecommerce-playground
 ========================================
 Homologación de dev-pipeline.sh a Python.
 Herramienta de productividad para el ciclo de desarrollo.
