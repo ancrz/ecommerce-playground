@@ -614,6 +614,7 @@ def main():
     # Iniciar servicios
 
     # Iniciar servicios
+    sanitize_logs()
 
     if not args.frontend_only:
         backend_info = start_backend(detector)

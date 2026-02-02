@@ -72,7 +72,7 @@ def cleanup_logs(keep_count: int = 5):
                 groups[prefix] = []
             groups[prefix].append(f)
 
-        for prefix, file_list in groups.items():
+        for _, file_list in groups.items():
             # Ordenar por fecha de modificación (más reciente al final)
             file_list.sort(key=lambda x: x.stat().st_mtime)
 
