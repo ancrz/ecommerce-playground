@@ -34,6 +34,64 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
 LOCK_FILE = PROJECT_ROOT / "data" / ".ecosystem.lock"
+LOG_DIR = PROJECT_ROOT / "data" / "logs"
+
+
+def cleanup_logs(keep_count: int = 5):
+    """Limpia logs antiguos (rotados) manteniendo los N más recientes."""
+    if not LOG_DIR.exists():
+        return
+
+    logger.info("🧹 Limpiando logs antiguos...")
+
+    # Patrones de logs rotados
+    patterns = [
+        "*.????????_??????.log",  # backend.20251221_180317.log
+        "*.log.*",  # client.log.1
+    ]
+
+    deleted_count = 0
+
+    # Agrupar por 'base' para no mezclar tipos (ej: backend vs frontend)
+    # Estrategia simplificada: Listar todos los rotados, agrupar por prefijo
+    # Pero dado el formato, mejor iterar archivos y decidir.
+
+    try:
+        files = []
+        for pat in patterns:
+            files.extend(LOG_DIR.glob(pat))
+
+        # Agrupar archivos por su prefijo (ej: "backend.", "frontend.")
+        groups = {}
+        for f in files:
+            # backend.2025... -> backend
+            # client.log.1 -> client
+            parts = f.name.split(".")
+            prefix = parts[0]
+            if prefix not in groups:
+                groups[prefix] = []
+            groups[prefix].append(f)
+
+        for prefix, file_list in groups.items():
+            # Ordenar por fecha de modificación (más reciente al final)
+            file_list.sort(key=lambda x: x.stat().st_mtime)
+
+            # Si hay más de 'keep_count', borrar los antiguos
+            if len(file_list) > keep_count:
+                to_delete = file_list[:-keep_count]
+                for f in to_delete:
+                    try:
+                        f.unlink()
+                        logger.debug(f"   🗑️ Eliminado: {f.name}")
+                        deleted_count += 1
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Error borrando {f.name}: {e}")
+
+        if deleted_count > 0:
+            logger.info(f"✓ Se eliminaron {deleted_count} logs antiguos.")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Error durante limpieza de logs: {e}")
 
 
 class LockFile:
@@ -303,6 +361,9 @@ def main():
     args = parser.parse_args()
 
     print("\n>>> Deteniendo farmalux-ecommerce <<<\n")
+
+    # Limpieza de logs n-1 (Primero lo que hará)
+    cleanup_logs(keep_count=3)  # Mantener 3 últimos por tipo
 
     # Cargar configuración
     load_env()

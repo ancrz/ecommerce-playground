@@ -41,6 +41,39 @@ PROJECT_ROOT = Path(__file__).parent.resolve()
 LOCK_FILE = PROJECT_ROOT / "data" / ".ecosystem.lock"
 VENV_PATH = PROJECT_ROOT / ".venv"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
+LOG_DIR = PROJECT_ROOT / "data" / "logs"
+
+
+def sanitize_logs():
+    """Sanea (trunca) los logs principales para iniciar con traza limpia."""
+    if not LOG_DIR.exists():
+        return
+
+    logger.info("🧹 Saneando logs principales...")
+
+    # Buscar archivos .log que NO sean rotados (sin timestamps ni números al final)
+    # Criterio: terminar en .log y no tener punto numérico intermedio obvio.
+    # Simple: *.log
+    try:
+        count = 0
+        for log_file in LOG_DIR.glob("*.log"):
+            # Excluir rotados si se escapan al pattern (aunque *.log suele ser el principal)
+            # Backend rote: name.TIMESTAMP.log -> no termina en .log
+            # Pero cuidado con name.log.1
+            if log_file.is_file():
+                try:
+                    # Truncar archivo
+                    with open(log_file, "w", encoding="utf-8") as f:
+                        f.write("")  # Vaciar
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"   ⚠️ No se pudo sanear {log_file.name}: {e}")
+
+        if count > 0:
+            logger.info(f"✓ {count} logs saneados (inician vacíos).")
+
+    except Exception:
+        pass
 
 
 class CrossPlatformLock:
