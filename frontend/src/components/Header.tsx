@@ -61,23 +61,27 @@ export default function Header() {
     }} data-testid="header-public">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center gap-4">
-          {businessInfo?.logo_url && (
+          {/* REFACTOR: Mostrar Isotipo (Izquierda) */}
+          {businessInfo?.icon_url && (
+            <img 
+              src={`${SERVER_URL}${businessInfo.icon_url}?t=${businessInfo.updated_at}`} 
+              alt="Isotipo" 
+              className="h-8 w-8 object-contain" 
+            />
+          )}
+
+          {/* REFACTOR: Mostrar Logo (Derecha) */}
+          {businessInfo?.logo_url ? (
             <img 
               src={`${SERVER_URL}${businessInfo.logo_url}?t=${businessInfo.updated_at}`} 
               alt="Logo" 
               className="h-12 w-auto object-contain" 
             />
-          )}
-
-          {/* REFACTOR: Mostrar Isotipo si existe, sino Texto */}
-          {businessInfo?.icon_url ? (
-            <img 
-              src={`${SERVER_URL}${businessInfo.icon_url}?t=${businessInfo.updated_at}`} 
-              alt="Isotipo" 
-              className="h-8 w-8 object-contain" // Ajustar tamaño según diseño
-            />
           ) : (
-            <h1 className="text-2xl font-bold">{businessInfo?.name || 'Farmalux'}</h1>
+             /* Fallback: Si no hay logo, mostrar texto solo si NO hay isotipo (o como complemento) */
+             /* Lógica anterior: Isotipo reemplaza texto. Logo es independiente. */
+             /* Nueva Lógica: Isotipo + Logo. Si no hay Logo -> Texto. */
+             !businessInfo?.icon_url && <h1 className="text-2xl font-bold">{businessInfo?.name || 'E-Commerce Core'}</h1>
           )}
         </Link>
         

@@ -20,6 +20,7 @@ import PasswordResetValidatePage from "./pages/PasswordResetValidatePage"; // ¡
 // Importar Modales (ahora componentes separados)
 import LoginModal from "./components/LoginModal";
 import CartModal from "./components/CartModal";
+import { ToastProvider } from "./components/ui/Toast";
 
 // Importar API y Tipos
 import * as api from "./api";
@@ -95,10 +96,19 @@ function ProtectedAdminRoute({
   return <>{children}</>;
 }
 
-/**
- * Componente Principal
- */
+// --- Main App Component ---
 export default function App() {
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </BrowserRouter>
+  );
+}
+
+// Extract main logic to AppContent to use ToastProvider context
+function AppContent() {
   // Estado de la Aplicación
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [customization, setCustomization] = useState<Customization | null>(
@@ -114,8 +124,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
 
   // Estado de UI
-  const [showLogin, setShowLogin] = useState(false);
-  const [showCart, setShowCart] = useState(false);
+  const [showLogin, setShowLogin] = useState(false); // restored
+  const [showCart, setShowCart] = useState(false);   // restored
   const [appKey, setAppKey] = useState(0); // Para forzar recarga
 
   // Cargar datos iniciales (públicos)
@@ -386,63 +396,56 @@ export default function App() {
 
   return (
     <AppContext.Provider value={contextValue}>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        {/* Modales Globales */}
-        <LoginModal
-          isOpen={showLogin}
-          onClose={() => setShowLogin(false)}
-          onLogin={handleLogin}
-        />
-        <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
+      {/* Modales Globales */}
+      <LoginModal
+        isOpen={showLogin}
+        onClose={() => setShowLogin(false)}
+        onLogin={handleLogin}
+      />
+      <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
 
-        {/* Rutas de la aplicación (E2E Test) */}
-        <div data-testid="app-container">
-          <Routes>
-            {/* Rutas Públicas (Layout principal) */}
-            <Route path="/" element={<Layout />}>
-              <Route index element={<HomePage />} />
+      {/* Rutas de la aplicación (E2E Test) */}
+      <div data-testid="app-container">
+        <Routes>
+          {/* Rutas Públicas (Layout principal) */}
+          <Route path="/" element={<Layout />}>
+            <Route index element={<HomePage />} />
 
-              {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
-              <Route
-                path="account"
-                element={
-                  <ProtectedUserRoute user={user}>
-                    <UserAccountPage />
-                  </ProtectedUserRoute>
-                }
-              />
-
-              {/* Ruta de Admin (RBAC) */}
-              <Route
-                path="admin/*"
-                element={
-                  <ProtectedAdminRoute user={user}>
-                    <AdminPanel />
-                  </ProtectedAdminRoute>
-                }
-              />
-            </Route>
-
-            {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
+            {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
             <Route
-              path="/password-reset"
-              element={<PasswordResetRequestPage />}
-            />
-            <Route
-              path="/password-reset/validate"
-              element={<PasswordResetValidatePage />}
+              path="account"
+              element={
+                <ProtectedUserRoute user={user}>
+                  <UserAccountPage />
+                </ProtectedUserRoute>
+              }
             />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </BrowserRouter>
+            {/* Ruta de Admin (RBAC) */}
+            <Route
+              path="admin/*"
+              element={
+                <ProtectedAdminRoute user={user}>
+                  <AdminPanel />
+                </ProtectedAdminRoute>
+              }
+            />
+          </Route>
+
+          {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
+          <Route
+            path="/password-reset"
+            element={<PasswordResetRequestPage />}
+          />
+          <Route
+            path="/password-reset/validate"
+            element={<PasswordResetValidatePage />}
+          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
     </AppContext.Provider>
   );
 }

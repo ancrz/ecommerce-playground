@@ -12,7 +12,7 @@
 import { z, ZodType } from 'zod';
 import type { 
   Product, ProductCard, ProductCreate, ProductUpdate,
-  Currency, Region, TaxRate, RegionUpdate, TaxRateUpdate,
+  Currency, Region, TaxRate, RegionUpdate,
   Cart, PaymentDetails, DailyReport, Sale,
   BusinessInfo, BusinessInfoUpdate, Customization,
   User, TokenResponse, 
@@ -23,13 +23,11 @@ import type {
 
 // Importar los esquemas (la nueva "fuente de verdad")
 import {
-  ProductSchema, ProductCardSchema, ProductCreateSchema, ProductUpdateSchema,
-  CurrencySchema, RegionSchema, TaxRateSchema, RegionUpdateSchema, TaxRateUpdateSchema,
-  CartItemSchema, CartSchema, PaymentDetailsSchema, SaleSchema, DailyReportSchema,
-  BusinessInfoSchema, BusinessInfoUpdateSchema, CustomizationSchema,
+  ProductSchema, ProductCardSchema,
+  CurrencySchema, RegionSchema, TaxRateSchema,
+  CartSchema, SaleSchema, DailyReportSchema,
+  BusinessInfoSchema, CustomizationSchema,
   UserPublicSchema, TokenResponseSchema,
-  UserCreateRequestSchema, UserUpdateRequestSchema,
-  PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetValidateSchema,
   MessageResponseSchema, ProductImageSchema // Un esquema genérico para { message: "..." }
 } from './schemas';
 
@@ -308,25 +306,25 @@ export const createProductWithImage = async (
 export const uploadProductImage = (productId: string, file: File): Promise<Product> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<Product>(`/admin/images/products/${productId}/upload`, formData, ProductSchema); // <-- Validar
+  return authFetchForm<Product>(`/images/products/${productId}/upload`, formData, ProductSchema); // <-- Validar
 };
 
 export const uploadBusinessLogo = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/logo', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/logo', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadBusinessIcon = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/icon', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/icon', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadBusinessBanner = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/banner', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/banner', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadModuleIcon = (moduleName: string, file: File): Promise<Customization> => {

@@ -22,13 +22,16 @@ interface ContentModuleProps {
   onUpdate: () => void; // Función para forzar el refresh global
 }
 
+import { useToast } from '../components/ui/Toast';
+
 export default function ContentModule({ onUpdate }: ContentModuleProps) {
   const [info, setInfo] = useState<Partial<BusinessInfo>>({ social_networks: [] });
   const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
   
   // Cargar datos al montar
   useEffect(() => {
-    api.getBusinessInfo().then(setInfo).catch(err => alert("Error cargando info: " + err.message));
+    api.getBusinessInfo().then(setInfo).catch(err => toast("Error cargando info: " + err.message, 'error'));
   }, []);
   
   const handleSave = async () => {
@@ -43,11 +46,11 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       };
       // 2. Llamar a la API de Negocio (Módulo 19)
       await api.updateBusinessInfo(updateDto);
-      alert('✓ Información actualizada');
+      toast('✓ Información actualizada', 'success');
       // 3. Forzar refresh global (actualiza Header/Footer)
       onUpdate();
     } catch (error: any) {
-      alert('Error guardando: ' + error.message);
+      toast('Error guardando: ' + error.message, 'error');
     }
     setSaving(false);
   };
@@ -66,12 +69,12 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       
       // 2. Actualizar el estado local con la respuesta
       setInfo((prevInfo: Partial<BusinessInfo>) => ({...prevInfo, [field]: res[field] }));
-      alert(`✓ ${field === 'logo_url' ? 'Logo' : 'Icono'} actualizado`);
+      toast(`✓ ${field === 'logo_url' ? 'Logo' : 'Icono'} actualizado`, 'success');
       
       // 3. Forzar refresh global
       onUpdate();
     } catch (error: any) {
-      alert(`Error subiendo imagen: ${error.message}`);
+      toast(`Error subiendo imagen: ${error.message}`, 'error');
     }
     setSaving(false);
   };
@@ -82,10 +85,10 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
     try {
       const updatedInfo = await api.uploadSocialNetworkIcon(index, file);
       setInfo(updatedInfo);
-      alert('✓ Icono de red social actualizado.');
+      toast('✓ Icono de red social actualizado.', 'success');
       onUpdate();
     } catch (error: any) {
-      alert(`Error subiendo icono: ${error.message}`);
+      toast(`Error subiendo icono: ${error.message}`, 'error');
     }
     setSaving(false);
   };
