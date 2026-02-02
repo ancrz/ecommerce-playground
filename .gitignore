@@ -118,7 +118,10 @@ docs/
 example/
 
 
-# Local Logs and Temps
-logs/
-*.log
-backend_running
+# ===== Agentic Skills & Docs =====
+.agent/skills/
+!.agent/skills/.gitkeep
+
+# Ensure Session Logs are tracked even if docs/ is ignored
+!docs/sessions/
+
