@@ -25,8 +25,6 @@ import CartModal from "./components/CartModal";
 import * as api from "./api";
 import type {
   User,
-  Product,
-  ProductCard,
   BusinessInfo,
   Customization,
   Currency,
@@ -341,6 +339,29 @@ export default function App() {
     }
     styleTag.innerHTML = custom.custom_css || "";
   };
+
+  // REFACTOR: Dynamic Favicon & Title
+  useEffect(() => {
+    if (!businessInfo) return;
+
+    // 1. Update Title
+    if (businessInfo.name) {
+      document.title = businessInfo.name;
+    }
+
+    // 2. Update Favicon (Isotype)
+    if (businessInfo.icon_url) {
+       // Look for existing link
+       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+       if (!link) {
+           link = document.createElement('link');
+           link.rel = 'icon';
+           document.getElementsByTagName('head')[0].appendChild(link);
+       }
+       // Add timestamp to bust cache
+       link.href = `${businessInfo.icon_url}?t=${businessInfo.updated_at}`;
+    }
+  }, [businessInfo]);
 
   // Valor del Contexto
   const contextValue: AppContextType = {
