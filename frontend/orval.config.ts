@@ -1,7 +1,7 @@
 import { defineConfig } from 'orval';
 
 export default defineConfig({
-  farmalux: {
+  'ecommerce-playground': {
     input: {
       target: 'http://localhost:8042/openapi.json',
     },
