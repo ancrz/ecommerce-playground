@@ -175,7 +175,7 @@ export default function ProductsModule() {
 // COMPONENTES INTERNOS DEL MÓDULO DE PRODUCTOS
 // ============================================================================
 
-// --- Componente: Lista de Productos ---
+// --- Componente: Lista de Productos (Responsive + Paginación) ---
 function ProductList({
   onEdit,
   refreshKey,
@@ -185,6 +185,10 @@ function ProductList({
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // "Default de elementos bajo responsive"
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
@@ -193,7 +197,7 @@ function ProductList({
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const data = await api.getAllProducts(); // Llama a GET /api/products/
+      const data = await api.getAllProducts(); 
       setProducts(data);
     } catch (error) {
       console.error("Error loading products:", error);
@@ -201,7 +205,6 @@ function ProductList({
     setLoading(false);
   };
 
-  // Recargar cuando 'refreshKey' cambie
   useEffect(() => {
     loadProducts();
   }, [refreshKey]);
@@ -213,6 +216,7 @@ function ProductList({
       confirmText: 'Eliminar',
       cancelText: 'Cancelar',
       type: 'danger',
+      
     });
     
     if (!confirmed) return;
@@ -220,145 +224,201 @@ function ProductList({
     try {
       await api.deleteProduct(productId);
       showToast('Producto eliminado', 'success');
-      loadProducts(); // Recargar lista
+      loadProducts();
     } catch (error: any) {
       showToast('Error: ' + error.message, 'error');
     }
   };
 
+  // Lógica de Paginación
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      // Scroll top suave
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   if (loading)
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-12 text-gray-500 flex flex-col items-center">
+        <Loader2 className="animate-spin mb-2" size={32} />
         Cargando productos...
       </div>
     );
 
-  return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Imagen
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Producto
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                SKU
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Precio (Moneda Base)
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Stock
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Estado
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {products.map((product) => (
-              <tr
-                key={product.id}
-                className="hover:bg-gray-50"
-                data-testid={`product-row-${product.id}`}
-              >
-                <td className="px-4 py-3">
-                  {product.image_url ? (
-                    <img
-                      src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
-                      alt={product.name}
-                      className="w-16 h-16 object-cover rounded image-preview"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
-                      <Image size={24} className="text-gray-400" />
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-semibold text-gray-800">
-                    {product.name}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {product.category || "Sin categoría"}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-600">
-                  {product.sku || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  {/* REFACTOR FASE 3: Usar el formateador de precios */}
-                  <div className="font-semibold text-blue-600">
-                    {formatPrice(product.price)}
-                  </div>
-                  {product.is_discount && (
-                    <div className="text-xs text-red-600">
-                      Desc: {formatPrice(product.final_price ?? product.price)} (-
-                      {product.discount_percentage}%)
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`font-semibold ${
-                      product.stock > 10
-                        ? "text-green-600"
-                        : product.stock > 0
-                        ? "text-yellow-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {product.stock}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    {product.is_featured && (
-                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full text-center">
-                        Destacado
-                      </span>
-                    )}
-                    {product.is_discount && (
-                      <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full text-center">
-                        Descuento
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => onEdit(product)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition"
-                      title="Editar"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id, product.name)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {products.length === 0 && !loading && (
-        <div className="text-center py-12 text-gray-500">
+  if (products.length === 0) {
+    return (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow">
           No hay productos registrados
+        </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* VISTA DESKTOP (TABLA) - Hidden on Mobile */}
+      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Imagen</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Producto</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">SKU</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Precio</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Stock</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {paginatedProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    {product.image_url ? (
+                      <img
+                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                        alt={product.name}
+                        className="w-12 h-12 object-cover rounded border"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center border text-gray-400">
+                        <Image size={20} />
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-gray-800">{product.name}</div>
+                    <div className="text-xs text-gray-500">{product.category || "Sin categoría"}</div>
+                    <div className="flex gap-1 mt-1">
+                        {product.is_featured && <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] rounded">Star</span>}
+                        {product.is_discount && <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">%</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{product.sku || "-"}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-bold text-gray-900">{formatPrice(product.price)}</div>
+                    {product.is_discount && (
+                         <div className="text-xs text-red-500 line-through opacity-75">
+                             {formatPrice(product.price / ((100 - product.discount_percentage)/100))}
+                         </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        product.stock > 10 ? "bg-green-100 text-green-800" :
+                        product.stock > 0 ? "bg-yellow-100 text-yellow-800" :
+                        "bg-red-100 text-red-800"
+                    }`}>
+                        {product.stock} un.
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => onEdit(product)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
+                        <Edit2 size={18} />
+                      </button>
+                      <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition" title="Eliminar">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* VISTA MÓVIL (CARDS) - Visible on Mobile */}
+      <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {paginatedProducts.map((product) => (
+            <div key={product.id} className="bg-white p-4 rounded-lg shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-200">
+                {/* Imagen */}
+                <div className="shrink-0">
+                    {product.image_url ? (
+                      <img
+                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                        alt={product.name}
+                        className="w-20 h-20 object-cover rounded-lg border bg-gray-50"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center border text-gray-400">
+                        <Image size={24} />
+                      </div>
+                    )}
+                </div>
+                
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-gray-900 truncate pr-6">{product.name}</h3>
+                        {/* Menú de acciones absoluto o botones directos? Simplificado: Botones directos abajo */}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-1">{product.category}</p>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="font-bold text-blue-600 text-lg">{formatPrice(product.price)}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                            Default: {product.stock}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Botones Flotantes o Alineados */}
+                <div className="absolute top-3 right-3 flex flex-col gap-1">
+                    <button onClick={() => onEdit(product)} className="p-1.5 bg-gray-50 text-blue-600 rounded-full border hover:bg-blue-50">
+                        <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 bg-gray-50 text-red-600 rounded-full border hover:bg-red-50">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
+        ))}
+      </div>
+
+      {/* PAGINACIÓN (Común) */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6 pb-8">
+            <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+            >
+                Anterior
+            </button>
+            <div className="flex gap-1" data-testid="pagination-numbers">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition ${
+                            currentPage === page 
+                                ? 'bg-blue-600 text-white shadow-md scale-105' 
+                                : 'bg-white border text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                ))}
+            </div>
+            <button 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+            >
+                Siguiente
+            </button>
         </div>
       )}
     </div>
@@ -629,7 +689,7 @@ function ProductForm({
 
       {/* Botones (Solo en tab detalles o global? Dejémoslo global pero oculto en images si se desea) */}
       {activeTab !== 'images' && (
-      <div className="flex gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
+      <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
         {/* Botones */}
         <button
           type="submit"

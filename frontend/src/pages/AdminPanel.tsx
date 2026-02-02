@@ -186,7 +186,7 @@ export default function AdminPanel() {
       <div className="bg-white shadow-md border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6">
           <div 
-            className="flex gap-1 overflow-x-auto" 
+            className="flex gap-1 overflow-x-auto no-scrollbar" 
             role="tablist" 
             aria-label="Panel de Administración"
             ref={tabListRef}

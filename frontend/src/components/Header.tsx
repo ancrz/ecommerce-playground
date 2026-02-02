@@ -61,7 +61,7 @@ export default function Header() {
     }} data-testid="header-public">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center gap-4">
-          {/* REFACTOR: Mostrar Isotipo (Izquierda) */}
+          {/* REFACTOR: Mostrar Isotipo (Siempre visible, o solo móvil? Usuario dice: mobile solo isotipo) */}
           {businessInfo?.icon_url && (
             <img 
               src={`${SERVER_URL}${businessInfo.icon_url}?t=${businessInfo.updated_at}`} 
@@ -70,24 +70,23 @@ export default function Header() {
             />
           )}
 
-          {/* REFACTOR: Mostrar Logo (Derecha) */}
+          {/* REFACTOR: Mostrar Logo (Oculto en móvil, visible en desktop) */}
           {businessInfo?.logo_url ? (
             <img 
               src={`${SERVER_URL}${businessInfo.logo_url}?t=${businessInfo.updated_at}`} 
               alt="Logo" 
-              className="h-12 w-auto object-contain" 
+              className="h-12 w-auto object-contain hidden md:block" 
             />
           ) : (
-             /* Fallback: Si no hay logo, mostrar texto solo si NO hay isotipo (o como complemento) */
-             /* Lógica anterior: Isotipo reemplaza texto. Logo es independiente. */
-             /* Nueva Lógica: Isotipo + Logo. Si no hay Logo -> Texto. */
+             /* Fallback: Si no hay logo, mostrar texto solo en desktop si hay isotipo */
              !businessInfo?.icon_url && <h1 className="text-2xl font-bold">{businessInfo?.name || 'E-Commerce Core'}</h1>
           )}
         </Link>
         
         <div className="flex items-center gap-6">
-          {/* Selector de Moneda */}
-          <div className="flex items-center gap-2">
+          {/* Selector de Moneda (Oculto en móvil si no cabe, o visible siempre? Dejémoslo hidden md:block si es secundario, o visible) 
+              Industry standard: Currency usually in footer or menu on mobile. Let's hide on small screens to save space. */}
+          <div className="hidden md:flex items-center gap-2">
             <select
               // REFACTOR FASE 3: Usar el objeto
               value={selectedCurrency?.id || ''}
@@ -104,10 +103,10 @@ export default function Header() {
             </select>
           </div>
           
-          {/* Botón de Carrito */}
+          {/* Botón de Carrito (Visible en Desktop, en Móvil está en BottomBar) */}
           <button
             onClick={showCartModal}
-            className="relative p-2 hover:bg-white/10 rounded-lg transition"
+            className="relative p-2 hover:bg-white/10 rounded-lg transition hidden md:block" 
             data-testid="cart-button"
           >
             <ShoppingCart size={24} />
@@ -120,9 +119,9 @@ export default function Header() {
             )}
           </button>
           
-          {/* Lógica de Autenticación (RBAC) */}
+          {/* Lógica de Autenticación (RBAC) - Desktop Only (Mobile uses BottomNav) */}
           {user ? (
-            <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4">
                 {/* REFACTOR: Enlace al Panel de Usuario o Admin */}
                 <Link 
                   to={accountLink}
@@ -148,7 +147,7 @@ export default function Header() {
               className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition"
             >
               <User size={20} />
-              Admin
+              <span className="hidden sm:inline">Admin</span>
             </button>
           )}
         </div>
