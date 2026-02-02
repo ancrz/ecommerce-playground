@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup Script - farmalux-ecommerce (v4.1)
+Setup Script - ecommerce-playground (v4.1)
 =========================================
 Inicializa el entorno de desarrollo completo.
 
@@ -217,7 +217,7 @@ def main():
     parser.add_argument("--clean", action="store_true", help="Clean install (remove existing venv and db)")
     args = parser.parse_args()
 
-    print_header("Setup de farmalux-ecommerce (v4.1)")
+    print_header("Setup de ecommerce-playground (v4.1)")
 
     # Check Python version
     if not check_python_version():
