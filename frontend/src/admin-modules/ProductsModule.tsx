@@ -8,8 +8,8 @@
  * 3. Muestra el precio convertido a la moneda seleccionada (ej. $).
  * 4. Guarda el precio convirtiéndolo de vuelta a la moneda base (ej. Bs.).
  */
-import React, { useState, useEffect, useRef, ChangeEvent } from "react";
-import { Upload, X, Save, Plus, Trash2, Image, Edit2 } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star } from "lucide-react";
 
 // Importar API y Contexto
 import * as api from "../api";
@@ -17,7 +17,8 @@ import { useApp } from "../App";
 import { useFeedback } from "../components/ui/FeedbackModal";
 import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
-import type { ProductCreate, ProductUpdate } from "../types";
+import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
+import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -383,6 +384,8 @@ function ProductForm({
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  // State for tabs
+  const [activeTab, setActiveTab] = useState<'details' | 'images' | 'config'>('details');
 
   useEffect(() => {
     const basePrice = product?.price || 0;
@@ -445,6 +448,38 @@ function ProductForm({
       onSubmit={handleSubmit}
       data-testid="product-form"
     >
+      {/* Tab Nav */}
+      <div className="flex border-b mb-6">
+         <button
+           type="button"
+           className={`px-4 py-2 font-medium ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+           onClick={() => setActiveTab('details')}
+         >
+           Detalles
+         </button>
+         <button
+            type="button"
+            className={`px-4 py-2 font-medium ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => {
+                if (!formData.id) {
+                    alert("Guarda el producto primero para gestionar imágenes");
+                    return;
+                }
+                setActiveTab('images');
+            }}
+         >
+           Imágenes
+         </button>
+         <button
+            type="button"
+            className={`px-4 py-2 font-medium ${activeTab === 'config' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('config')}
+         >
+           Configuración
+         </button>
+      </div>
+
+      <div className={activeTab === 'details' ? 'block' : 'hidden'}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Columna Izquierda: Datos */}
         <div className="md:col-span-2 space-y-4">
@@ -571,7 +606,7 @@ function ProductForm({
           )}
         </div>
       </div>
-      </div> 
+      </div>
       {/* Fin Tab Detalles */}
 
       {/* TAB IMÁGENES */}
@@ -594,10 +629,8 @@ function ProductForm({
 
       {/* Botones (Solo en tab detalles o global? Dejémoslo global pero oculto en images si se desea) */}
       {activeTab !== 'images' && (
-      <div className="flex gap-3 mt-6 pt-6 border-t">
-
-      {/* Botones */}
-      <div className="flex gap-3 mt-6 pt-6 border-t">
+      <div className="flex gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
+        {/* Botones */}
         <button
           type="submit"
           disabled={isSaving || !formData.name || !displayPrice}
@@ -620,6 +653,7 @@ function ProductForm({
           Cancelar
         </button>
       </div>
+      )}
     </form>
   );
 }
@@ -890,25 +924,7 @@ const TextArea = ({ label, ...props }: TextAreaProps) => (
   </div>
 );
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
-  children: React.ReactNode;
-}
-const Select = ({ label, children, ...props }: SelectProps) => (
-  <div>
-    {label && (
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label}
-      </label>
-    )}
-    <select
-      {...props}
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-    >
-      {children}
-    </select>
-  </div>
-);
+
 
 interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
