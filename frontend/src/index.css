@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
@@ -10,4 +8,11 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* Standard CSS Variables (Fixes IDE warning for @theme) */
+:root {
+  --color-primary: #264192;
+  --color-secondary: #ffdd00;
+  --color-accent: #ffffff;
 }

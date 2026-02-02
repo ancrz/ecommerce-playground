@@ -1,5 +1,6 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, createContext, useContext } from 'react';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { Z_INDEX } from '../../constants';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -31,7 +32,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] flex flex-col gap-2 w-full max-w-md px-4">
+      <div 
+        className="fixed top-4 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 w-full max-w-md px-4"
+        style={{ zIndex: Z_INDEX.TOAST }}
+      >
         {toasts.map((t) => (
           <div
             key={t.id}

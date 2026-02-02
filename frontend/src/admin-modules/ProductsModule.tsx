@@ -9,7 +9,7 @@
  * 4. Guarda el precio convirtiéndolo de vuelta a la moneda base (ej. Bs.).
  */
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star } from "lucide-react";
+import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2 } from "lucide-react";
 
 // Importar API y Contexto
 import * as api from "../api";
