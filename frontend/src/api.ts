@@ -12,24 +12,23 @@
 import { z, ZodType } from 'zod';
 import type { 
   Product, ProductCard, ProductCreate, ProductUpdate,
-  Currency, Region, TaxRate, RegionUpdate, TaxRateUpdate,
+  Currency, Region, TaxRate, RegionUpdate,
   Cart, PaymentDetails, DailyReport, Sale,
   BusinessInfo, BusinessInfoUpdate, Customization,
   User, TokenResponse, 
   UserCreateRequest, UserUpdateRequest, 
-  PasswordChangeRequest, PasswordResetRequest, PasswordResetValidate
+  PasswordChangeRequest, PasswordResetRequest, PasswordResetValidate,
+  ProductImage
 } from './types';
 
 // Importar los esquemas (la nueva "fuente de verdad")
 import {
-  ProductSchema, ProductCardSchema, ProductCreateSchema, ProductUpdateSchema,
-  CurrencySchema, RegionSchema, TaxRateSchema, RegionUpdateSchema, TaxRateUpdateSchema,
-  CartItemSchema, CartSchema, PaymentDetailsSchema, SaleSchema, DailyReportSchema,
-  BusinessInfoSchema, BusinessInfoUpdateSchema, CustomizationSchema,
+  ProductSchema, ProductCardSchema,
+  CurrencySchema, RegionSchema, TaxRateSchema,
+  CartSchema, SaleSchema, DailyReportSchema,
+  BusinessInfoSchema, CustomizationSchema,
   UserPublicSchema, TokenResponseSchema,
-  UserCreateRequestSchema, UserUpdateRequestSchema,
-  PasswordChangeRequestSchema, PasswordResetRequestSchema, PasswordResetValidateSchema,
-  MessageResponseSchema // Un esquema genérico para { message: "..." }
+  MessageResponseSchema, ProductImageSchema // Un esquema genérico para { message: "..." }
 } from './schemas';
 
 // Importar configuración centralizada
@@ -229,6 +228,8 @@ export const searchProducts = (query: string): Promise<Product[]> => {
   return authFetch<Product[]>(`/products/search?q=${encodeURIComponent(query)}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
 };
 
+// (Moved to Gallery Section at the end)
+
 export const getSliderProducts = (type: 'main' | 'featured' | 'discount'): Promise<ProductCard[]> => {
   return authFetch<ProductCard[]>(`/products/slider/${type}`, { method: 'GET' }, z.array(ProductCardSchema)); // <-- Validar
 };
@@ -270,30 +271,60 @@ export const deleteProduct = (productId: string): Promise<{ message: string }> =
   return authFetch(`/products/${productId}`, { method: 'DELETE' }, MessageResponseSchema); // <-- Validar
 };
 
+/**
+ * Crear producto con imagen en una sola llamada.
+ * Usa multipart/form-data para enviar datos + archivo.
+ */
+export const createProductWithImage = async (
+  data: ProductCreate,
+  file?: File
+): Promise<Product> => {
+  const formData = new FormData();
+  
+  // Añadir campos del producto
+  formData.append('name', data.name);
+  formData.append('price', String(data.price));
+  formData.append('description', data.description || '');
+  formData.append('sku', data.sku || '');
+  formData.append('stock', String(data.stock || 0));
+  formData.append('category', data.category || '');
+  formData.append('is_featured', String(data.is_featured || false));
+  formData.append('is_discount', String(data.is_discount || false));
+  formData.append('discount_percentage', String(data.discount_percentage || 0));
+  formData.append('banner_assignment', data.banner_assignment || 'main');
+  
+  // Añadir archivo si existe
+  if (file) {
+    formData.append('file', file);
+  }
+  
+  return authFetchForm<Product>('/products/with-image', formData, ProductSchema);
+};
+
 // ==================== API de Admin: Imágenes (Orquestador) ====================
 
 export const uploadProductImage = (productId: string, file: File): Promise<Product> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<Product>(`/admin/images/products/${productId}/upload`, formData, ProductSchema); // <-- Validar
+  return authFetchForm<Product>(`/images/products/${productId}/upload`, formData, ProductSchema); // <-- Validar
 };
 
 export const uploadBusinessLogo = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/logo', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/logo', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadBusinessIcon = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/icon', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/icon', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadBusinessBanner = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
   formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/admin/images/business/banner', formData, BusinessInfoSchema); // <-- Validar
+  return authFetchForm<BusinessInfo>('/images/business/banner', formData, BusinessInfoSchema); // <-- Validar
 };
 
 export const uploadModuleIcon = (moduleName: string, file: File): Promise<Customization> => {
@@ -482,7 +513,37 @@ export const getCartQR = (cartId: string): Promise<{ qr_code: string }> => {
   return authFetch<{ qr_code: string }>(`/cart/${cartId}/qr`, { method: 'GET' }, z.object({ qr_code: z.string() }));
 };
 
-/** Eliminar la imagen de un producto */
-export const deleteProductImage = (productId: string): Promise<Product> => {
-  return authFetch<Product>(`/admin/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
+/** Eliminar la imagen principal de un producto (Legacy) */
+export const removeProductMainImage = (productId: string): Promise<Product> => {
+  return authFetch<Product>(`/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
+};
+
+// ==================== GALERÍA DE IMÁGENES ====================
+// (Usa ProductImageSchema importado de schemas.ts)
+
+/** Obtener todas las imágenes de la galería de un producto */
+export const getProductImages = (productId: string): Promise<ProductImage[]> => {
+  return authFetch<ProductImage[]>(`/products/${productId}/images`, { method: 'GET' }, z.array(ProductImageSchema));
+};
+
+/** Alias para consistencia con el componente ProductDetailModal */
+export const getProductGallery = getProductImages;
+
+/** Subir una imagen a la galería del producto */
+export const addProductImage = async (productId: string, file: File, isMain: boolean = false): Promise<ProductImage> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('is_main', String(isMain));
+    // AuthFetchForm maneja el token y headers
+    return authFetchForm<ProductImage>(`/products/${productId}/images`, formData, ProductImageSchema);
+};
+
+/** Establecer una imagen como principal */
+export const setMainImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}/main`, { method: 'PUT' }, MessageResponseSchema);
+};
+
+/** Eliminar una imagen de la galería */
+export const deleteProductImage = (productId: string, imageId: string): Promise<{ message: string }> => {
+    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}`, { method: 'DELETE' }, MessageResponseSchema);
 };

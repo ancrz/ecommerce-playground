@@ -8,15 +8,17 @@
  * 3. Muestra el precio convertido a la moneda seleccionada (ej. $).
  * 4. Guarda el precio convirtiéndolo de vuelta a la moneda base (ej. Bs.).
  */
-import React, { useState, useEffect, useRef, ChangeEvent } from "react";
-import { Upload, X, Save, Plus, Trash2, Image, Edit2 } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2 } from "lucide-react";
 
 // Importar API y Contexto
 import * as api from "../api";
 import { useApp } from "../App";
-import type { Product, Currency } from "../../types"; // <-- REFACTOR FASE 3: Importar Currency
+import { useFeedback } from "../components/ui/FeedbackModal";
+import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
-import type { ProductCreate, ProductUpdate } from "../../types";
+import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
+import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -31,14 +33,12 @@ export default function ProductsModule() {
   // REFACTOR FASE 3: Consumir la moneda seleccionada
   const { selectedCurrency } = useApp();
 
-  const handleSaveProduct = async (formData: Partial<Product>) => {
+  const handleSaveProduct = async (formData: Partial<Product>, imageFile?: File) => {
     setIsSaving(true);
     try {
       const isNew = !formData.id;
 
-      // 1. Usar los DTOs de Intención (ProductCreate / ProductUpdate)
-      // (formData.price ya está en la MONEDA BASE gracias a la
-      // lógica del formulario 'currency-aware')
+      // Construir payload
       const payload: ProductCreate | ProductUpdate = {
         name: formData.name!,
         description: formData.description || "",
@@ -46,7 +46,7 @@ export default function ProductsModule() {
         price: formData.price || 0,
         stock: formData.stock || 0,
         category: formData.category || "",
-        image_url: formData.image_url || null,
+        image_url: formData.image_url || undefined,
         is_featured: formData.is_featured || false,
         is_discount: formData.is_discount || false,
         discount_percentage: formData.discount_percentage || 0,
@@ -55,28 +55,33 @@ export default function ProductsModule() {
 
       let savedProduct: Product;
       if (isNew) {
-        // (A) Endpoint de Creación (solo datos)
-        savedProduct = await api.createProduct(payload as ProductCreate);
+        // NUEVO: Usar endpoint unificado si hay imagen
+        if (imageFile) {
+          savedProduct = await api.createProductWithImage(payload as ProductCreate, imageFile);
+        } else {
+          savedProduct = await api.createProduct(payload as ProductCreate);
+        }
       } else {
-        // (B) Endpoint de Actualización (solo datos)
+        // Actualización: Datos primero, luego imagen si hay
         savedProduct = await api.updateProduct(
           formData.id!,
           payload as ProductUpdate
         );
+        
+        // Si hay nueva imagen, subirla después
+        if (imageFile) {
+          savedProduct = await api.uploadProductImage(formData.id!, imageFile);
+        }
       }
 
       if (savedProduct.id) {
-        alert(isNew ? "✓ Producto creado" : "✓ Producto actualizado");
-        // REFACTOR (Flujo de Imagen):
-        // Mantenemos al usuario en el formulario (en modo edición)
-        // para que ahora pueda subir la imagen.
-        setEditingProduct(savedProduct);
-        setShowForm(true);
-        setRefreshKey((k) => k + 1); // Refrescar lista en segundo plano
+        setShowForm(false);
+        setEditingProduct(null);
+        setRefreshKey((k) => k + 1);
       }
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + error.message);
+      throw error; // Re-lanzar para que el modal maneje el feedback
     } finally {
       setIsSaving(false);
     }
@@ -88,44 +93,79 @@ export default function ProductsModule() {
   };
 
   const handleNewProduct = () => {
-    setEditingProduct(null); // Limpiar
-    setShowForm(true); // Mostrar formulario vacío
+    setEditingProduct(null);
+    setShowForm(true);
   };
+
+  // Usar sistema de feedback global
+  const { showToast } = useFeedback();
 
   return (
     <>
-      {showForm ? (
-        <ProductForm
-          product={editingProduct}
-          onSave={handleSaveProduct}
-          isSaving={isSaving}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingProduct(null);
-          }}
-          // REFACTOR FASE 3: Pasar la moneda al formulario
-          selectedCurrency={selectedCurrency}
-        />
-      ) : (
-        <>
-          <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Lista de Productos
-            </h2>
-            <button
-              onClick={handleNewProduct}
-              data-testid="add-product-button"
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2"
+      {/* Lista de Productos - Siempre visible */}
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Lista de Productos
+        </h2>
+        <button
+          onClick={handleNewProduct}
+          data-testid="add-product-button"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Nuevo Producto
+        </button>
+      </div>
+      <ProductList
+        onEdit={handleEdit}
+        refreshKey={refreshKey}
+      />
+
+      {/* Modal de Formulario */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative animate-slideUp">
+            {/* Header del Modal con color del tema */}
+            <div 
+              className="sticky top-0 px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl text-white"
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              <Plus size={20} />
-              Nuevo Producto
-            </button>
+              <h2 className="text-xl font-bold">
+                {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingProduct(null);
+                }}
+                className="p-2 hover:bg-white/20 rounded-full transition"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Contenido del Modal */}
+            <div className="p-6">
+              <ProductForm
+                product={editingProduct}
+                onSave={async (data, file) => {
+                  try {
+                    await handleSaveProduct(data, file);
+                    showToast(editingProduct ? 'Producto actualizado' : 'Producto creado');
+                  } catch (err: any) {
+                    showToast(err.message || 'Error al guardar', 'error');
+                  }
+                }}
+                isSaving={isSaving}
+                onCancel={() => {
+                  setShowForm(false);
+                  setEditingProduct(null);
+                }}
+                selectedCurrency={selectedCurrency}
+              />
+            </div>
           </div>
-          <ProductList
-            onEdit={handleEdit}
-            refreshKey={refreshKey} // Usar la key para forzar recarga
-          />
-        </>
+        </div>
       )}
     </>
   );
@@ -135,7 +175,7 @@ export default function ProductsModule() {
 // COMPONENTES INTERNOS DEL MÓDULO DE PRODUCTOS
 // ============================================================================
 
-// --- Componente: Lista de Productos ---
+// --- Componente: Lista de Productos (Responsive + Paginación) ---
 function ProductList({
   onEdit,
   refreshKey,
@@ -145,14 +185,19 @@ function ProductList({
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // "Default de elementos bajo responsive"
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
+  const { showToast, confirm } = useFeedback();
 
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const data = await api.getAllProducts(); // Llama a GET /api/products/
+      const data = await api.getAllProducts(); 
       setProducts(data);
     } catch (error) {
       console.error("Error loading products:", error);
@@ -160,157 +205,220 @@ function ProductList({
     setLoading(false);
   };
 
-  // Recargar cuando 'refreshKey' cambie
   useEffect(() => {
     loadProducts();
   }, [refreshKey]);
 
   const handleDelete = async (productId: string, productName: string) => {
-    if (
-      !confirm(`¿Eliminar "${productName}"? Esta acción no se puede deshacer.`)
-    )
-      return;
+    const confirmed = await confirm({
+      title: 'Eliminar Producto',
+      message: `¿Eliminar "${productName}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      
+    });
+    
+    if (!confirmed) return;
+    
     try {
       await api.deleteProduct(productId);
-      alert("✓ Producto eliminado");
-      loadProducts(); // Recargar lista
+      showToast('Producto eliminado', 'success');
+      loadProducts();
     } catch (error: any) {
-      alert("Error: " + error.message);
+      showToast('Error: ' + error.message, 'error');
+    }
+  };
+
+  // Lógica de Paginación
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const paginatedProducts = products.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      // Scroll top suave
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   if (loading)
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-12 text-gray-500 flex flex-col items-center">
+        <Loader2 className="animate-spin mb-2" size={32} />
         Cargando productos...
       </div>
     );
 
-  return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Imagen
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Producto
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                SKU
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Precio (Moneda Base)
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Stock
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                Estado
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {products.map((product) => (
-              <tr
-                key={product.id}
-                className="hover:bg-gray-50"
-                data-testid={`product-row-${product.id}`}
-              >
-                <td className="px-4 py-3">
-                  {product.image_url ? (
-                    <img
-                      src={`${SERVER_URL}${product.image_url}?t=${product.updated_at}`}
-                      alt={product.name}
-                      className="w-16 h-16 object-cover rounded image-preview"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
-                      <Image size={24} className="text-gray-400" />
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-semibold text-gray-800">
-                    {product.name}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {product.category || "Sin categoría"}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-gray-600">
-                  {product.sku || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  {/* REFACTOR FASE 3: Usar el formateador de precios */}
-                  <div className="font-semibold text-blue-600">
-                    {formatPrice(product.price)}
-                  </div>
-                  {product.is_discount && (
-                    <div className="text-xs text-red-600">
-                      Desc: {formatPrice(product.final_price)} (-
-                      {product.discount_percentage}%)
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`font-semibold ${
-                      product.stock > 10
-                        ? "text-green-600"
-                        : product.stock > 0
-                        ? "text-yellow-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {product.stock}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    {product.is_featured && (
-                      <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full text-center">
-                        Destacado
-                      </span>
-                    )}
-                    {product.is_discount && (
-                      <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full text-center">
-                        Descuento
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => onEdit(product)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition"
-                      title="Editar"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id, product.name)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-full transition"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {products.length === 0 && !loading && (
-        <div className="text-center py-12 text-gray-500">
+  if (products.length === 0) {
+    return (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow">
           No hay productos registrados
+        </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* VISTA DESKTOP (TABLA) - Hidden on Mobile */}
+      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Imagen</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Producto</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">SKU</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Precio</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Stock</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {paginatedProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    {product.image_url ? (
+                      <img
+                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                        alt={product.name}
+                        className="w-12 h-12 object-cover rounded border"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center border text-gray-400">
+                        <Image size={20} />
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-gray-800">{product.name}</div>
+                    <div className="text-xs text-gray-500">{product.category || "Sin categoría"}</div>
+                    <div className="flex gap-1 mt-1">
+                        {product.is_featured && <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] rounded">Star</span>}
+                        {product.is_discount && <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">%</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{product.sku || "-"}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-bold text-gray-900">{formatPrice(product.price)}</div>
+                    {product.is_discount && (
+                         <div className="text-xs text-red-500 line-through opacity-75">
+                             {formatPrice(product.price / ((100 - product.discount_percentage)/100))}
+                         </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        product.stock > 10 ? "bg-green-100 text-green-800" :
+                        product.stock > 0 ? "bg-yellow-100 text-yellow-800" :
+                        "bg-red-100 text-red-800"
+                    }`}>
+                        {product.stock} un.
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => onEdit(product)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
+                        <Edit2 size={18} />
+                      </button>
+                      <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition" title="Eliminar">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* VISTA MÓVIL (CARDS) - Visible on Mobile */}
+      <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {paginatedProducts.map((product) => (
+            <div key={product.id} className="bg-white p-4 rounded-lg shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-200">
+                {/* Imagen */}
+                <div className="shrink-0">
+                    {product.image_url ? (
+                      <img
+                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                        alt={product.name}
+                        className="w-20 h-20 object-cover rounded-lg border bg-gray-50"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center border text-gray-400">
+                        <Image size={24} />
+                      </div>
+                    )}
+                </div>
+                
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-gray-900 truncate pr-6">{product.name}</h3>
+                        {/* Menú de acciones absoluto o botones directos? Simplificado: Botones directos abajo */}
+                    </div>
+                    <p className="text-sm text-gray-500 mb-1">{product.category}</p>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="font-bold text-blue-600 text-lg">{formatPrice(product.price)}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                            Default: {product.stock}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Botones Flotantes o Alineados */}
+                <div className="absolute top-3 right-3 flex flex-col gap-1">
+                    <button onClick={() => onEdit(product)} className="p-1.5 bg-gray-50 text-blue-600 rounded-full border hover:bg-blue-50">
+                        <Edit2 size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 bg-gray-50 text-red-600 rounded-full border hover:bg-red-50">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+            </div>
+        ))}
+      </div>
+
+      {/* PAGINACIÓN (Común) */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6 pb-8">
+            <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+            >
+                Anterior
+            </button>
+            <div className="flex gap-1" data-testid="pagination-numbers">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition ${
+                            currentPage === page 
+                                ? 'bg-blue-600 text-white shadow-md scale-105' 
+                                : 'bg-white border text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                ))}
+            </div>
+            <button 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+            >
+                Siguiente
+            </button>
         </div>
       )}
     </div>
@@ -326,14 +434,18 @@ function ProductForm({
   selectedCurrency,
 }: {
   product: Product | null;
-  onSave: (data: Partial<Product>) => void;
+  onSave: (data: Partial<Product>, imageFile?: File) => void;
   onCancel: () => void;
   isSaving: boolean;
   selectedCurrency: Currency | null;
 }) {
   const [formData, setFormData] = useState<Partial<Product>>(product || {});
   const [displayPrice, setDisplayPrice] = useState("0");
-  const [isUploading, setIsUploading] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  // State for tabs
+  const [activeTab, setActiveTab] = useState<'details' | 'images' | 'config'>('details');
 
   useEffect(() => {
     const basePrice = product?.price || 0;
@@ -351,6 +463,9 @@ function ProductForm({
         image_url: "",
       }
     );
+    // Reset image state when product changes
+    setPendingImageFile(null);
+    setImagePreview(product?.image_url || null);
 
     if (selectedCurrency && !selectedCurrency.is_base) {
       setDisplayPrice((basePrice / selectedCurrency.exchange_rate).toFixed(2));
@@ -361,7 +476,7 @@ function ProductForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave(formData, pendingImageFile || undefined);
   };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,29 +493,53 @@ function ProductForm({
     setFormData({ ...formData, price: newBasePrice });
   };
 
-  const handleImageUpload = async (file: File) => {
-    if (!formData.id) return;
-    setIsUploading(true);
-    try {
-      const updatedProduct = await api.uploadProductImage(formData.id, file);
-      setFormData((prev) => ({ ...prev, image_url: updatedProduct.image_url }));
-      alert("✓ Imagen subida exitosamente");
-    } catch (error: any) {
-      alert("Error subiendo imagen: " + error.message);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleImageSelect = (file: File) => {
+    setPendingImageFile(file);
+    // Create local preview
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
+
+  const currentImageUrl = imagePreview || formData.image_url;
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto mb-8"
       data-testid="product-form"
     >
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">
-        {formData.id ? "Editar Producto" : "Nuevo Producto"}
-      </h2>
+      {/* Tab Nav */}
+      <div className="flex border-b mb-6">
+         <button
+           type="button"
+           className={`px-4 py-2 font-medium ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+           onClick={() => setActiveTab('details')}
+         >
+           Detalles
+         </button>
+         <button
+            type="button"
+            className={`px-4 py-2 font-medium ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => {
+                if (!formData.id) {
+                    alert("Guarda el producto primero para gestionar imágenes");
+                    return;
+                }
+                setActiveTab('images');
+            }}
+         >
+           Imágenes
+         </button>
+         <button
+            type="button"
+            className={`px-4 py-2 font-medium ${activeTab === 'config' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('config')}
+         >
+           Configuración
+         </button>
+      </div>
+
+      <div className={activeTab === 'details' ? 'block' : 'hidden'}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Columna Izquierda: Datos */}
         <div className="md:col-span-2 space-y-4">
@@ -489,32 +628,72 @@ function ProductForm({
 
         {/* Columna Derecha: Imagen */}
         <div>
-          {formData.id ? (
-            <ImageUploader
-              label="Imagen del Producto"
-              currentImageUrl={formData.image_url}
-              onFileSelect={handleImageUpload}
-              isUploading={isUploading}
-            />
-          ) : (
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 h-64 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Image size={48} className="mx-auto mb-2" />
-                <p className="text-sm font-semibold">
-                  Guarde el producto primero
-                </p>
-                <p className="text-xs">para poder subir una imagen</p>
+          <ImageUploader
+            label="Imagen del Producto"
+            currentImageUrl={currentImageUrl}
+            onFileSelect={handleImageSelect}
+            isUploading={isSaving}
+          />
+          {pendingImageFile && !formData.id && (
+            <p className="text-xs text-blue-600 mt-2">
+              ✓ Imagen seleccionada. Se subirá al guardar el producto.
+            </p>
+          )}
+          
+          {/* Modal de preview */}
+          {showImageModal && currentImageUrl && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+              onClick={() => setShowImageModal(false)}
+            >
+              <div className="relative max-w-4xl max-h-[90vh]">
+                <button 
+                  onClick={() => setShowImageModal(false)}
+                  className="absolute -top-10 right-0 text-white hover:text-gray-300"
+                >
+                  <X size={32} />
+                </button>
+                <img 
+                  src={currentImageUrl.startsWith('data:') 
+                    ? currentImageUrl 
+                    : `${SERVER_URL}${currentImageUrl}?t=${Date.now()}`
+                  }
+                  alt="Preview"
+                  className="max-w-full max-h-[85vh] object-contain rounded-lg"
+                />
               </div>
             </div>
           )}
         </div>
       </div>
+      </div>
+      {/* Fin Tab Detalles */}
 
-      {/* Botones */}
-      <div className="flex gap-3 mt-6 pt-6 border-t">
+      {/* TAB IMÁGENES */}
+      {activeTab === 'images' && formData.id && (
+        <ProductImageManager productId={formData.id} />
+      )}
+
+      {/* TAB CONFIGURACIÓN */}
+      {activeTab === 'config' && (
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold text-lg mb-4">Configuración Avanzada</h3>
+          <p className="text-gray-500 mb-4">Opciones de SKU, SEO y Logística (Próximamente)</p>
+          <div className="grid grid-cols-1 gap-4 opacity-50 pointer-events-none">
+             <Input label="SKU (Stock Keeping Unit)" value={formData.sku || ''} disabled />
+             <Input label="Meta Title (SEO)" disabled />
+             <Input label="Meta Description (SEO)" disabled />
+          </div>
+        </div>
+      )}
+
+      {/* Botones (Solo en tab detalles o global? Dejémoslo global pero oculto en images si se desea) */}
+      {activeTab !== 'images' && (
+      <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
+        {/* Botones */}
         <button
           type="submit"
-          disabled={isSaving || isUploading || !formData.name || !displayPrice}
+          disabled={isSaving || !formData.name || !displayPrice}
           data-testid="product-form-save-button"
           className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 flex items-center justify-center gap-2"
         >
@@ -528,15 +707,146 @@ function ProductForm({
         <button
           type="button"
           onClick={onCancel}
-          disabled={isSaving || isUploading}
+          disabled={isSaving}
           className="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition font-semibold"
         >
           Cancelar
         </button>
       </div>
+      )}
     </form>
   );
 }
+
+// --- Componente: Gestor de Imágenes (Galería) ---
+function ProductImageManager({ productId }: { productId: string }) {
+  const [images, setImages] = useState<ProductImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useFeedback();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadImages = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getProductImages(productId);
+      setImages(data);
+    } catch (error) {
+      console.error("Error loading images:", error);
+      showToast("Error al cargar galería", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [productId, showToast]);
+
+  useEffect(() => {
+    loadImages();
+  }, [loadImages]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (images.length >= 5) {
+      showToast("Máximo 5 imágenes permitidas", "warning");
+      return;
+    }
+
+    try {
+      await addProductImage(productId, file);
+      showToast("Imagen subida exitosamente", "success");
+      loadImages();
+    } catch (error: any) {
+      showToast(error.message || "Error al subir imagen", "error");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (imageId: string) => {
+    if (!confirm("¿Eliminar esta imagen?")) return;
+    try {
+      await deleteProductImage(productId, imageId);
+      showToast("Imagen eliminada", "success");
+      loadImages();
+    } catch (error) {
+      showToast("Error al eliminar", "error");
+    }
+  };
+
+  const handleSetMain = async (imageId: string) => {
+    try {
+      await setMainImage(productId, imageId);
+      showToast("Imagen principal actualizada", "success");
+      loadImages();
+    } catch (error) {
+      showToast("Error al actualizar principal", "error");
+    }
+  };
+
+  if (loading && images.length === 0) return <div className="p-8 text-center">Cargando imágenes...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Galería de Imágenes ({images.length}/5)</h3>
+        {images.length < 5 && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Upload size={18} /> Subir Imagen
+            </button>
+        )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handleUpload}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {images.map((img) => (
+          <div key={img.id} className={`relative group border rounded-lg p-2 ${img.is_main ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'}`}>
+            <div className="w-full h-32 bg-gray-50 rounded flex items-center justify-center overflow-hidden mb-2">
+              <img 
+                src={`${SERVER_URL}${img.image_url}`} 
+                alt="Product" 
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            
+            <div className="flex justify-between items-center px-1">
+                {img.is_main ? (
+                  <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
+                    <Star size={12} fill="currentColor" /> Principal
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleSetMain(img.id)}
+                    className="text-xs text-gray-500 hover:text-blue-600 underline"
+                  >
+                    Hacer Principal
+                  </button>
+                )}
+                
+                <button 
+                  onClick={() => handleDelete(img.id)}
+                  className="text-red-500 hover:text-red-700 p-1"
+                  title="Eliminar"
+                >
+                  <Trash2 size={16} />
+                </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 // --- Componente: Subidor de Imágenes de Producto (Simplificado) ---
 function ImageUploader({
@@ -552,6 +862,7 @@ function ImageUploader({
 }) {
   const [preview, setPreview] = useState(currentImageUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useFeedback();
 
   useEffect(() => {
     setPreview(currentImageUrl);
@@ -561,11 +872,11 @@ function ImageUploader({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      alert("Por favor selecciona una imagen válida");
+      showToast("Por favor selecciona una imagen válida", "warning");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("La imagen es muy grande. Máximo 5MB.");
+      showToast("La imagen es muy grande. Máximo 5MB.", "warning");
       return;
     }
 
@@ -589,32 +900,32 @@ function ImageUploader({
           type="file"
           accept="image/*"
           onChange={handleFileChange}
-          className="hidden"
-          disabled={isUploading}
-        />
-        {preview ? (
-          <div className="relative group">
-            <img
-              src={
-                preview.startsWith("data:")
-                  ? preview
-                  : `${SERVER_URL}${preview}?t=${new Date().getTime()}`
-              }
-              alt="Preview"
-              className="w-full h-48 object-contain rounded-lg bg-gray-50 image-preview"
+              className="hidden"
+              disabled={isUploading}
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="opacity-0 group-hover:opacity-100 transition bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                {isUploading ? "Subiendo..." : "Cambiar Imagen"}
-              </button>
-            </div>
-          </div>
-        ) : (
+            {preview ? (
+              <div className="relative group w-full h-48 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                <img
+                  src={
+                    preview.startsWith("data:")
+                      ? preview
+                      : `${SERVER_URL}${preview}?t=${new Date().getTime()}`
+                  }
+                  alt="Preview"
+                  className="max-w-full max-h-full object-contain"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="opacity-0 group-hover:opacity-100 transition bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    {isUploading ? "Subiendo..." : "Cambiar Imagen"}
+                  </button>
+                </div>
+              </div>
+            ) : (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -673,25 +984,7 @@ const TextArea = ({ label, ...props }: TextAreaProps) => (
   </div>
 );
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
-  children: React.ReactNode;
-}
-const Select = ({ label, children, ...props }: SelectProps) => (
-  <div>
-    {label && (
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label}
-      </label>
-    )}
-    <select
-      {...props}
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-    >
-      {children}
-    </select>
-  </div>
-);
+
 
 interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;

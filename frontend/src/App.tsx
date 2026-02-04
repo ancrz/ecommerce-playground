@@ -20,13 +20,12 @@ import PasswordResetValidatePage from "./pages/PasswordResetValidatePage"; // ¡
 // Importar Modales (ahora componentes separados)
 import LoginModal from "./components/LoginModal";
 import CartModal from "./components/CartModal";
+import { ToastProvider } from "./components/ui/Toast";
 
 // Importar API y Tipos
 import * as api from "./api";
 import type {
   User,
-  Product,
-  ProductCard,
   BusinessInfo,
   Customization,
   Currency,
@@ -49,6 +48,7 @@ interface AppContextType {
   setSelectedCurrency: (currency: Currency) => void; // <-- REFACTOR FASE 3
   addToCart: (productId: string, quantity: number) => Promise<void>; // <-- REFACTOR FASE 5
   removeFromCart: (productId: string) => Promise<void>; // <-- REFACTOR FASE 5
+  setCart: (cart: Cart) => void; // <-- Exponer para CartModal
   getCartItemCount: () => number;
   formatPrice: (priceInBase: number) => string; // Refactorizado
   forceAppUpdate: () => void;
@@ -96,10 +96,19 @@ function ProtectedAdminRoute({
   return <>{children}</>;
 }
 
-/**
- * Componente Principal
- */
+// --- Main App Component ---
 export default function App() {
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </BrowserRouter>
+  );
+}
+
+// Extract main logic to AppContent to use ToastProvider context
+function AppContent() {
   // Estado de la Aplicación
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   const [customization, setCustomization] = useState<Customization | null>(
@@ -115,8 +124,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
 
   // Estado de UI
-  const [showLogin, setShowLogin] = useState(false);
-  const [showCart, setShowCart] = useState(false);
+  const [showLogin, setShowLogin] = useState(false); // restored
+  const [showCart, setShowCart] = useState(false);   // restored
   const [appKey, setAppKey] = useState(0); // Para forzar recarga
 
   // Cargar datos iniciales (públicos)
@@ -260,18 +269,15 @@ export default function App() {
 
   const addToCart = async (productId: string, quantity: number) => {
     if (!cart) {
-      alert(
-        "El carrito no está inicializado. Por favor, espere o recargue la página."
-      );
-      return;
+      throw new Error("El carrito no está inicializado. Por favor, recargue la página.");
     }
     try {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart);
-      alert("Producto agregado al carrito"); // Feedback al usuario
+      // Feedback se maneja en el componente que llama (ProductDetailModal, HomePage)
     } catch (error: any) {
       console.error("Error al agregar al carrito:", error);
-      alert(`Error: ${error.message}`);
+      throw error; // Re-lanzar para que el componente lo maneje
     }
   };
 
@@ -282,7 +288,7 @@ export default function App() {
       setCart(updatedCart);
     } catch (error: any) {
       console.error("Error al eliminar del carrito:", error);
-      alert(`Error: ${error.message}`);
+      throw error;
     }
   };
 
@@ -344,6 +350,29 @@ export default function App() {
     styleTag.innerHTML = custom.custom_css || "";
   };
 
+  // REFACTOR: Dynamic Favicon & Title
+  useEffect(() => {
+    if (!businessInfo) return;
+
+    // 1. Update Title
+    if (businessInfo.name) {
+      document.title = businessInfo.name;
+    }
+
+    // 2. Update Favicon (Isotype)
+    if (businessInfo.icon_url) {
+       // Look for existing link
+       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+       if (!link) {
+           link = document.createElement('link');
+           link.rel = 'icon';
+           document.getElementsByTagName('head')[0].appendChild(link);
+       }
+       // Add timestamp to bust cache
+       link.href = `${businessInfo.icon_url}?t=${businessInfo.updated_at}`;
+    }
+  }, [businessInfo]);
+
   // Valor del Contexto
   const contextValue: AppContextType = {
     businessInfo,
@@ -356,6 +385,7 @@ export default function App() {
     setSelectedCurrency, // <-- REFACTOR FASE 3
     addToCart,
     removeFromCart,
+    setCart, // <-- Para CartModal
     getCartItemCount,
     formatPrice,
     forceAppUpdate: () => setAppKey((k) => k + 1),
@@ -366,58 +396,56 @@ export default function App() {
 
   return (
     <AppContext.Provider value={contextValue}>
-      <BrowserRouter>
-        {/* Modales Globales */}
-        <LoginModal
-          isOpen={showLogin}
-          onClose={() => setShowLogin(false)}
-          onLogin={handleLogin}
-        />
-        <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
+      {/* Modales Globales */}
+      <LoginModal
+        isOpen={showLogin}
+        onClose={() => setShowLogin(false)}
+        onLogin={handleLogin}
+      />
+      <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
 
-        {/* Rutas de la aplicación (E2E Test) */}
-        <div data-testid="app-container">
-          <Routes>
-            {/* Rutas Públicas (Layout principal) */}
-            <Route path="/" element={<Layout />}>
-              <Route index element={<HomePage />} />
+      {/* Rutas de la aplicación (E2E Test) */}
+      <div data-testid="app-container">
+        <Routes>
+          {/* Rutas Públicas (Layout principal) */}
+          <Route path="/" element={<Layout />}>
+            <Route index element={<HomePage />} />
 
-              {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
-              <Route
-                path="account"
-                element={
-                  <ProtectedUserRoute user={user}>
-                    <UserAccountPage />
-                  </ProtectedUserRoute>
-                }
-              />
-
-              {/* Ruta de Admin (RBAC) */}
-              <Route
-                path="admin/*"
-                element={
-                  <ProtectedAdminRoute user={user}>
-                    <AdminPanel />
-                  </ProtectedAdminRoute>
-                }
-              />
-            </Route>
-
-            {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
+            {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
             <Route
-              path="/password-reset"
-              element={<PasswordResetRequestPage />}
-            />
-            <Route
-              path="/password-reset/validate"
-              element={<PasswordResetValidatePage />}
+              path="account"
+              element={
+                <ProtectedUserRoute user={user}>
+                  <UserAccountPage />
+                </ProtectedUserRoute>
+              }
             />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </BrowserRouter>
+            {/* Ruta de Admin (RBAC) */}
+            <Route
+              path="admin/*"
+              element={
+                <ProtectedAdminRoute user={user}>
+                  <AdminPanel />
+                </ProtectedAdminRoute>
+              }
+            />
+          </Route>
+
+          {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
+          <Route
+            path="/password-reset"
+            element={<PasswordResetRequestPage />}
+          />
+          <Route
+            path="/password-reset/validate"
+            element={<PasswordResetValidatePage />}
+          />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
     </AppContext.Provider>
   );
 }

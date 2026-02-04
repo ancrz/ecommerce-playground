@@ -23,12 +23,14 @@ class ImageService:
     """
     
     # Configuración de procesamiento
-    DEFAULT_MAX_SIZE = (1200, 1200)
-    LOGO_MAX_SIZE = (400, 200) # Rectangular
-    ICON_MAX_SIZE = (256, 256) # Cuadrado
-    MODULE_ICON_MAX_SIZE = (64, 64) # Cuadrado pequeño
+    DEFAULT_MAX_SIZE = (1200, 1200)  # Imagen full para landing/detalle
+    THUMBNAIL_SIZE = (300, 300)      # Thumbnail para lista de productos
+    LOGO_MAX_SIZE = (400, 200)       # Rectangular
+    ICON_MAX_SIZE = (256, 256)       # Cuadrado
+    MODULE_ICON_MAX_SIZE = (64, 64)  # Cuadrado pequeño
     
-    DEFAULT_QUALITY = 85 # Calidad JPEG
+    DEFAULT_QUALITY = 85    # Calidad JPEG full
+    THUMBNAIL_QUALITY = 75  # Calidad JPEG thumbnail (menor tamaño)
     ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
     
     def __init__(self, upload_path: str = "./data/uploads"):
@@ -163,6 +165,86 @@ class ImageService:
         # 5. Retornar URL relativa para el proxy
         url_path = f"/uploads/{folder}/{final_filename}"
         logger.info(f"Imagen '{original_filename}' guardada. URL relativa: {url_path}")
+        return url_path
+
+    def process_and_save_multi_size(
+        self,
+        file_data: bytes,
+        original_filename: str,
+        save_filename: str,
+        folder: str = "products"
+    ) -> str:
+        """
+        Procesa y guarda una imagen en múltiples tamaños:
+        - Full size (1200x1200): Para landing page y detalle de producto
+        - Thumbnail (300x300): Para lista de productos y carrito
+        
+        Retorna la URL de la imagen full (el thumbnail se infiere como {id}_thumb.jpg)
+        """
+        # 1. Validar
+        self._validate_image(file_data, original_filename)
+        
+        if folder != "products":
+            # Para otros tipos, usar el método simple
+            return self.process_and_save(file_data, original_filename, folder, save_filename)
+        
+        target_path = self.products_path
+        
+        # 2. Procesar imagen base (la abrimos una vez)
+        image = Image.open(BytesIO(file_data))
+        
+        # Convertir a RGB si es necesario
+        if image.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            if image.mode in ('RGBA', 'LA'):
+                mask = image.split()[-1]
+                background.paste(image, mask=mask)
+            else:
+                background.paste(image)
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # 3. Generar y guardar FULL SIZE (1200x1200)
+        full_image = ImageOps.fit(image.copy(), self.DEFAULT_MAX_SIZE, Image.Resampling.LANCZOS)
+        full_filename = f"{save_filename}.jpg"
+        full_path = target_path / full_filename
+        
+        try:
+            full_image.save(
+                full_path,
+                'JPEG',
+                quality=self.DEFAULT_QUALITY,
+                optimize=True,
+                progressive=True
+            )
+            logger.info(f"Imagen FULL guardada: {full_path}")
+        except Exception as e:
+            logger.error(f"Error guardando imagen full: {e}", exc_info=True)
+            raise IOError(f"No se pudo guardar imagen full: {e}")
+        
+        # 4. Generar y guardar THUMBNAIL (300x300)
+        thumb_image = ImageOps.fit(image.copy(), self.THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+        thumb_filename = f"{save_filename}_thumb.jpg"
+        thumb_path = target_path / thumb_filename
+        
+        try:
+            thumb_image.save(
+                thumb_path,
+                'JPEG',
+                quality=self.THUMBNAIL_QUALITY,
+                optimize=True
+            )
+            logger.info(f"Thumbnail guardado: {thumb_path}")
+        except Exception as e:
+            logger.error(f"Error guardando thumbnail: {e}", exc_info=True)
+            # No es fatal, el producto puede funcionar sin thumbnail
+        
+        # 5. Retornar URL de la imagen full
+        url_path = f"/uploads/{folder}/{full_filename}"
+        logger.info(f"Imagen multi-size '{original_filename}' procesada. Full: {url_path}, Thumb: {thumb_filename}")
         return url_path
 
     def delete_image(self, image_url: str) -> bool:

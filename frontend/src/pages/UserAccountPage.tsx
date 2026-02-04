@@ -6,12 +6,12 @@
  * 1. Botones usan clases .btn-primary y .btn-secondary
  */
 import React, { useState } from 'react';
-import { User, Lock, Save, Loader2, AlertCircle } from 'lucide-react';
+import { User as UserIcon, Lock, Save, Loader2 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
 import { useApp } from '../App';
-import type { UserUpdateRequest, PasswordChangeRequest } from '../types';
+import type { User, UserUpdateRequest, PasswordChangeRequest } from '../types';
 
 // Importar componentes reutilizables
 import { Input } from '../components/FormControls';
@@ -183,7 +183,7 @@ export default function UserAccountPage() {
         {/* Columna 1: Mis Datos */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold text-gray-700 mb-6 flex items-center gap-2">
-            <User size={20} />
+            <UserIcon size={20} />
             Mis Datos
           </h2>
           <ProfileForm user={user} onProfileUpdate={handleProfileUpdate} />

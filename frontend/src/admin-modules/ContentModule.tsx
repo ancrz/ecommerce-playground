@@ -4,16 +4,16 @@
  * REFACTORIZADO (FASE 4):
  * 1. Botones usan clases .btn-primary, .btn-link, .btn-icon
  */
-import React, { useState, useEffect, ChangeEvent, ElementType } from 'react';
+import { useState, useEffect } from 'react'; // React removed (unused), ChangeEvent/ElementType removed
 import { Save, Plus, Trash2 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
-import type { BusinessInfo, SocialNetwork } from '../../types';
-import type { BusinessInfoUpdate } from '../../types'; // DTO de Intención
+import type { BusinessInfo, SocialNetwork } from '../types'; // Fix: ../types instead of ../../types
+import type { BusinessInfoUpdate } from '../types';
 
 // Importar componentes reutilizables
-import { Input, Select } from '../components/FormControls';
+import { Input } from '../components/FormControls'; // Select removed
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = '';
@@ -22,13 +22,16 @@ interface ContentModuleProps {
   onUpdate: () => void; // Función para forzar el refresh global
 }
 
+import { useToast } from '../components/ui/Toast';
+
 export default function ContentModule({ onUpdate }: ContentModuleProps) {
   const [info, setInfo] = useState<Partial<BusinessInfo>>({ social_networks: [] });
   const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
   
   // Cargar datos al montar
   useEffect(() => {
-    api.getBusinessInfo().then(setInfo).catch(err => alert("Error cargando info: " + err.message));
+    api.getBusinessInfo().then(setInfo).catch(err => toast("Error cargando info: " + err.message, 'error'));
   }, []);
   
   const handleSave = async () => {
@@ -43,11 +46,11 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       };
       // 2. Llamar a la API de Negocio (Módulo 19)
       await api.updateBusinessInfo(updateDto);
-      alert('✓ Información actualizada');
+      toast('✓ Información actualizada', 'success');
       // 3. Forzar refresh global (actualiza Header/Footer)
       onUpdate();
     } catch (error: any) {
-      alert('Error guardando: ' + error.message);
+      toast('Error guardando: ' + error.message, 'error');
     }
     setSaving(false);
   };
@@ -65,13 +68,13 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       const res = await uploader(file);
       
       // 2. Actualizar el estado local con la respuesta
-      setInfo(prevInfo => ({...prevInfo, [field]: res[field] }));
-      alert(`✓ ${field === 'logo_url' ? 'Logo' : 'Icono'} actualizado`);
+      setInfo((prevInfo: Partial<BusinessInfo>) => ({...prevInfo, [field]: res[field] }));
+      toast(`✓ ${field === 'logo_url' ? 'Logo' : 'Icono'} actualizado`, 'success');
       
       // 3. Forzar refresh global
       onUpdate();
     } catch (error: any) {
-      alert(`Error subiendo imagen: ${error.message}`);
+      toast(`Error subiendo imagen: ${error.message}`, 'error');
     }
     setSaving(false);
   };
@@ -82,10 +85,10 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
     try {
       const updatedInfo = await api.uploadSocialNetworkIcon(index, file);
       setInfo(updatedInfo);
-      alert('✓ Icono de red social actualizado.');
+      toast('✓ Icono de red social actualizado.', 'success');
       onUpdate();
     } catch (error: any) {
-      alert(`Error subiendo icono: ${error.message}`);
+      toast(`Error subiendo icono: ${error.message}`, 'error');
     }
     setSaving(false);
   };
@@ -93,7 +96,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
   // --- Funciones para la lista dinámica de Redes Sociales ---
   
   const addNetwork = () => {
-    setInfo(prev => ({...prev, social_networks: [...(prev.social_networks || []), { name: 'facebook', url: '' }]}));
+    setInfo((prev: Partial<BusinessInfo>) => ({...prev, social_networks: [...(prev.social_networks || []), { name: 'facebook', url: '' }]}));
   };
   
   const updateNetwork = (index: number, field: 'name' | 'url' | 'icon', value: string) => {
@@ -103,7 +106,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
   };
   
   const removeNetwork = (index: number) => {
-    setInfo(prev => ({...prev, social_networks: prev.social_networks?.filter((_, i) => i !== index)}));
+    setInfo((prev: Partial<BusinessInfo>) => ({...prev, social_networks: prev.social_networks?.filter((_: SocialNetwork, i: number) => i !== index)}));
   };
 
   return (
@@ -135,7 +138,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
               <div className="col-span-4">URL</div>
               <div className="col-span-5">Icono</div>
             </div>
-            {info.social_networks?.map((net, index) => (
+            {info.social_networks?.map((net: SocialNetwork, index: number) => (
               <div key={index} className="grid grid-cols-12 gap-4 items-center" data-testid={`social-row-${index}`}>
                 <div className="col-span-3">
                   <Input 
@@ -158,7 +161,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
                     onChange={(e) => handleSocialIconUpload(index, e.target.files?.[0])}
                   />
                   {net.icon && (
-                    <img src={net.icon} alt={`${net.name} icon`} className="w-8 h-8 object-contain image-preview flex-shrink-0" />
+                    <img src={net.icon} alt={`${net.name} icon`} className="w-8 h-8 object-contain image-preview shrink-0" />
                   )}
                 </div>
                 <div className="col-span-1 text-right">
@@ -195,6 +198,20 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
           />
         </div>
 
+        {/* REFACTOR: Nuevo campo para Isotipo (Icono de Pestaña/Favicon) */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">Isotipo / Favicon (64x64px)</h3>
+          {info.icon_url && <img src={`${SERVER_URL}${info.icon_url}?t=${info.updated_at}`} className="w-16 h-16 object-contain image-preview mb-4" />}
+          <Input 
+            type="file" 
+            accept="image/*" 
+            onChange={(e) => handleUpload(e.target.files?.[0], api.uploadBusinessIcon, 'icon_url')} 
+            data-testid="content-icon-upload"
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            Este icono se usará en la pestaña del navegador y reemplazará el texto del título si está presente.
+          </p>
+        </div>
       </div>
 
       <div className="md:col-span-3 text-right mt-6">

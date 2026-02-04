@@ -11,6 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -105,10 +106,22 @@ alembic/versions/*.py
 
 # ===== Generated Files (by scripts/regenerate.py) =====
 frontend/src/api/generated/
-frontend/src/types.generated.ts
-*.generated.ts
+frontend/src/api/model/
 docs/openapi.json
 
 # ===== OS-Specific =====
 *.lnk
 desktop.ini
+
+# ===== Folders =====
+docs/
+example/
+
+
+# ===== Agentic Skills & Docs =====
+.agent/skills/
+!.agent/skills/.gitkeep
+
+# Ensure Session Logs are tracked even if docs/ is ignored
+!docs/sessions/
+

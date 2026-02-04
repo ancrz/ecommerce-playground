@@ -6,7 +6,7 @@
  * Pide el email y un Captcha, luego llama a la API
  * para enviar el código de 6 dígitos.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 

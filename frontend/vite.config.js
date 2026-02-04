@@ -17,7 +17,8 @@ export default defineConfig(({ mode }) => {
         // Proxy para las llamadas a la API
         '/api': {
           target: backendUrl,
-          changeOrigin: true
+          changeOrigin: true,
+          ws: true
         },
         // Proxy para las imágenes (uploads)
         '/uploads': {

@@ -186,7 +186,7 @@ export default function AdminPanel() {
       <div className="bg-white shadow-md border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6">
           <div 
-            className="flex gap-1 overflow-x-auto" 
+            className="flex gap-1 overflow-x-auto no-scrollbar" 
             role="tablist" 
             aria-label="Panel de Administración"
             ref={tabListRef}
@@ -242,6 +242,10 @@ export default function AdminPanel() {
                   moduleProps.onUpdate = forceAppUpdate;
               }
 
+              // Tipado "loose" para que Typescript no se queje de propiedades opcionales faltantes
+              // al renderizar componentes dinámicos con props parciales.
+              const Component = ModuleComponent as any;
+
               return (
                 <div
                   key={tab.id}
@@ -255,7 +259,7 @@ export default function AdminPanel() {
                   data-testid={`admin-panel-${tab.id}`} // E2E
                 >
                   {/* Renderizar solo el componente activo */}
-                  {isSelected && <ModuleComponent {...moduleProps} />}
+                  {isSelected && <Component {...moduleProps} />}
                 </div>
               );
             })}

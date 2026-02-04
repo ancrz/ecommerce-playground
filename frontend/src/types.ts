@@ -35,13 +35,15 @@ import {
   UserUpdateRequestSchema,
   PasswordChangeRequestSchema,
   PasswordResetRequestSchema,
-  PasswordResetValidateSchema
+  PasswordResetValidateSchema,
+  ProductImageSchema
 } from './schemas'; // Asumiendo que todos los esquemas están en schemas.ts
 
 // ==================== MODELOS BASE (DTOs) ====================
 
 export type Product = z.infer<typeof ProductSchema>;
 export type ProductCard = z.infer<typeof ProductCardSchema>;
+export type ProductImage = z.infer<typeof ProductImageSchema>;
 export type Currency = z.infer<typeof CurrencySchema>;
 export type Region = z.infer<typeof RegionSchema>;
 export type TaxRate = z.infer<typeof TaxRateSchema>;
