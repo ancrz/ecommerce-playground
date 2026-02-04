@@ -10,6 +10,16 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+# Configuración de Logging del Backend
+# Formato: [MODULO] MENSAJE para trazabilidad
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s | %(levelname)-7s | [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+    force=True # Asegurar que sobreescribimos defaults de Uvicorn si existen
+)
+
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,11 +56,6 @@ from .api import tax_admin as tax_admin_router
 from .api import user_admin as user_admin_router
 from .api import websocket as websocket_router
 
-# Configurar logging (centralizado)
-logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 # Variables globales para servicios
