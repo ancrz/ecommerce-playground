@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore",  # Ignorar campos en .env que no estén definidos aquí
+    }
 
 
 @lru_cache

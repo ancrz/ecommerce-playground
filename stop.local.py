@@ -57,12 +57,12 @@ def cleanup_logs(keep_count: int = 5):
     # Pero dado el formato, mejor iterar archivos y decidir.
 
     try:
-        files = []
+        files: list[Path] = []
         for pat in patterns:
             files.extend(LOG_DIR.glob(pat))
 
         # Agrupar archivos por su prefijo (ej: "backend.", "frontend.")
-        groups = {}
+        groups: dict[str, list[Path]] = {}
         for f in files:
             # backend.2025... -> backend
             # client.log.1 -> client
@@ -110,6 +110,36 @@ class LockFile:
         except (OSError, json.JSONDecodeError):
             return None
 
+    def is_locked(self) -> bool:
+        """Verifica si el archivo está bloqueado por otro proceso (Windows 11)."""
+        if not self.path.exists():
+            return False
+        try:
+            # Intentar abrir en modo exclusivo
+            with open(self.path, "a") as f:
+                if is_windows():
+                    import msvcrt
+
+                    try:
+                        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                        return False  # No está bloqueado
+                    except OSError:
+                        return True  # Está bloqueado
+                else:
+                    # Unix/Linux: usar fcntl (importado dinámicamente)
+                    import importlib
+
+                    fcntl = importlib.import_module("fcntl")
+                    try:
+                        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        fcntl.flock(f, fcntl.LOCK_UN)
+                        return False
+                    except OSError:
+                        return True
+        except (OSError, PermissionError):
+            return True  # Error al abrir = probablemente bloqueado
+
     def delete(self):
         """Elimina el archivo .lock."""
         if self.path.exists():
@@ -122,6 +152,57 @@ class LockFile:
     def exists(self) -> bool:
         """Verifica si existe el .lock."""
         return self.path.exists()
+
+
+def kill_lock_owner() -> bool:
+    """
+    Intenta matar el proceso que tiene el lock file bloqueado (Windows 11).
+
+    Usa PowerShell para buscar procesos python con el path del proyecto en su línea de comandos,
+    ya que no tenemos handle.exe de Sysinternals por defecto.
+    """
+    if not is_windows():
+        return False
+
+    try:
+        # Buscar procesos python que tengan "start.local" en su comando
+        result = subprocess.run(
+            [
+                "powershell",
+                "-Command",
+                "Get-CimInstance Win32_Process | Where-Object { "
+                "$_.Name -eq 'python.exe' -and $_.CommandLine -match 'start\\.local' } | "
+                "Select-Object ProcessId | ConvertTo-Json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return False
+
+        import json as json_mod
+
+        processes = json_mod.loads(result.stdout)
+
+        if isinstance(processes, dict):
+            processes = [processes]
+
+        killed = False
+        for proc in processes:
+            pid = proc.get("ProcessId")
+            if pid:
+                logger.info(f"🔐 Matando proceso master (start.local.py): PID {pid}")
+                subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=10)
+                killed = True
+                time.sleep(1)  # Dar tiempo al SO para liberar el lock
+
+        return killed
+
+    except Exception as e:
+        logger.debug(f"Error en kill_lock_owner: {e}")
+        return False
 
 
 def is_windows() -> bool:
@@ -328,6 +409,104 @@ def stop_by_ports(backend_port: int, frontend_port: int, stop_backend: bool, sto
     return killed
 
 
+def kill_orphan_processes() -> int:
+    """
+    Limpieza agresiva de procesos huérfanos de python/node del proyecto.
+
+    Busca procesos que coincidan con el CWD del proyecto y los mata.
+    Esta es una salvaguarda final para cuando el lock está corrupto o
+    start.local.py crasheó sin liberar sus hijos.
+    """
+    killed = 0
+    project_path = str(PROJECT_ROOT).lower()
+
+    if is_windows():
+        try:
+            # Usar WMIC para obtener procesos con su línea de comandos
+            # Alternativa más robusta: PowerShell Get-WmiObject
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-Command",
+                    "Get-CimInstance Win32_Process | Where-Object { "
+                    "$_.Name -match 'python|node' } | "
+                    "Select-Object ProcessId, Name, CommandLine | "
+                    "ConvertTo-Json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0 or not result.stdout.strip():
+                return 0
+
+            import json as json_mod
+
+            processes = json_mod.loads(result.stdout)
+
+            # PowerShell puede devolver un objeto si es uno solo, o lista si son varios
+            if isinstance(processes, dict):
+                processes = [processes]
+
+            for proc in processes:
+                cmd_line = (proc.get("CommandLine") or "").lower()
+                pid = proc.get("ProcessId")
+                name = proc.get("Name", "")
+
+                if not pid or not cmd_line:
+                    continue
+
+                # Verificar si el proceso pertenece a nuestro proyecto
+                if project_path in cmd_line:
+                    # Excluir el proceso actual (stop.local.py)
+                    if str(os.getpid()) == str(pid):
+                        continue
+
+                    logger.info(f"🧹 Matando proceso huérfano: {name} (PID: {pid})")
+                    try:
+                        subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=10)
+                        killed += 1
+                    except Exception as e:
+                        logger.debug(f"   Error matando {pid}: {e}")
+
+        except Exception as e:
+            logger.debug(f"Error en kill_orphan_processes: {e}")
+
+    else:
+        # Unix/Linux: usar ps + grep
+        try:
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=10)
+
+            for line in result.stdout.split("\n"):
+                line_lower = line.lower()
+
+                # Buscar procesos python o node del proyecto
+                if ("python" in line_lower or "node" in line_lower) and project_path in line_lower:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        try:
+                            pid = int(parts[1])
+
+                            # Excluir el proceso actual
+                            if pid == os.getpid():
+                                continue
+
+                            logger.info(f"🧹 Matando proceso huérfano: PID {pid}")
+                            os.kill(pid, SIGKILL)
+                            killed += 1
+                        except (ValueError, ProcessLookupError):
+                            continue
+
+        except Exception as e:
+            logger.debug(f"Error en kill_orphan_processes: {e}")
+
+    if killed > 0:
+        logger.info(f"✓ Se eliminaron {killed} procesos huérfanos")
+
+    return killed
+
+
 def verify_stopped(backend_port: int, frontend_port: int, stop_backend: bool, stop_frontend: bool) -> bool:
     """Verifica que los puertos estén libres."""
     time.sleep(2)  # Dar tiempo a que los sockets se liberen
@@ -382,9 +561,19 @@ def main():
     backend_running = is_port_in_use(backend_port)
     frontend_running = is_port_in_use(frontend_port)
 
-    if not backend_running and not frontend_running and not lock_data:
-        logger.info("ℹ️ El sistema no está corriendo")
-        lock.delete()  # Limpiar .lock huérfano si existe
+    # PASO 1: Siempre intentar matar el proceso master (start.local.py) primero
+    # Esto es lo más importante porque el master tiene el lock y spawna los hijos
+    master_killed = kill_lock_owner()
+    if master_killed:
+        time.sleep(2)  # Dar tiempo al SO para liberar recursos
+        lock_data = lock.read()  # Re-leer por si ahora podemos
+
+    # Si no hay nada corriendo y no había master, salir temprano
+    if not backend_running and not frontend_running and not lock_data and not master_killed:
+        logger.info("ℹ️ El sistema no parece estar corriendo")
+        # Aún así, limpiar huérfanos por seguridad
+        kill_orphan_processes()
+        lock.delete()
         return 0
 
     # Mostrar qué vamos a detener
@@ -396,22 +585,28 @@ def main():
     if lock_data:
         logger.info(f"   - Lock file encontrado: {LOCK_FILE}")
         logger.info(f"   - Iniciado: {lock_data.get('started_at', 'desconocido')}")
+    if master_killed:
+        logger.info("   - Proceso master detenido")
     logger.info("")
 
     killed = 0
 
-    # Método 1: Usar información del .lock (más preciso)
+    # PASO 2: Usar información del .lock para matar procesos registrados
     if lock_data:
         logger.info("Usando información del lock file...")
         killed = stop_from_lock(lock_data, stop_backend, stop_frontend, args.force)
 
-    # Método 2: Fallback por puerto (si no hay lock o quedaron procesos)
-    if not lock_data or not verify_stopped(backend_port, frontend_port, stop_backend, stop_frontend):
+    # PASO 3: Fallback por puerto (si quedaron procesos)
+    if not verify_stopped(backend_port, frontend_port, stop_backend, stop_frontend):
         logger.info("Usando detección por puerto...")
         killed += stop_by_ports(backend_port, frontend_port, stop_backend, stop_frontend)
 
     # Limpiar .lock
     lock.delete()
+
+    # PASO 4: Limpieza final de huérfanos
+    orphan_killed = kill_orphan_processes()
+    killed += orphan_killed
 
     # Verificar resultado final
     time.sleep(1)

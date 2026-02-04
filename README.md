@@ -71,20 +71,27 @@ A **Single Page Application (SPA)** e-commerce platform designed as a developmen
 
 ### Prerequisites
 
-- **Python 3.11+**
-- **Node.js 18+** with npm
+- **Python 3.12** (Recomendado/Testeado).
+  - _Nota: Python 3.11 es el mínimo soportado, pero el entorno de desarrollo usa 3.12._
+- **Node.js 18+** con npm
 - **Git**
 
-### Installation
+### Guía de Instalación (Entorno Estable)
 
-```bash
-# Clone the repository
-git clone https://github.com/ancrz/ecommerce-playground.git
-cd ecommerce-playground
+Sigue estos pasos para garantizar un entorno libre de errores:
 
-# Run the setup script
-python setup.py
-```
+1. **Instalar Python 3.12**: [Descargar aquí](https://www.python.org/downloads/).
+   - _Asegúrate de marcar "Add Python to PATH" durante la instalación._
+
+2. **Clonar y Setup**:
+
+   ```bash
+   git clone https://github.com/ancrz/ecommerce-playground.git
+   cd ecommerce-playground
+
+   # Setup Inteligente (Crea venv, instala deps, migra DB)
+   python setup.py
+   ```
 
 ### Start Development Servers
 
@@ -103,9 +110,135 @@ python start.local.py
 python stop.local.py
 ```
 
+### Scripts Overview
+
+| Script            | Purpose                                        |
+| ----------------- | ---------------------------------------------- |
+| `setup.py`        | Initialize venv, install deps, run migrations  |
+| `start.local.py`  | Start backend + frontend servers               |
+| `stop.local.py`   | Stop all servers (idempotent)                  |
+| `deploy_stack.py` | Full orchestration: setup → migrations → start |
+
 ---
 
-## 📁 Project Structure
+## 🏗️ Architecture & DNA
+
+Este proyecto utiliza una arquitectura **Schema-Driven** estricta para garantizar que el Backend y el Frontend estén siempre sincronizados (Interdependencia Sincrónica).
+
+### �️ System Map (Dependency Graph)
+
+Gráfico de alto nivel que muestra las dependencias de ejecución y almacenamiento.
+
+```mermaid
+graph TD
+    subgraph Client_Side ["🖥️ Client Side (Browser)"]
+        UI[React + Vite SPA]
+        Store[Zustand State]
+        Router[React Router]
+
+        UI -->|Interacts| Router
+        UI -->|Updates| Store
+    end
+
+    subgraph Server_Side ["☁️ Server Side (Python 3.12)"]
+        LB[Uvicorn Server]
+        API[FastAPI App]
+        Auth[RBAC Middleware]
+
+        LB --> API
+        API --> Auth
+    end
+
+    subgraph Data_Layer ["💾 Data Layer (SQLite Chunks)"]
+        DB_Main[(Database.sqlite)]
+        DB_Logs[(Logs.sqlite)]
+
+        API -->|SQLAlchemy ORM| DB_Main
+        API -->|Write-Ahead Log| DB_Logs
+    end
+
+    Client_Side -->|HTTP/REST + WebSocket| Server_Side
+    style Client_Side fill:#e1f5fe,stroke:#01579b
+    style Server_Side fill:#e8f5e9,stroke:#2e7d32
+    style Data_Layer fill:#fff9c4,stroke:#fbc02d
+```
+
+### 🧬 Schema-Driven Development (Information Flow)
+
+Aquí reside la **magia de la automatización**. No escribimos tipos manualmente en el Frontend; se _infieren_ y _generan_ desde el Backend.
+
+**Flujo de la Verdad (Source of Truth Flow):**
+
+1.  **Backend (Pydantic)**: Define la estructura de datos.
+2.  **Alembic**: Migra la estructura a SQL (Dependencia Vertical).
+3.  **OpenAPI**: Expone la estructura como contrato (Interfaz Abstracta).
+4.  **Orval**: Ingiere el contrato y genera código TypeScript, Hooks y Validadores Zod (Dependencia Horizontal).
+
+```mermaid
+flowchart LR
+    %% Nodos del Backend
+    subgraph Backend_World ["🐍 Backend Domain"]
+        PY[Pydantic Models]
+        SQL[SQLAlchemy Models]
+        AL[Alembic Migrations]
+        OAPI[OpenAPI Spec (JSON)]
+
+        PY -.->|Validation| API_EP[API Endpoints]
+        SQL -->|Defines| PY
+        SQL -->|Generates| AL
+        API_EP -->|Auto-Generates| OAPI
+    end
+
+    %% Pipeline de Automatización
+    subgraph Bridge ["⚙️ Automation Bridge"]
+        PL[dev_pipeline.py]
+    end
+
+    %% Nodos del Frontend
+    subgraph Frontend_World ["⚛️ Frontend Domain"]
+        ORVAL[Orval Codegen]
+        TS[TypeScript Interfaces]
+        ZOD[Zod Schemas]
+        HOOKS[React Query Hooks]
+
+        ORVAL -->|Generates| TS
+        ORVAL -->|Generates| ZOD
+        ORVAL -->|Generates| HOOKS
+    end
+
+    %% Relaciones Cross-Domain
+    OAPI -->|Input| PL
+    PL -->|Trigger| ORVAL
+
+    %% Estilos
+    style Backend_World fill:#f3e5f5,stroke:#7b1fa2
+    style Bridge fill:#eceff1,stroke:#546e7a,stroke-dasharray: 5 5
+    style Frontend_World fill:#e3f2fd,stroke:#1565c0
+```
+
+## 🛠️ Tech Stack
+
+### Backend Core
+
+- **Runtime**: Python 3.12 (Strict)
+- **Framework**: FastAPI (Async)
+- **Data Integrity**: Pydantic v2
+- **ORM**: SQLAlchemy 2.0
+- **Migrations**: Alembic
+- **Server**: Uvicorn
+
+### Frontend Ecosystem
+
+- **Framework**: React 18 + Vite
+- **Language**: TypeScript 5
+- **Data Fetching**: TanStack Query (React Query)
+- **Auto-Gen**: Orval (OpenAPI to Code)
+- **Validation**: Zod (Schema mirroring)
+- **Styling**: TailwindCSS
+
+---
+
+## �📁 Project Structure
 
 ```
 ecommerce-playground/
@@ -118,7 +251,7 @@ ecommerce-playground/
 ├── frontend/                # React SPA
 │   └── src/
 │       ├── schemas.ts       # Zod Validation Schemas
-│       ├── types.ts         # TypeScript Types (inferred)
+│       ├── types.ts       # TypeScript Types (inferred)
 │       ├── api.ts           # API Client with validation
 │       └── components/      # React Components
 ├── scripts/                 # Utility Scripts

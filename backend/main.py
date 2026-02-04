@@ -7,19 +7,21 @@ REFACTORIZADO (v2.1 RBAC + Impuestos):
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-# --- 3. Importar Routers (APIs) ---
+# --- 1. Importar Config ---
 from .core.config import settings
 
-# --- 1. Importar Módulos Base ---
+# --- 2. Importar Database Manager ---
 from .database.manager import DatabaseManager
 
-# --- 2. Importar Servicios ---
+# --- 3. Importar Servicios ---
 from .services.business_service import BusinessService
 from .services.cart_service import CartService
 from .services.customization_service import CustomizationService
@@ -30,12 +32,19 @@ from .services.sales_service import SalesService
 from .services.tax_service import TaxService
 from .services.user_service import UserService
 
-# --- 4. Importar Guardianes RBAC ---
-
-# ... (Imports skipped)
-
-# Cargar variables de entorno
-# load_dotenv() <-- Eliminado en favor de pydantic-settings
+# --- 4. Importar Routers (APIs) ---
+from .api import auth as auth_router
+from .api import business as business_router
+from .api import cart as cart_router
+from .api import client_logs as client_logs_router
+from .api import customization as customization_router
+from .api import finance as finance_router
+from .api import images as images_router
+from .api import products as products_router
+from .api import sales as sales_router
+from .api import tax_admin as tax_admin_router
+from .api import user_admin as user_admin_router
+from .api import websocket as websocket_router
 
 # Configurar logging (centralizado)
 logging.basicConfig(
@@ -44,37 +53,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ... (Skip specific loggers)
+# Variables globales para servicios
+db_manager: DatabaseManager | None = None
 
-# ... (Skip RoleChecker)
 
-
-# --- 6. Inicialización Controlada (Lifespan) ---
+# --- 5. Inicialización Controlada (Lifespan) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación"""
-    # Hacer globales las variables para que los inyectores las vean
-    global db_manager, product_service, finance_service, tax_service
-    global cart_service, sales_service, image_service, business_service, user_service
-    global customization_service
+    global db_manager
 
     logger.info(f"🚀 Iniciando {settings.APP_NAME} v{settings.VERSION}...")
 
-    # Paso 1: Inicializar la Base de Datos (La base)
+    # Paso 1: Inicializar la Base de Datos
     logger.info("Conectando a la Base de Datos (Chunks)...")
-    # REFACTOR: settings.DATABASE_URL or path
-    # db_path = os.getenv("DB_PATH", "./data/database")
-    # Adapta el path si settings.DATABASE_URL es connection string
-    # Assuming DatabaseManager expects path for SQLite
-    # Extraer path de settings.DATABASE_URL si es sqlite://
     db_path = settings.DATABASE_URL
     if db_path.startswith("sqlite:///"):
-        db_path = db_path.replace("sqlite:///", "")  # Keep it simple for now or restructure DatabaseManager
-        # Remove filename to get dir?
-        # DatabaseManager expects base_path to directory or file?
-        # Checking existing: db_path = os.getenv("DB_PATH", "./data/database")
-        # Existing value was directory.
-        db_path = "./data/database"  # Fallback/Hardcoded for compatibility if settings uses full URL
+        db_path = "./data/database"  # Fallback for SQLite
 
     db_manager = DatabaseManager(base_path=db_path)
     await db_manager.initialize()
@@ -85,7 +80,6 @@ async def lifespan(app: FastAPI):
 
     # Servicios Nivel 0 (Sin dependencias cruzadas)
     upload_path = settings.UPLOAD_PATH
-    # ... (Service init remains) ...
     image_service = ImageService(upload_path=upload_path)
     app.state.image_service = image_service
     user_service = UserService(db_manager=db_manager)
@@ -113,7 +107,7 @@ async def lifespan(app: FastAPI):
         cart_service=cart_service,
         product_service=product_service,
     )
-    # ...
+    app.state.sales_service = sales_service
 
     # Paso 3: Asegurar carpetas de 'uploads'
     try:
@@ -130,10 +124,13 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ... (Cleanup remains)
+    # Cleanup
+    logger.info("🛑 Cerrando aplicación...")
+    if db_manager:
+        await db_manager.close()
 
 
-# --- 8. Crear aplicación FastAPI ---
+# --- 6. Crear aplicación FastAPI ---
 app = FastAPI(
     title=settings.APP_NAME,
     description="API para sistema de e-commerce de farmacia (Arquitectura de Servicios Refactorizada v2.1)",
@@ -150,12 +147,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ... (CacheControlMiddleware remains)
-
 # Montar carpeta de uploads como archivos estáticos
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_PATH), name="uploads")
 
-# ... (Routers remain)
+# --- 7. Registrar Routers ---
+app.include_router(auth_router.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(products_router.router, prefix="/api/products", tags=["Products"])
+app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])
+app.include_router(sales_router.router, prefix="/api/sales", tags=["Sales"])
+app.include_router(finance_router.router, prefix="/api/finance", tags=["Finance"])
+app.include_router(tax_admin_router.router, prefix="/api/admin/tax", tags=["Tax Admin"])
+app.include_router(user_admin_router.router, prefix="/api/admin/users", tags=["User Admin"])
+app.include_router(business_router.router, prefix="/api/business", tags=["Business"])
+app.include_router(customization_router.router, prefix="/api/admin/customization", tags=["Customization"])
+app.include_router(images_router.router, prefix="/api/images", tags=["Images"])
+app.include_router(client_logs_router.router, prefix="/api/client-logs", tags=["Client Logs"])
+app.include_router(websocket_router.router, prefix="/api/ws", tags=["WebSocket"])
 
 
 # Endpoints de "Ping"

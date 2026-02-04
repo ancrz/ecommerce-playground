@@ -432,9 +432,35 @@ def start_backend(detector: SystemDetector) -> dict[str, Any] | None:
     """Inicia el servidor backend."""
     backend_port = int(os.getenv("BACKEND_PORT", "8042"))
 
+    # --- LÓGICA ANTI-ZOMBIE (Validación de Estado Cero) ---
     if not is_port_available(backend_port):
-        logger.info(f"ℹ️ Puerto {backend_port} ya está en uso (backend probablemente corriendo)")
-        return None
+        # El puerto está ocupado. ¿Es un proceso legítimo o un zombie?
+        # Si acabamos de iniciar este script y el puerto está ocupado,
+        # y no hay referencia clara en el lock (o el lock es viejo),
+        # asumimos que es un ZOMBIE.
+        
+        logger.warning(f"⚠️ Puerto {backend_port} ocupado. Verificando estado...")
+        
+        # Intentamos liberar el puerto agresivamente
+        logger.info(f"💣 Ejecutando limpieza preventiva en puerto {backend_port}...")
+        killed = False
+        
+        if detector.is_windows():
+            # PowerShell Force Kill en el puerto
+            cmd = f"Get-NetTCPConnection -LocalPort {backend_port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}"
+            try:
+                subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+                time.sleep(1) # Esperar liberación del socket
+                killed = True
+            except Exception:
+                pass
+        
+        if not is_port_available(backend_port):
+             logger.error(f"❌ No se pudo liberar el puerto {backend_port}. Abortando.")
+             return None
+        
+        if killed:
+             logger.info("✓ Proceso zombie eliminado. Puerto liberado.")
 
     python = str(VENV_PATH / ("Scripts" if detector.is_windows() else "bin") / "python")
     if detector.is_windows():
@@ -467,19 +493,42 @@ def start_backend(detector: SystemDetector) -> dict[str, Any] | None:
         creationflags=creation_flags,
     )
 
-    # Esperar a que el puerto esté en uso
-    if wait_for_port(backend_port, timeout=15):
-        logger.info(f"✓ Backend iniciado (PID: {proc.pid})")
-        return {
-            "type": "backend",
-            "pid": proc.pid,
-            "port": backend_port,
-            "cmd": cmd,
-        }
-    else:
-        logger.error("❌ Backend no inició correctamente")
-        proc.terminate()
-        return None
+    # Esperar con detección inteligente (30s con verificación de crash)
+    timeout = 30
+    start_time = time.time()
+    check_interval = 0.5
+    
+    while time.time() - start_time < timeout:
+        # Verificar si el proceso crasheó
+        exit_code = proc.poll()
+        if exit_code is not None:
+            logger.error(f"❌ Backend crasheó (exit code: {exit_code})")
+            logger.error("   Revisa data/logs/backend.log para más detalles")
+            return None
+        
+        # Verificar si el puerto está en uso (servidor listo)
+        if not is_port_available(backend_port):
+            logger.info(f"✓ Backend iniciado (PID: {proc.pid})")
+            return {
+                "type": "backend",
+                "pid": proc.pid,
+                "port": backend_port,
+                "cmd": cmd,
+            }
+        
+        time.sleep(check_interval)
+        # Incrementar intervalo para no saturar el CPU
+        check_interval = min(check_interval * 1.2, 2.0)
+    
+    # Timeout sin crash pero sin puerto - proceso lento, dejarlo correr
+    logger.warning(f"⚠️ Backend aún iniciando después de {timeout}s (PID: {proc.pid})")
+    logger.warning("   El servidor puede estar tomando más tiempo del esperado")
+    return {
+        "type": "backend",
+        "pid": proc.pid,
+        "port": backend_port,
+        "cmd": cmd,
+    }
 
 
 def start_frontend(detector: SystemDetector) -> dict[str, Any] | None:
