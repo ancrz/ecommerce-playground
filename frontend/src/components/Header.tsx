@@ -6,8 +6,8 @@
  * 2. El 'onChange' del selector ahora busca y setea el objeto Currency completo.
  */
 import React from 'react';
-import { ShoppingCart, User, LogOut, Shield } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ShoppingCart, User, LogOut, Shield, Search } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 // Importa el hook del contexto
 import { useApp } from '../App';
 
@@ -52,6 +52,17 @@ export default function Header() {
     }
   };
 
+  // Search Logic
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = React.useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
+    }
+  };
+
   return (
     <header style={{
       backgroundColor: primaryColor,
@@ -83,6 +94,25 @@ export default function Header() {
           )}
         </Link>
         
+        {/* Search Bar - Visible on Desktop, Hidden on Mobile (Mobile uses BottomNav Search) */}
+        <div className="flex-1 max-w-xl mx-8 hidden md:block">
+          <form onSubmit={handleSearch} className="relative group">
+             <input 
+               type="text" 
+               placeholder="Buscar productos..." 
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all"
+             />
+             <button 
+               type="submit"
+               className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
+             >
+               <Search size={20} />
+             </button>
+          </form>
+        </div>
+
         <div className="flex items-center gap-6">
           {/* Selector de Moneda (Oculto en móvil si no cabe, o visible siempre? Dejémoslo hidden md:block si es secundario, o visible) 
               Industry standard: Currency usually in footer or menu on mobile. Let's hide on small screens to save space. */}

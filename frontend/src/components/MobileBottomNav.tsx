@@ -7,8 +7,10 @@ export default function MobileBottomNav() {
   const { user, getCartItemCount } = useApp();
   const cartCount = getCartItemCount();
 
-  if (!user) return null; // Only show for logged in users? Or maybe for everyone? 
-  // Requirement says: "mobile usar un navbar para el modo: cuando el usuario inicia sesión."
+  // REFACTOR: Mostrar para todos (Invitados + Usuarios)
+  // Requirement: "mobile usar un navbar para el modo: cuando el usuario inicia sesión." 
+  // Update: Guest users also need navigation (Home, Search, Cart).
+  // if (!user) return null; <-- REMOVED
 
   return (
     <nav 
@@ -39,8 +41,17 @@ export default function MobileBottomNav() {
           Ideally this component should consume context actions.
       */}
       <CartButton />
+      
+      {/* Search Button (Mobile Only) */}
+      <NavLink 
+        to="/search" 
+        className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-blue-600' : 'text-gray-500'}`}
+      >
+        <span className="text-xl">🔍</span>
+        <span className="text-[10px] mt-1">Buscar</span>
+      </NavLink>
 
-      {user.roles.includes('admin') && (
+      {user && user.roles.includes('admin') && (
         <NavLink 
           to="/admin" 
           className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-blue-600' : 'text-gray-500'}`}

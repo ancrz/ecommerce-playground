@@ -6,8 +6,8 @@ export const Z_INDEX = {
   STICKY_HEADER: 40, // Header
   DROPDOWN: 50,     // Dropdowns/Popovers
   OVERLAY: 60,      // Background overlays
-  MODAL: 70,        // Modals
-  TOAST: 100,       // Toast notifications (Highest)
+  MODAL: 100,       // Modals (High priority for immersion)
+  TOAST: 110,       // Toast notifications (Highest)
 };
 
 // Layout Dimensions

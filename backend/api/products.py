@@ -41,6 +41,8 @@ async def get_products(
     category: str | None = Query(None, description="Filtrar por categoría"),
     featured: bool = Query(False, description="Obtener solo productos destacados"),
     discount: bool = Query(False, description="Obtener solo productos con descuento"),
+    skip: int = Query(0, description="Registros a saltar (Paginación)"),
+    limit: int = Query(20, description="Límite de registros (Paginación)"),
     service: ProductService = Depends(get_product_service),
 ):
     """
@@ -48,7 +50,13 @@ async def get_products(
     (Cumple con 'single-e-commerce-demo.docx' - sliders)
     """
     try:
-        products = await service.get_all_products(category=category, featured_only=featured, discount_only=discount)
+        products = await service.get_all_products(
+            category=category,
+            featured_only=featured,
+            discount_only=discount,
+            skip=skip,
+            limit=limit,
+        )
         return products
     except Exception as e:
         logger.error(f"Error al obtener productos: {e}", exc_info=True)
@@ -58,6 +66,7 @@ async def get_products(
 @router.get("/search", response_model=list[Product])
 async def search_products(
     q: str = Query(..., min_length=2, description="Término de búsqueda"),
+    limit: int = Query(20, description="Límite de resultados"),
     service: ProductService = Depends(get_product_service),
 ):
     """
@@ -65,7 +74,7 @@ async def search_products(
     (Cumple con 'single-e-commerce-demo.docx' - barra de búsqueda)
     """
     try:
-        products = await service.search_products(q)
+        products = await service.search_products(q, limit=limit)
         return products
     except Exception as e:
         logger.error(f"Error al buscar productos '{q}': {e}", exc_info=True)

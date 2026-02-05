@@ -90,7 +90,7 @@ class CartService:
             return cart
         except Exception as e:
             logger.error(f"Error al crear carrito: {e}", exc_info=True)
-            raise ValueError(f"Error al crear carrito: {str(e)}")
+            raise ValueError(f"Error al crear carrito: {str(e)}") from e
 
     async def get_cart(self, cart_id: str) -> Cart | None:
         """
@@ -202,7 +202,8 @@ class CartService:
         subtotal_row = await self.db_manager.fetchone(
             "cart", "SELECT SUM(price * quantity) as subtotal FROM cart_items WHERE cart_id = ?", (cart_id,)
         )
-        subtotal = Decimal(str(subtotal_row["subtotal"] or "0.0"))
+        subtotal_val = subtotal_row["subtotal"] if subtotal_row else 0.0
+        subtotal = Decimal(str(subtotal_val or "0.0"))
 
         # 3. Llamar al TaxService para calcular impuestos
         #    (Aquí ocurre la lógica de Filadelfia 6% + 2%)
@@ -227,7 +228,19 @@ class CartService:
         )
 
         # 5. Devolver el DTO del carrito actualizado
-        return await self.get_cart(cart_id)
+        return await self.get_cart(cart_id) or Cart(  # Fallback seguro, aunque debería existir
+            id=cart_id,
+            customer_name="",
+            customer_id="",
+            region_id="",
+            currency_id="",
+            subtotal=0,
+            tax_amount=0,
+            total_with_tax=0,
+            status="pending",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
 
     async def generate_qr(self, cart_id: str) -> str:
         """
@@ -268,10 +281,12 @@ class CartService:
 
         return f"data:image/png;base64,{qr_base64}"
 
-    async def get_pending_carts(self) -> list[Cart]:
-        """Obtener carritos pendientes (para el admin de ventas)"""
+    async def get_pending_carts(self, skip: int = 0, limit: int = 20) -> list[Cart]:
+        """Obtener carritos pendientes (para el admin de ventas) con paginación."""
         rows = await self.db_manager.fetchall(
-            "cart", "SELECT * FROM carts WHERE status = 'pending' ORDER BY created_at DESC"
+            "cart",
+            "SELECT * FROM carts WHERE status = 'pending' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, skip),
         )
 
         # Convertir filas a DTOs

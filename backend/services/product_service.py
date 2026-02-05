@@ -51,10 +51,13 @@ class ProductService:
             )
             logger.info(f"Producto creado en la base de datos: {product.id}")
             # REFACTOR: Devolver el producto desde la BD para asegurar consistencia
-            return await self.get_product(product.id)
+            created = await self.get_product(product.id)
+            if not created:
+                raise ValueError("Error recuperando el producto creado.")
+            return created
         except Exception as e:
             logger.error(f"Error al crear producto {product.name}: {e}", exc_info=True)
-            raise ValueError(f"Error creando producto (¿SKU duplicado?): {str(e)}")
+            raise ValueError(f"Error creando producto (¿SKU duplicado?): {str(e)}") from e
 
     async def get_product(self, product_id: str) -> Product | None:
         """Obtener producto por ID"""
@@ -62,11 +65,16 @@ class ProductService:
         return self._row_to_product(row) if row else None
 
     async def get_all_products(
-        self, category: str | None = None, featured_only: bool = False, discount_only: bool = False
+        self,
+        category: str | None = None,
+        featured_only: bool = False,
+        discount_only: bool = False,
+        skip: int | None = None,
+        limit: int | None = None,
     ) -> list[Product]:
         """Obtener todos los productos con filtros opcionales"""
         query = "SELECT * FROM products WHERE 1=1"
-        params = []
+        params: list[Any] = []
 
         if category:
             query += " AND category = ?"
@@ -79,6 +87,12 @@ class ProductService:
             query += " AND is_discount = 1"
 
         query += " ORDER BY created_at DESC"
+
+        # Aplicar paginación si se solicita
+        if limit is not None and skip is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.append(limit)
+            params.append(skip)
 
         rows = await self.db_manager.fetchall("products", query, tuple(params))
         logger.info(
@@ -142,10 +156,10 @@ class ProductService:
             return await self.get_product(product_id)
         except ValueError as e:  # Captura el (posible) CHECK de stock
             logger.error(f"Error de integridad al actualizar producto {product_id}: {e}", exc_info=True)
-            raise ValueError(f"Error actualizando producto (¿stock negativo o SKU duplicado?): {str(e)}")
+            raise ValueError(f"Error actualizando producto (¿stock negativo o SKU duplicado?): {str(e)}") from e
         except Exception as e:
             logger.error(f"Error al actualizar producto {product_id}: {e}", exc_info=True)
-            raise ValueError(f"Error actualizando producto: {str(e)}")
+            raise ValueError(f"Error actualizando producto: {e}") from e
 
     async def delete_product(self, product_id: str) -> bool:
         """Eliminar producto"""
@@ -154,23 +168,25 @@ class ProductService:
             logger.info(f"Producto {product_id} eliminado de la base de datos.")
             return True
         except Exception as e:
-            logger.error(f"Error al eliminar producto {product_id}: {e}", exc_info=True)
-            raise ValueError(f"Error eliminando producto: {str(e)}")
+            logger.error(f"Error eliminando producto {product_id}: {e}", exc_info=True)
+            raise ValueError(f"Error eliminando producto: {e}") from e
 
-    async def search_products(self, query: str) -> list[Product]:
-        """Buscar productos por nombre o descripción"""
+    async def search_products(self, query: str, limit: int = 20) -> list[Product]:
+        """Buscar productos por nombre o descripción (limite por defecto 20 para POS)"""
         search_term = f"%{query}%"
         rows = await self.db_manager.fetchall(
             "products",
             """
-            SELECT * FROM products 
+            SELECT * FROM products
             WHERE name LIKE ? OR description LIKE ? OR sku LIKE ? OR category LIKE ?
             ORDER BY name
+            LIMIT ?
         """,
-            (search_term, search_term, search_term, search_term),
+            (search_term, search_term, search_term, search_term, limit),
         )
-        logger.info(f"Búsqueda de productos '{query}' en el servicio. Resultados: {len(rows)}")
-        return [self._row_to_product(row) for row in rows]
+        logger.info(f"Búsqueda de productos '{query}' (limit={limit}). Resultados: {len(rows)}")
+        products = [self._row_to_product(row) for row in rows]
+        return [p for p in products if p]
 
     async def get_products_for_slider(self, slider_type: str = "main") -> list[ProductCard]:
         """Obtener productos para un slider específico"""
@@ -198,8 +214,8 @@ class ProductService:
             await self.db_manager.execute(
                 "products",
                 """
-                UPDATE products 
-                SET stock = stock + ? 
+                UPDATE products
+                SET stock = stock + ?
                 WHERE id = ?
                 """,
                 (quantity_change, product_id),
@@ -234,10 +250,10 @@ class ProductService:
             logger.error(
                 f"Error de STOCK INSUFICIENTE para {product_id} (quería {quantity_change}): {e}", exc_info=True
             )
-            raise ValueError(f"Stock insuficiente para el producto (ID: {product_id}).")
+            raise ValueError(f"Stock insuficiente para el producto (ID: {product_id}).") from e
         except Exception as e:
             logger.error(f"Error genérico en update_stock para {product_id}: {e}", exc_info=True)
-            raise ValueError(f"Error al actualizar stock: {e}")
+            raise ValueError(f"Error al actualizar stock: {e}") from e
 
     def _row_to_product(self, row: dict) -> Product | None:
         """Convertir fila de BD (dict) a objeto Product"""

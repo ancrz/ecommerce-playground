@@ -193,8 +193,11 @@ export const changeMyPassword = (request: PasswordChangeRequest): Promise<{ mess
 
 // ==================== API de Admin: Usuarios (RBAC) ====================
 
-export const getAllUsers = (): Promise<User[]> => {
-  return authFetch<User[]>('/admin/users', { method: 'GET' }, z.array(UserPublicSchema)); // <-- Validar
+export const getAllUsers = (skip?: number, limit?: number): Promise<User[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  return authFetch<User[]>(`/admin/users?${params.toString()}`, { method: 'GET' }, z.array(UserPublicSchema)); // <-- Validar
 };
 
 export const createNewUser = (data: UserCreateRequest): Promise<User> => {
@@ -220,8 +223,12 @@ export const adminResetPassword = (userId: string, new_password: string): Promis
 
 // ==================== API Pública (Productos, Tienda) ====================
 
-export const getAllProducts = (): Promise<Product[]> => {
-  return authFetch<Product[]>('/products/', { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
+export const getAllProducts = (skip?: number, limit?: number): Promise<Product[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  
+  return authFetch<Product[]>(`/products/?${params.toString()}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
 };
 
 export const searchProducts = (query: string): Promise<Product[]> => {
@@ -474,8 +481,11 @@ export const closeDay = (): Promise<DailyReport> => {
   return authFetch<DailyReport>('/admin/sales/close-day', { method: 'POST' }, DailyReportSchema);
 };
 
-export const getPendingCarts = (): Promise<Cart[]> => {
-  return authFetch<Cart[]>('/cart/', { method: 'GET' }, z.array(CartSchema));
+export const getPendingCarts = (skip?: number, limit?: number): Promise<Cart[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  return authFetch<Cart[]>(`/cart/?${params.toString()}`, { method: 'GET' }, z.array(CartSchema));
 };
 
 // ==================== HOMOLOGACIÓN: Funciones faltantes ====================

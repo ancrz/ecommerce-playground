@@ -41,7 +41,7 @@ export const Modal: React.FC<ModalProps> = ({
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
-    full: "w-full h-full md:h-auto md:max-w-2xl", // Mobile full screen
+    full: "w-full h-[100dvh] md:h-auto md:max-w-2xl rounded-none md:rounded-2xl", // Mobile full screen immersive
   };
 
   return (

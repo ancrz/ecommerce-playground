@@ -7,16 +7,16 @@
  * 2. Botones de POS (Iniciar Venta, Completar) ahora usan .btn-primary (azul)
  * en lugar del verde codificado, para seguir el tema.
  */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   RefreshCw, FileText, Calendar, CheckCircle, XCircle, 
-  Plus, Search, Package 
+  Plus, Search, Package, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
 import { useApp } from '../App';
-import type { DailyReport, Cart, Region, Currency, Product } from '../../types';
+import type { DailyReport, Cart, Region, Currency, Product } from '../types';
 
 // Importar componentes genéricos (asumimos que están en /components/)
 import { Modal } from '../components/Modal'; 
@@ -27,17 +27,41 @@ import { Input, Select } from '../components/FormControls';
 export default function SalesModule() {
   const [sales, setSales] = useState<DailyReport | null>(null);
   const [carts, setCarts] = useState<Cart[]>([]);
-  const [showPOS, setShowPOS] = useState(false); // Estado para el modal POS
-  
+  const [showPOS, setShowPOS] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const ITEMS_PER_PAGE = 5; // Reduced for demo/testing vertical space
+
   const loadDailySales = () => api.getDailySales().then(setSales).catch(err => console.error(err));
-  const loadPendingCarts = () => api.getPendingCarts().then(setCarts).catch(err => console.error(err));
+  
+  const loadPendingCarts = () => {
+    // Fetch + 1 strategy to determine if there's a next page
+    api.getPendingCarts(page * ITEMS_PER_PAGE, ITEMS_PER_PAGE + 1)
+      .then(data => {
+        if (data.length > ITEMS_PER_PAGE) {
+          setHasMore(true);
+          setCarts(data.slice(0, ITEMS_PER_PAGE));
+        } else {
+          setHasMore(false);
+          setCarts(data);
+        }
+      })
+      .catch(err => console.error(err));
+  };
   
   const refreshAll = () => {
     loadDailySales();
     loadPendingCarts();
   };
   
-  useEffect(refreshAll, []);
+  useEffect(() => {
+    loadPendingCarts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]); // Reload when page changes
+
+  useEffect(() => {
+    loadDailySales();
+  }, []);
   
   const handleCloseDay = async () => {
     if (confirm('¿Estás seguro de cerrar el día? Esta acción genera el reporte final y no se puede revertir.')) {
@@ -45,18 +69,20 @@ export default function SalesModule() {
         const report = await api.closeDay();
         alert(`✓ Día cerrado con ${report.sales_count} ventas y un total de ${report.total.toFixed(2)}`); // (report.total es 'total_with_tax')
         refreshAll();
-      } catch (error: any) { alert('Error cerrando el día: ' + error.message); }
+      } catch (error: unknown) { alert('Error cerrando el día: ' + (error as Error).message); }
     }
   };
 
   const handleCompleteSale = async (cart: Cart) => {
-    const paymentDetails = { method: "Efectivo", reference: "CAJA-01", amount: cart.total_with_tax };
+    // REFACTOR: 'amount' no es necesario, el backend usa el total del carrito.
+    // 'method' -> 'payment_method'
+    const paymentDetails = { payment_method: "Efectivo", reference: "CAJA-01" };
     if (!confirm(`Cobrar (Total c/ Imp): ${cart.total_with_tax.toFixed(2)} a ${cart.customer_name}?`)) return;
     try {
       await api.completeSale(cart.id, paymentDetails);
       alert('✓ Venta completada');
       refreshAll();
-    } catch(error: any) { alert('Error completando venta: ' + error.message); }
+    } catch(error: unknown) { alert('Error completando venta: ' + (error as Error).message); }
   };
 
   const handleCancelSale = async (cart: Cart) => {
@@ -65,7 +91,7 @@ export default function SalesModule() {
       await api.cancelSale(cart.id);
       alert('Pedido anulado');
       refreshAll();
-    } catch(error: any) { alert('Error anulando pedido: ' + error.message); }
+    } catch(error: unknown) { alert('Error anulando pedido: ' + (error as Error).message); }
   };
   
   return (
@@ -73,7 +99,7 @@ export default function SalesModule() {
       {/* Modal de "Iniciar Venta" (POS) */}
       {showPOS && (
         <POSModal 
-          onClose={() => setShowPOS(false)} 
+          onClose={() => setShowPOS(false)}
           onSaleComplete={() => {
             setShowPOS(false);
             refreshAll();
@@ -134,6 +160,25 @@ export default function SalesModule() {
                   </div>
                 </div>
               )) : <p className="text-gray-500 text-center py-4">No hay carritos pendientes de la web.</p>}
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex justify-between items-center mt-4 pt-4 border-t">
+              <button 
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="btn-secondary disabled:opacity-50"
+              >
+                <ChevronLeft size={16} className="mr-1" /> Anterior
+              </button>
+              <span className="text-sm text-gray-600">Página {page + 1}</span>
+              <button 
+                onClick={() => setPage(p => p + 1)}
+                disabled={!hasMore}
+                className="btn-secondary disabled:opacity-50"
+              >
+                Siguiente <ChevronRight size={16} className="ml-1" />
+              </button>
             </div>
           </div>
         </div>
@@ -200,7 +245,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
           if (baseCurr) setCurrencyId(baseCurr.id);
           else if (currs.length > 0) setCurrencyId(currs[0].id);
         }
-      } catch (e: any) { alert("Error cargando datos: " + e.message); }
+      } catch (e: unknown) { alert("Error cargando datos: " + (e as Error).message); }
       setLoading(false);
     };
     loadData();
@@ -215,7 +260,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     try {
       const newCart = await api.createCart(customerName, customerId, regionId, currencyId);
       setCart(newCart);
-    } catch (e: any) { alert("Error creando carrito: " + e.message); }
+    } catch (e: unknown) { alert("Error creando carrito: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -225,7 +270,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     try {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart); 
-    } catch (e: any) { alert("Error añadiendo item: " + e.message); }
+    } catch (e: unknown) { alert("Error añadiendo item: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -236,12 +281,12 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       await api.completeSale(cart.id, { payment_method: "Efectivo (POS)", reference: "CAJA-01" });
       alert("✓ Venta de POS completada!");
       onSaleComplete(); 
-    } catch (e: any) { alert("Error completando venta: " + e.message); }
+    } catch (e: unknown) { alert("Error completando venta: " + (e as Error).message); }
     setLoading(false);
   };
   
   return (
-    <Modal title="Punto de Venta (POS)" onClose={onClose}>
+    <Modal title="Punto de Venta (POS)" isOpen={true} onClose={onClose}>
       {loading && !cart && <p>Cargando configuración...</p>}
       
       {!cart ? (
@@ -329,7 +374,7 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (productId: strin
     setLoading(true);
     try {
       setResults(await api.searchProducts(query));
-    } catch (e: any) { alert("Error buscando: " + e.message); }
+    } catch (e: unknown) { alert("Error buscando: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -361,7 +406,7 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (productId: strin
             <button
               onClick={() => onProductSelect(prod.id, 1)}
               disabled={prod.stock === 0}
-              className="btn-primary text-sm !py-1 !px-3"
+              className="btn-primary text-sm py-1! px-3!"
               data-testid={`pos-add-item-${prod.id}`}
             >
               Añadir

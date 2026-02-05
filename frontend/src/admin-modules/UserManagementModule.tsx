@@ -6,7 +6,7 @@
  * 1. Botones usan clases .btn-primary, .btn-secondary, .btn-icon
  * 2. Corregidas rutas de importación de Fase 2.
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, KeyRound, Loader2, Save } from "lucide-react";
 
@@ -32,15 +32,30 @@ const AVAILABLE_ROLES = [
 export default function UserManagementModule() {
   const queryClient = useQueryClient();
 
-  // Queries
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Queries (Paginated)
   const {
     data: users = [],
     isLoading,
     error,
+    isPlaceholderData,
   } = useQuery({
-    queryKey: ["users"],
-    queryFn: api.getAllUsers,
+    queryKey: ["users", currentPage],
+    queryFn: () => api.getAllUsers((currentPage - 1) * itemsPerPage, itemsPerPage),
+    placeholderData: (previousData) => previousData, // Keep previous data while fetching
   });
+
+  // Prefetch next page (Optional but good for UX)
+  useEffect(() => {
+    if (!isPlaceholderData && users.length === itemsPerPage) {
+      queryClient.prefetchQuery({
+        queryKey: ["users", currentPage + 1],
+        queryFn: () => api.getAllUsers(currentPage * itemsPerPage, itemsPerPage),
+      });
+    }
+  }, [users, isPlaceholderData, currentPage, queryClient]);
 
   // Mutations
   const saveMutation = useMutation({
@@ -174,7 +189,7 @@ export default function UserManagementModule() {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden hidden md:block">
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
@@ -269,6 +284,83 @@ export default function UserManagementModule() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* VISTA MÓVIL (CARDS) */}
+      <div className="md:hidden space-y-4">
+        {isLoading && users.length === 0 ? (
+          <div className="text-center p-8"><Loader2 className="animate-spin inline" /> Cargando...</div>
+        ) : (
+          users.map((user) => (
+            <div key={user.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-bold text-gray-900">{user.username}</div>
+                  <div className="text-sm text-gray-500">{user.full_name || "Sin nombre"}</div>
+                  <div className="text-xs text-blue-500 mt-0.5">{user.email}</div>
+                </div>
+                {user.is_active ? (
+                  <span className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold rounded uppercase">Activo</span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-red-100 text-red-800 text-[10px] font-bold rounded uppercase">Inactivo</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1">
+                {user.roles.map((role) => (
+                  <span key={role} className={`px-2 py-0.5 text-[10px] rounded border ${role === 'admin' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-gray-50 border-gray-100 text-gray-600'}`}>
+                    {role}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-2 border-t pt-3 mt-1">
+                 <button
+                    onClick={() => handleEditUser(user)}
+                    className="flex-1 py-2 text-center text-sm font-medium text-blue-600 bg-blue-50 rounded-lg"
+                 >
+                    Editar
+                 </button>
+                 <button
+                    onClick={() => handleResetPassword(user)}
+                    className="p-2 text-yellow-600 bg-yellow-50 rounded-lg"
+                    title="Resetear Clave"
+                    disabled={user.roles.includes("admin")}
+                 >
+                    <KeyRound size={18} />
+                 </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* PAGINACIÓN */}
+      <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
+        <button
+          onClick={() => setCurrentPage((old) => Math.max(old - 1, 1))}
+          disabled={currentPage === 1 || isLoading}
+          className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
+        >
+          Anterior
+        </button>
+
+        <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
+           Página {currentPage}
+        </span>
+
+        <button
+          onClick={() => {
+            if (!isPlaceholderData && users.length === itemsPerPage) {
+               setCurrentPage((old) => old + 1);
+            }
+          }}
+          // Disable next if we have fewer items than page size (end of list)
+          disabled={isPlaceholderData || users.length < itemsPerPage || isLoading}
+          className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
+        >
+          Siguiente
+        </button>
       </div>
     </>
   );

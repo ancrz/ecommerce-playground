@@ -34,14 +34,13 @@ def get_user_service(request: Request) -> UserService:
 
 
 @router.get("/", response_model=list[User])
-async def get_all_users(service: UserService = Depends(get_user_service)):
+async def get_all_users(skip: int = 0, limit: int = 100, service: UserService = Depends(get_user_service)):
     """
     Obtiene una lista de todos los usuarios en el sistema.
     (Solo para 'admin')
     """
-    logger.debug("Attempting to get all users (user_admin.router).")
-    # Esta función (get_all_users) debe ser añadida al UserService
-    users = await service.get_all_users()
+    logger.debug(f"Attempting to get users (skip={skip}, limit={limit}).")
+    users = await service.get_all_users(skip=skip, limit=limit)
     return users
 
 

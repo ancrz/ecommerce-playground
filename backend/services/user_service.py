@@ -102,11 +102,14 @@ class UserService:
             return None
 
     # --- INICIO DE LA MEJORA (RBAC) ---
-    async def get_all_users(self) -> list[User]:
+    async def get_all_users(self, skip: int = 0, limit: int = 100) -> list[User]:
         """
-        Obtiene una lista de TODOS los usuarios (para el Admin Panel).
+        Obtiene una lista de usuarios (para el Admin Panel) con paginación.
         """
-        rows = await self.db_manager.fetchall("users", "SELECT * FROM users ORDER BY username")
+        # Usamos parameter binding para limit y offset por seguridad
+        rows = await self.db_manager.fetchall(
+            "users", "SELECT * FROM users ORDER BY username LIMIT ? OFFSET ?", (limit, skip)
+        )
         users = []
         for row in rows:
             user = await self._row_to_user(row)

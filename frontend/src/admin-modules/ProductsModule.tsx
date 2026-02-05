@@ -19,6 +19,7 @@ import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
 import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
 import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
+import { Modal } from "../components/Modal"; // Importar componente estándar
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -79,7 +80,7 @@ export default function ProductsModule() {
         setEditingProduct(null);
         setRefreshKey((k) => k + 1);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
       throw error; // Re-lanzar para que el modal maneje el feedback
     } finally {
@@ -121,52 +122,37 @@ export default function ProductsModule() {
         refreshKey={refreshKey}
       />
 
-      {/* Modal de Formulario */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative animate-slideUp">
-            {/* Header del Modal con color del tema */}
-            <div 
-              className="sticky top-0 px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl text-white"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <h2 className="text-xl font-bold">
-                {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingProduct(null);
-                }}
-                className="p-2 hover:bg-white/20 rounded-full transition"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            {/* Contenido del Modal */}
-            <div className="p-6">
-              <ProductForm
-                product={editingProduct}
-                onSave={async (data, file) => {
-                  try {
-                    await handleSaveProduct(data, file);
-                    showToast(editingProduct ? 'Producto actualizado' : 'Producto creado');
-                  } catch (err: any) {
-                    showToast(err.message || 'Error al guardar', 'error');
-                  }
-                }}
-                isSaving={isSaving}
-                onCancel={() => {
-                  setShowForm(false);
-                  setEditingProduct(null);
-                }}
-                selectedCurrency={selectedCurrency}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal Estándar */}
+      <Modal
+        isOpen={showForm}
+        onClose={() => {
+            setShowForm(false);
+            setEditingProduct(null);
+        }}
+        title={editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+        size="xl" // Usar versión inmersiva en móvil gracias a la lógica de Modal.tsx
+        footer={null} // El footer ya está dentro del form para manejar el submit
+      >
+          <ProductForm
+            key={editingProduct ? editingProduct.id : 'new'}
+            product={editingProduct}
+            onSave={async (data, file) => {
+              try {
+                await handleSaveProduct(data, file);
+                showToast(editingProduct ? 'Producto actualizado' : 'Producto creado');
+              } catch (err) {
+                const message = err instanceof Error ? err.message : 'Error al guardar';
+                showToast(message, 'error');
+              }
+            }}
+            isSaving={isSaving}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingProduct(null);
+            }}
+            selectedCurrency={selectedCurrency}
+          />
+      </Modal>
     </>
   );
 }
@@ -183,34 +169,48 @@ function ProductList({
   onEdit: (product: Product) => void;
   refreshKey: number;
 }) {
+  // State for products list
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Paginación
+  // Server-Side Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // "Default de elementos bajo responsive"
+  const itemsPerPage = 10;
+  const [hasMore, setHasMore] = useState(true); // Para lógica Next/Prev sin count total
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
   const { showToast, confirm } = useFeedback();
 
-  const loadProducts = async () => {
-    setLoading(true);
+  // Wrap loadProducts in useCallback to fix dependency warnings
+  const loadProducts = useCallback(async () => {
     try {
-      const data = await api.getAllProducts(); 
-      setProducts(data);
+      const skip = (currentPage - 1) * itemsPerPage;
+      // Fetch + 1 to check if there is a next page
+      const data = await api.getAllProducts(skip, itemsPerPage + 1);
+       
+      if (data.length > itemsPerPage) {
+          setHasMore(true);
+          setProducts(data.slice(0, itemsPerPage)); // Remove the extra item check
+      } else {
+          setHasMore(false);
+          setProducts(data);
+      }
     } catch (error) {
       console.error("Error loading products:", error);
+      showToast("Error cargando productos", "error");
     }
-    setLoading(false);
-  };
+  }, [currentPage, itemsPerPage, showToast]);
 
   useEffect(() => {
-    loadProducts();
-  }, [refreshKey]);
+    // eslint-disable-next-line
+    setLoading(true);
+    loadProducts().finally(() => setLoading(false));
+  }, [loadProducts, refreshKey]); // Reload on page change
 
   const handleDelete = async (productId: string, productName: string) => {
-    const confirmed = await confirm({
+     // ... (mismo handler)
+      const confirmed = await confirm({
       title: 'Eliminar Producto',
       message: `¿Eliminar "${productName}"? Esta acción no se puede deshacer.`,
       confirmText: 'Eliminar',
@@ -224,25 +224,17 @@ function ProductList({
     try {
       await api.deleteProduct(productId);
       showToast('Producto eliminado', 'success');
-      loadProducts();
-    } catch (error: any) {
-      showToast('Error: ' + error.message, 'error');
+      setLoading(true);
+      loadProducts().finally(() => setLoading(false));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      showToast('Error: ' + message, 'error');
     }
   };
 
-  // Lógica de Paginación
-  const totalPages = Math.ceil(products.length / itemsPerPage);
-  const paginatedProducts = products.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-      // Scroll top suave
+  const handlePageChange = (newPage: number) => {
+      setCurrentPage(newPage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   };
 
   if (loading)
@@ -278,7 +270,7 @@ function ProductList({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {paginatedProducts.map((product) => (
+              {products.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     {product.image_url ? (
@@ -337,90 +329,95 @@ function ProductList({
         </div>
       </div>
 
-      {/* VISTA MÓVIL (CARDS) - Visible on Mobile */}
+      {/* VISTA MÓVIL (CARDS) - Premium Style with Hover/Shadows */}
       <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {paginatedProducts.map((product) => (
-            <div key={product.id} className="bg-white p-4 rounded-lg shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-200">
-                {/* Imagen */}
-                <div className="shrink-0">
+        {products.map((product) => (
+            <div 
+                key={product.id} 
+                className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-300 hover:shadow-xl hover:-translate-y-1 transition-all"
+            >
+                {/* Imagen (Aspect Ratio Moderno) */}
+                <div className="shrink-0 relative group cursor-pointer" onClick={() => onEdit(product)}>
                     {product.image_url ? (
                       <img
                         src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
                         alt={product.name}
-                        className="w-20 h-20 object-cover rounded-lg border bg-gray-50"
+                        className="w-24 h-24 object-cover rounded-xl shadow-sm"
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center border text-gray-400">
+                      <div className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center border border-dashed text-gray-300">
                         <Image size={24} />
                       </div>
                     )}
                 </div>
                 
                 {/* Info */}
-                <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-gray-900 truncate pr-6">{product.name}</h3>
-                        {/* Menú de acciones absoluto o botones directos? Simplificado: Botones directos abajo */}
+                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                        <h3 className="font-bold text-gray-900 truncate pr-6 leading-tight">{product.name}</h3>
+                        <p className="text-xs text-gray-400 mt-1">{product.sku}</p>
                     </div>
-                    <p className="text-sm text-gray-500 mb-1">{product.category}</p>
-                    <div className="flex justify-between items-center mt-2">
-                        <span className="font-bold text-blue-600 text-lg">{formatPrice(product.price)}</span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                            Default: {product.stock}
-                        </span>
+                    
+                    <div className="flex justify-between items-end mt-3">
+                        <div className="flex flex-col">
+                             {product.is_discount && (
+                                <span className="text-[10px] text-red-500 line-through">
+                                    {formatPrice(product.price / ((100 - product.discount_percentage)/100))}
+                                </span>
+                             )}
+                             <span className="font-bold text-blue-700 text-lg leading-none">{formatPrice(product.price)}</span>
+                        </div>
+                        
+                        {/* FAB Actions (Edit/Delete) - Absolute or Inline? Inline is safer for touch targets */}
+                        <div className="flex gap-2">
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); onEdit(product); }} 
+                                className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 active:scale-95 transition"
+                             >
+                                <Edit2 size={16} />
+                             </button>
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); handleDelete(product.id, product.name); }} 
+                                className="p-2 bg-red-50 text-red-600 rounded-full hover:bg-red-100 active:scale-95 transition"
+                             >
+                                <Trash2 size={16} />
+                             </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Botones Flotantes o Alineados */}
-                <div className="absolute top-3 right-3 flex flex-col gap-1">
-                    <button onClick={() => onEdit(product)} className="p-1.5 bg-gray-50 text-blue-600 rounded-full border hover:bg-blue-50">
-                        <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 bg-gray-50 text-red-600 rounded-full border hover:bg-red-50">
-                        <Trash2 size={16} />
-                    </button>
+                {/* Badges Overlay */}
+                <div className="absolute top-2 left-2 flex flex-col gap-1 pointer-events-none">
+                    {product.stock <= 0 && <span className="px-2 py-0.5 bg-gray-800 text-white text-[10px] font-bold rounded shadow-lg uppercase tracking-wide">Agotado</span>}
+                    {product.is_discount && <span className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded shadow-lg">-{product.discount_percentage}%</span>}
                 </div>
             </div>
         ))}
       </div>
 
-      {/* PAGINACIÓN (Común) */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 mt-6 pb-8">
+      {/* PAGINACIÓN (Next/Prev) */}
+      <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
             <button 
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+                className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
             >
                 Anterior
             </button>
-            <div className="flex gap-1" data-testid="pagination-numbers">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium transition ${
-                            currentPage === page 
-                                ? 'bg-blue-600 text-white shadow-md scale-105' 
-                                : 'bg-white border text-gray-600 hover:bg-gray-50'
-                        }`}
-                    >
-                        {page}
-                    </button>
-                ))}
-            </div>
+            
+            <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
+                Página {currentPage}
+            </span>
+
             <button 
                 onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 rounded border disabled:opacity-50 hover:bg-gray-50"
+                disabled={!hasMore}
+                className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
             >
                 Siguiente
             </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -439,40 +436,38 @@ function ProductForm({
   isSaving: boolean;
   selectedCurrency: Currency | null;
 }) {
-  const [formData, setFormData] = useState<Partial<Product>>(product || {});
+  // Initialize state directly. The 'key' on the component instance handles resets.
+  const [formData, setFormData] = useState<Partial<Product>>(product || {
+    name: "",
+    description: "",
+    sku: "",
+    price: 0,
+    stock: 0,
+    category: "",
+    is_featured: false,
+    is_discount: false,
+    discount_percentage: 0,
+    image_url: "",
+  });
+  
   const [displayPrice, setDisplayPrice] = useState("0");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
   const [showImageModal, setShowImageModal] = useState(false);
   // State for tabs
   const [activeTab, setActiveTab] = useState<'details' | 'images' | 'config'>('details');
 
+  // Update display price when currency changes (or on mount)
   useEffect(() => {
-    const basePrice = product?.price || 0;
-    setFormData(
-      product || {
-        name: "",
-        description: "",
-        sku: "",
-        price: 0,
-        stock: 0,
-        category: "",
-        is_featured: false,
-        is_discount: false,
-        discount_percentage: 0,
-        image_url: "",
-      }
-    );
-    // Reset image state when product changes
-    setPendingImageFile(null);
-    setImagePreview(product?.image_url || null);
-
+    const basePrice = formData.price || 0;
     if (selectedCurrency && !selectedCurrency.is_base) {
+      // eslint-disable-next-line
       setDisplayPrice((basePrice / selectedCurrency.exchange_rate).toFixed(2));
     } else {
+      // eslint-disable-next-line
       setDisplayPrice(basePrice.toFixed(2));
     }
-  }, [product, selectedCurrency]);
+  }, [selectedCurrency, formData.price]); // Only depend on currency changes (formData.price updates usually sync displayPrice manually)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -656,7 +651,7 @@ function ProductForm({
                 <img 
                   src={currentImageUrl.startsWith('data:') 
                     ? currentImageUrl 
-                    : `${SERVER_URL}${currentImageUrl}?t=${Date.now()}`
+                    : `${SERVER_URL}${currentImageUrl}` // Remove Date.now() to avoid impurities
                   }
                   alt="Preview"
                   className="max-w-full max-h-[85vh] object-contain rounded-lg"
@@ -755,8 +750,9 @@ function ProductImageManager({ productId }: { productId: string }) {
       await addProductImage(productId, file);
       showToast("Imagen subida exitosamente", "success");
       loadImages();
-    } catch (error: any) {
-      showToast(error.message || "Error al subir imagen", "error");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error";
+      showToast(message || "Error al subir imagen", "error");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -768,7 +764,7 @@ function ProductImageManager({ productId }: { productId: string }) {
       await deleteProductImage(productId, imageId);
       showToast("Imagen eliminada", "success");
       loadImages();
-    } catch (error) {
+    } catch {
       showToast("Error al eliminar", "error");
     }
   };
@@ -778,7 +774,7 @@ function ProductImageManager({ productId }: { productId: string }) {
       await setMainImage(productId, imageId);
       showToast("Imagen principal actualizada", "success");
       loadImages();
-    } catch (error) {
+    } catch {
       showToast("Error al actualizar principal", "error");
     }
   };
