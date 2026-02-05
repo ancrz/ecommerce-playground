@@ -81,7 +81,7 @@ const authFetch = async <T>(
     try {
       const errorJson = await response.json();
       errorDetail = errorJson.detail || JSON.stringify(errorJson);
-    } catch (e) {
+    } catch {
       errorDetail = response.statusText;
     }
     throw new Error(`Error ${response.status}: ${errorDetail}`);
@@ -92,13 +92,15 @@ const authFetch = async <T>(
   }
 
   const data = await response.json();
-  (window as any).lastApiData = data; // DEBUG: Make last API response available globally
+  // DEBUG: Make last API response available globally
+  (window as unknown as { lastApiData: unknown }).lastApiData = data;
 
   try {
     // Intenta parsear los datos con el esquema.
     // Si falla, lanza un error que será capturado abajo.
     return schema.parse(data);
-  } catch (validationError: any) {
+    return schema.parse(data);
+  } catch (validationError: unknown) {
     // El "contrato" está roto. El backend envió datos inesperados.
     console.error(`Error de Validación Zod para ${endpoint}:`, validationError);
     throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
@@ -136,7 +138,7 @@ const authFetchForm = async <T>(
 
   try {
     return schema.parse(data);
-  } catch (validationError: any) {
+  } catch (validationError: unknown) {
     console.error(`Error de Validación Zod para ${endpoint} (Form):`, validationError);
     throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
   }
