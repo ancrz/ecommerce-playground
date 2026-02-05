@@ -465,22 +465,22 @@ export const updateItemQuantity = (cartId: string, productId: string, quantity: 
 };
 
 export const completeSale = (cartId: string, paymentDetails: PaymentDetails): Promise<Sale> => {
-  return authFetch<Sale>(`/admin/sales/${cartId}/complete`, {
+  return authFetch<Sale>(`/sales/${cartId}/complete`, {
     method: 'POST',
     body: JSON.stringify(paymentDetails),
-  }, SaleSchema); // <-- Validar
+  }, SaleSchema);
 };
 
 export const cancelSale = (cartId: string): Promise<{ message: string }> => {
-  return authFetch(`/admin/sales/${cartId}/cancel`, { method: 'POST' }, MessageResponseSchema); // <-- Validar
+  return authFetch(`/sales/${cartId}/cancel`, { method: 'POST' }, MessageResponseSchema);
 };
 
 export const getDailySales = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/admin/sales/daily', { method: 'GET' }, DailyReportSchema); // <-- Validar
+  return authFetch<DailyReport>('/sales/daily', { method: 'GET' }, DailyReportSchema);
 };
 
 export const closeDay = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/admin/sales/close-day', { method: 'POST' }, DailyReportSchema);
+  return authFetch<DailyReport>('/sales/close-day', { method: 'POST' }, DailyReportSchema);
 };
 
 export const getPendingCarts = (skip?: number, limit?: number): Promise<Cart[]> => {
