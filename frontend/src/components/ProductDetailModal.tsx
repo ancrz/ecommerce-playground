@@ -8,13 +8,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { RefreshCw, Package } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../App';
 import * as api from '../api';
 import type { Product, ProductCard, ProductImage } from '../types';
 import { useStockUpdates } from '../hooks/useStockUpdates';
 import WebSocketIndicator from './ui/WebSocketIndicator';
+import { ResponsiveModal } from './common/ResponsiveModal';
 
 // Importar subcomponentes refactorizados
 import { ProductGallery } from './products/ProductGallery';
@@ -122,41 +123,26 @@ export default function ProductDetailModal({ isOpen, onClose, product: initialPr
   if (!isOpen || !initialProduct) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-      onClick={onClose}
+    <ResponsiveModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={product?.name || initialProduct.name}
+      subtitle={product?.sku || (initialProduct as Product).sku || undefined}
+      icon={<Package className="w-6 h-6" />}
+      size="xl"
     >
-      <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden animate-fade-in"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div 
-          className="flex items-center justify-between px-6 py-4 border-b"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          <div className="flex items-center gap-3">
-             <h2 className="text-xl font-bold text-white truncate max-w-[200px] sm:max-w-md">
-               {product?.name || initialProduct.name}
-             </h2>
-             <WebSocketIndicator status={wsStatus} className="bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
+        {/* Header Extras (We inject them absolutely or via portal in a real advanced setup, 
+            but for now we place them at top of content as standardized modal doesn't support custom header actions yet) 
+        */}
+        <div className="flex justify-end gap-2 mb-4 -mt-2">
+            <WebSocketIndicator status={wsStatus} className="bg-gray-100 px-2 py-1 rounded-full text-xs" />
+             <button
               onClick={() => refetchProduct()}
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition"
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition"
               title="Actualizar información"
             >
               <RefreshCw size={18} className={loadingProduct ? 'animate-spin' : ''} />
             </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition"
-            >
-              <X size={24} />
-            </button>
-          </div>
         </div>
 
         {/* Content Layout */}
@@ -191,7 +177,6 @@ export default function ProductDetailModal({ isOpen, onClose, product: initialPr
             />
           </div>
         </div>
-      </div>
-    </div>
+    </ResponsiveModal>
   );
 }

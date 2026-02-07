@@ -72,7 +72,7 @@ async def create_guest_cart(
         )
         return cart
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/", response_model=Cart, status_code=201)
@@ -91,7 +91,7 @@ async def create_cart(
         cart = await service.create_cart(customer_name, customer_id, region_id, currency_id)
         return cart
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{cart_id}", response_model=Cart)
@@ -107,6 +107,8 @@ async def get_cart(cart_id: str, service: CartService = Depends(get_cart_service
 
 @router.get("/", response_model=list[Cart])
 async def get_pending_carts(
+    skip: int = Query(0, description="Registros a saltar"),
+    limit: int = Query(20, description="Límite de resultados"),
     service: CartService = Depends(get_cart_service),
     # NOTA: Este endpoint es para el Admin, debería estar protegido
     # current_user: dict = Depends(get_current_user)
@@ -114,7 +116,7 @@ async def get_pending_carts(
     """
     Obtener la lista de carritos pendientes de pago (para la cola del admin).
     """
-    return await service.get_pending_carts()
+    return await service.get_pending_carts(skip=skip, limit=limit)
 
 
 @router.post("/{cart_id}/items", response_model=Cart)
@@ -134,7 +136,7 @@ async def add_item_to_cart(
         )
         return cart
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/{cart_id}/items/{product_id}", response_model=Cart)
@@ -152,7 +154,7 @@ async def update_item_quantity(
         cart = await service.update_item_quantity(cart_id=cart_id, product_id=product_id, new_quantity=request.quantity)
         return cart
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete("/{cart_id}/items/{product_id}", response_model=Cart)
@@ -165,7 +167,7 @@ async def remove_item_from_cart(cart_id: str, product_id: str, service: CartServ
         cart = await service.remove_item(cart_id, product_id)
         return cart
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{cart_id}/qr", response_model=dict[str, str])
@@ -178,4 +180,4 @@ async def generate_qr(cart_id: str, service: CartService = Depends(get_cart_serv
         qr_code_data_uri = await service.generate_qr(cart_id)
         return {"qr_code": qr_code_data_uri}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e

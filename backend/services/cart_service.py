@@ -65,7 +65,7 @@ class CartService:
                 "cart",
                 """
                 INSERT INTO carts (
-                    id, customer_name, customer_id, status, 
+                    id, customer_name, customer_id, status,
                     region_id, currency_id, 
                     subtotal, tax_amount, total_with_tax,
                     created_at, updated_at
@@ -90,7 +90,7 @@ class CartService:
             return cart
         except Exception as e:
             logger.error(f"Error al crear carrito: {e}", exc_info=True)
-            raise ValueError(f"Error al crear carrito: {str(e)}")
+            raise ValueError(f"Error al crear carrito: {str(e)}") from e
 
     async def get_cart(self, cart_id: str) -> Cart | None:
         """
@@ -202,7 +202,8 @@ class CartService:
         subtotal_row = await self.db_manager.fetchone(
             "cart", "SELECT SUM(price * quantity) as subtotal FROM cart_items WHERE cart_id = ?", (cart_id,)
         )
-        subtotal = Decimal(str(subtotal_row["subtotal"] or "0.0"))
+        subtotal_val = subtotal_row["subtotal"] if subtotal_row else 0.0
+        subtotal = Decimal(str(subtotal_val or "0.0"))
 
         # 3. Llamar al TaxService para calcular impuestos
         #    (Aquí ocurre la lógica de Filadelfia 6% + 2%)
@@ -227,7 +228,19 @@ class CartService:
         )
 
         # 5. Devolver el DTO del carrito actualizado
-        return await self.get_cart(cart_id)
+        return await self.get_cart(cart_id) or Cart(  # Fallback seguro, aunque debería existir
+            id=cart_id,
+            customer_name="",
+            customer_id="",
+            region_id="",
+            currency_id="",
+            subtotal=Decimal(0),
+            tax_amount=Decimal(0),
+            total_with_tax=Decimal(0),
+            status="pending",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
 
     async def generate_qr(self, cart_id: str) -> str:
         """
@@ -268,10 +281,12 @@ class CartService:
 
         return f"data:image/png;base64,{qr_base64}"
 
-    async def get_pending_carts(self) -> list[Cart]:
-        """Obtener carritos pendientes (para el admin de ventas)"""
+    async def get_pending_carts(self, skip: int = 0, limit: int = 20) -> list[Cart]:
+        """Obtener carritos pendientes (para el admin de ventas) con paginación."""
         rows = await self.db_manager.fetchall(
-            "cart", "SELECT * FROM carts WHERE status = 'pending' ORDER BY created_at DESC"
+            "cart",
+            "SELECT * FROM carts WHERE status = 'pending' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, skip),
         )
 
         # Convertir filas a DTOs
@@ -284,3 +299,34 @@ class CartService:
             carts.append(cart)
 
         return carts
+
+    async def assign_guest_cart(self, cart_id: str, user_id: str, user_name: str) -> None:
+        """
+        Asigna un carrito de invitado a un usuario registrado.
+        Se llama al hacer login si hay un carrito activo en el frontend.
+        """
+        # 1. Verificar si el carrito existe y es de invitado
+        cart = await self.get_cart(cart_id)
+        if not cart:
+            return  # Si no existe, no hacemos nada
+
+        # Si ya tiene un customer_id que NO es de invitado (empieza con 'guest-'),
+        # entonces ya pertenece a alguien más (o al mismo usuario).
+        if not cart.customer_id.startswith("guest-"):
+            if cart.customer_id == user_id:
+                return  # Ya es de este usuario
+            # Si es de OTRO usuario, NO lo tocamos (seguridad)
+            logger.warning(f"Intento de asignar carrito {cart_id} de {cart.customer_id} a {user_id}")
+            return
+
+        # 2. Asignar al nuevo usuario
+        try:
+            await self.db_manager.execute(
+                "cart",
+                "UPDATE carts SET customer_id = ?, customer_name = ?, updated_at = ? WHERE id = ?",
+                (user_id, user_name, datetime.now().isoformat(), cart_id),
+            )
+            logger.info(f"Carrito invitado {cart_id} asignado a usuario {user_id} ({user_name})")
+        except Exception as e:
+            logger.error(f"Error al asignar carrito invitado: {e}")
+            # No lanzamos error para no bloquear el login

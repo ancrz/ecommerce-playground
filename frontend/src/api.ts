@@ -47,10 +47,10 @@ const getAuthToken = (): string | null => {
  * Wrapper de 'fetch' para peticiones JSON autenticadas.
  * REFACTORIZADO: Acepta un 'schema' de Zod para validar la respuesta.
  */
-const authFetch = async <T>(
+export const authFetch = async <T>(
   endpoint: string, 
   options: RequestInit = {},
-  schema: ZodType<T> // Argumento de esquema Zod
+  schema: ZodType<T, any, any> // Output, Def, Input (permite que Input sea opcional si hay defaults)
 ): Promise<T> => {
   const token = getAuthToken();
   
@@ -81,7 +81,7 @@ const authFetch = async <T>(
     try {
       const errorJson = await response.json();
       errorDetail = errorJson.detail || JSON.stringify(errorJson);
-    } catch (e) {
+    } catch {
       errorDetail = response.statusText;
     }
     throw new Error(`Error ${response.status}: ${errorDetail}`);
@@ -92,13 +92,14 @@ const authFetch = async <T>(
   }
 
   const data = await response.json();
-  (window as any).lastApiData = data; // DEBUG: Make last API response available globally
+  // DEBUG: Make last API response available globally
+  (window as unknown as { lastApiData: unknown }).lastApiData = data;
 
   try {
     // Intenta parsear los datos con el esquema.
     // Si falla, lanza un error que será capturado abajo.
     return schema.parse(data);
-  } catch (validationError: any) {
+  } catch (validationError: unknown) {
     // El "contrato" está roto. El backend envió datos inesperados.
     console.error(`Error de Validación Zod para ${endpoint}:`, validationError);
     throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
@@ -106,13 +107,12 @@ const authFetch = async <T>(
 };
 
 /**
- * Wrapper de 'fetch' para subida de archivos (FormData)
- * REFACTORIZADO: Acepta un 'schema' de Zod.
+ * Wrapper para enviar FORM DATA (archivos).
  */
-const authFetchForm = async <T>(
+export const authFetchForm = async <T>(
   endpoint: string, 
   formData: FormData,
-  schema: ZodType<T> // Argumento de esquema Zod
+  schema: ZodType<T, any, any>
 ): Promise<T> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {};
@@ -136,7 +136,7 @@ const authFetchForm = async <T>(
 
   try {
     return schema.parse(data);
-  } catch (validationError: any) {
+  } catch (validationError: unknown) {
     console.error(`Error de Validación Zod para ${endpoint} (Form):`, validationError);
     throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
   }
@@ -144,10 +144,10 @@ const authFetchForm = async <T>(
 
 // ==================== API de Autenticación (Pública) ====================
 
-export const apiLogin = (username: string, password: string): Promise<TokenResponse> => {
+export const apiLogin = (username: string, password: string, guest_cart_id?: string): Promise<TokenResponse> => {
   return authFetch<TokenResponse>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, guest_cart_id }),
   }, TokenResponseSchema); // <-- Validar
 };
 
@@ -193,8 +193,11 @@ export const changeMyPassword = (request: PasswordChangeRequest): Promise<{ mess
 
 // ==================== API de Admin: Usuarios (RBAC) ====================
 
-export const getAllUsers = (): Promise<User[]> => {
-  return authFetch<User[]>('/admin/users', { method: 'GET' }, z.array(UserPublicSchema)); // <-- Validar
+export const getAllUsers = (skip?: number, limit?: number): Promise<User[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  return authFetch<User[]>(`/admin/users?${params.toString()}`, { method: 'GET' }, z.array(UserPublicSchema)); // <-- Validar
 };
 
 export const createNewUser = (data: UserCreateRequest): Promise<User> => {
@@ -220,8 +223,12 @@ export const adminResetPassword = (userId: string, new_password: string): Promis
 
 // ==================== API Pública (Productos, Tienda) ====================
 
-export const getAllProducts = (): Promise<Product[]> => {
-  return authFetch<Product[]>('/products/', { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
+export const getAllProducts = (skip?: number, limit?: number): Promise<Product[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  
+  return authFetch<Product[]>(`/products/?${params.toString()}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
 };
 
 export const searchProducts = (query: string): Promise<Product[]> => {
@@ -354,17 +361,22 @@ export const getCurrencies = (active_only: boolean = true): Promise<Currency[]> 
   return authFetch<Currency[]>(`/finance/currencies?active_only=${active_only}`, { method: 'GET' }, z.array(CurrencySchema)); // <-- Validar
 };
 
-export const createCurrency = (data: { name: string, symbol: string, is_base: boolean, exchange_rate: number }): Promise<Currency> => {
+export const createCurrency = (data: { name: string, symbol: string, is_base: boolean, exchange_rate: number, tax_rate?: number }): Promise<Currency> => {
   const params = new URLSearchParams();
   params.append('name', data.name);
   params.append('symbol', data.symbol);
   params.append('is_base', String(data.is_base));
   params.append('exchange_rate', String(data.exchange_rate));
+  if (data.tax_rate !== undefined) params.append('tax_rate', String(data.tax_rate));
   return authFetch<Currency>(`/finance/currencies?${params.toString()}`, { method: 'POST' }, CurrencySchema); // <-- Validar
 };
 
 export const updateCurrencyRate = (id: string, new_rate: number): Promise<Currency> => {
   return authFetch<Currency>(`/finance/currencies/${id}/rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema); // <-- Validar
+};
+
+export const updateCurrencyTaxRate = (id: string, new_rate: number): Promise<Currency> => {
+  return authFetch<Currency>(`/finance/currencies/${id}/tax-rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema);
 };
 
 export const setBaseCurrency = (id: string): Promise<{ message: string }> => {
@@ -456,26 +468,29 @@ export const updateItemQuantity = (cartId: string, productId: string, quantity: 
 };
 
 export const completeSale = (cartId: string, paymentDetails: PaymentDetails): Promise<Sale> => {
-  return authFetch<Sale>(`/admin/sales/${cartId}/complete`, {
+  return authFetch<Sale>(`/sales/${cartId}/complete`, {
     method: 'POST',
     body: JSON.stringify(paymentDetails),
-  }, SaleSchema); // <-- Validar
+  }, SaleSchema);
 };
 
 export const cancelSale = (cartId: string): Promise<{ message: string }> => {
-  return authFetch(`/admin/sales/${cartId}/cancel`, { method: 'POST' }, MessageResponseSchema); // <-- Validar
+  return authFetch(`/sales/${cartId}/cancel`, { method: 'POST' }, MessageResponseSchema);
 };
 
 export const getDailySales = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/admin/sales/daily', { method: 'GET' }, DailyReportSchema); // <-- Validar
+  return authFetch<DailyReport>('/sales/daily', { method: 'GET' }, DailyReportSchema);
 };
 
 export const closeDay = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/admin/sales/close-day', { method: 'POST' }, DailyReportSchema);
+  return authFetch<DailyReport>('/sales/close-day', { method: 'POST' }, DailyReportSchema);
 };
 
-export const getPendingCarts = (): Promise<Cart[]> => {
-  return authFetch<Cart[]>('/cart/', { method: 'GET' }, z.array(CartSchema));
+export const getPendingCarts = (skip?: number, limit?: number): Promise<Cart[]> => {
+  const params = new URLSearchParams();
+  if (skip !== undefined) params.append('skip', String(skip));
+  if (limit !== undefined) params.append('limit', String(limit));
+  return authFetch<Cart[]>(`/cart/?${params.toString()}`, { method: 'GET' }, z.array(CartSchema));
 };
 
 // ==================== HOMOLOGACIÓN: Funciones faltantes ====================

@@ -28,6 +28,8 @@ class BusinessInfoUpdate(BaseModel):
 
     name: str | None = None
     rif: str | None = None
+    address: str | None = None
+    phone: str | None = None
     contact: str | None = None
     social_networks: list[dict[str, Any]] | None = None
     logo_url: str | None = None

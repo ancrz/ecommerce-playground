@@ -1,12 +1,9 @@
-"""
-Servicio de Impuestos (Tax Service)
-REFACTORIZADO: Se añade lógica de Actualización (PUT) y Desactivación (DELETE).
-"""
-
 import logging
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+
+from pydantic import BaseModel
 
 from ..database.manager import DatabaseManager
 from ..models import Region, TaxRate
@@ -14,22 +11,33 @@ from ..models import Region, TaxRate
 logger = logging.getLogger(__name__)
 
 
+class TaxBreakdown(BaseModel):
+    """Detalle de impuestos calculados."""
+
+    subtotal: Decimal
+    vat_amount: Decimal  # IVA (Calculado de tasas regionales)
+    igtf_amount: Decimal  # IGTF (Calculado de moneda)
+    total_tax: Decimal  # IVA + IGTF
+    total: Decimal  # Subtotal + Impuestos
+    breakdown: list[dict[str, Any]] = []  # Detalle por tasa
+
+
 class TaxService:
     """
-    Servicio para operaciones de impuestos regionales.
-    Desacoplado de Monedas.
+    Servicio para operaciones de impuestos regionales y cálculo fiscal (Venezuela).
+    Unifica CRUD de regiones/tasas con lógica de cálculo IVA + IGTF.
     """
 
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
-        logger.info("TaxService inicializado.")
+        logger.info("TaxService inicializado (Modo Híbrido: CRUD + Fiscal Venezuela).")
 
     # --- Administración de Regiones ---
 
     async def create_region(
         self, name: str, country: str, state: str, city: str | None = None, zip_code: str | None = None
     ) -> Region:
-        """Crea una nueva región fiscal (ej. Filadelfia, PA)"""
+        """Crea una nueva región fiscal (ej. Caracas, Miranda)"""
 
         region = Region(name=name, country=country, state=state, city=city, zip_code=zip_code)
 
@@ -66,14 +74,13 @@ class TaxService:
         query += " ORDER BY name"
 
         rows = await self.db_manager.fetchall("tax", query)
-        return [self._row_to_region(row) for row in rows]
+        regions = [self._row_to_region(row) for row in rows]
+        return [r for r in regions if r is not None]
 
     async def get_region(self, region_id: str) -> Region | None:
         """Obtiene una región por ID"""
         row = await self.db_manager.fetchone("tax", "SELECT * FROM regions WHERE id = ?", (region_id,))
         return self._row_to_region(row) if row else None
-
-    # --- INICIO DE LA MEJORA (CRUD Faltante) ---
 
     async def update_region(self, region_id: str, updates: dict[str, Any]) -> Region | None:
         """Actualiza los campos de una región fiscal."""
@@ -112,13 +119,11 @@ class TaxService:
         logger.info(f"Región {region_id} y sus tasas asociadas han sido desactivadas.")
         return {"message": "Región desactivada exitosamente."}
 
-    # --- FIN DE LA MEJORA ---
-
     # --- Administración de Tasas de Impuesto ---
 
     async def create_tax_rate(self, name: str, region_id: str, rate: Decimal, priority: int = 1) -> TaxRate:
         """
-        Crea una nueva tasa de impuesto (ej. "Impuesto Estatal PA", 0.06)
+        Crea una nueva tasa de impuesto (ej. "IVA General", 0.16)
         y la vincula a una región.
         """
         region = await self.get_region(region_id)
@@ -126,7 +131,7 @@ class TaxService:
             raise ValueError(f"La región con ID {region_id} no existe.")
 
         if not (Decimal("0") <= rate < Decimal("1")):
-            raise ValueError("La tasa (rate) debe ser un decimal entre 0 y 1 (ej: 0.06 para 6%).")
+            raise ValueError("La tasa (rate) debe ser un decimal entre 0 y 1 (ej: 0.16 para 16%).")
 
         tax_rate = TaxRate(name=name, region_id=region_id, rate=rate, priority=priority)
 
@@ -152,21 +157,20 @@ class TaxService:
             return tax_rate
         except Exception as e:
             logger.error(f"Error al crear tasa de impuesto {name}: {e}", exc_info=True)
-            raise ValueError(f"Error creando tasa de impuesto: {str(e)}")
+            raise ValueError(f"Error calculando impuestos: {str(e)}") from e
 
     async def get_tax_rates_for_region(self, region_id: str) -> list[TaxRate]:
-        """Obtiene todas las tasas de impuesto activas para una región (ej. 6% y 2%)."""
+        """Obtiene todas las tasas de impuesto activas para una región."""
         rows = await self.db_manager.fetchall(
             "tax", "SELECT * FROM tax_rates WHERE region_id = ? AND is_active = 1 ORDER BY priority", (region_id,)
         )
-        return [self._row_to_tax_rate(row) for row in rows]
+        rates = [self._row_to_tax_rate(row) for row in rows]
+        return [r for r in rates if r is not None]
 
     async def get_tax_rate(self, tax_rate_id: str) -> TaxRate | None:
         """Obtiene una tasa de impuesto específica por ID"""
         row = await self.db_manager.fetchone("tax", "SELECT * FROM tax_rates WHERE id = ?", (tax_rate_id,))
         return self._row_to_tax_rate(row) if row else None
-
-    # --- INICIO DE LA MEJORA (CRUD Faltante) ---
 
     async def update_tax_rate(self, tax_rate_id: str, updates: dict[str, Any]) -> TaxRate | None:
         """Actualiza los campos de una tasa de impuesto."""
@@ -177,7 +181,7 @@ class TaxService:
         if "rate" in filtered_updates:
             rate = Decimal(str(filtered_updates["rate"]))
             if not (Decimal("0") <= rate < Decimal("1")):
-                raise ValueError("La tasa (rate) debe ser un decimal entre 0 y 1 (ej: 0.06 para 6%).")
+                raise ValueError("La tasa (rate) debe ser un decimal entre 0 y 1.")
             filtered_updates["rate"] = float(rate)
 
         if not filtered_updates:
@@ -196,7 +200,6 @@ class TaxService:
     async def delete_tax_rate(self, tax_rate_id: str) -> dict[str, str]:
         """
         Desactiva (Soft Delete) una tasa de impuesto.
-        No la elimina para mantener la integridad histórica.
         """
         await self.db_manager.execute(
             "tax",
@@ -206,43 +209,78 @@ class TaxService:
         logger.info(f"Tasa de impuesto {tax_rate_id} ha sido desactivada.")
         return {"message": "Tasa de impuesto desactivada exitosamente."}
 
-    # --- FIN DE LA MEJORA ---
-
     # --- Motor de Cálculo de Impuestos ---
 
-    async def calculate_taxes(self, subtotal: Decimal, region_id: str) -> dict[str, Any]:
+    async def calculate_taxes(self, subtotal: Decimal, region_id: str | None, currency_id: str | None) -> TaxBreakdown:
         """
-        Calcula el impuesto total para un subtotal y una región.
-        Esta es la implementación del ejemplo de "Filadelfia (6% + 2%)".
+        Calcula el impuesto total considerando:
+        1. Tasas Regionales (IVA) -> Basado en region_id
+        2. Impuesto a la Moneda (IGTF) -> Basado en currency_id
         """
-        if not region_id:
-            logger.warning("Cálculo de impuestos omitido: No se proporcionó region_id.")
-            return {
-                "subtotal": subtotal,
-                "tax_amount": Decimal("0"),
-                "total_with_tax": subtotal,
-                "breakdown": [],  # Desglose
-            }
 
-        rates = await self.get_tax_rates_for_region(region_id)
-
-        total_tax = Decimal("0")
+        # Valores por defecto
+        vat_amount = Decimal("0")
+        igtf_amount = Decimal("0")
         breakdown = []
 
-        for rate in rates:
-            tax_amount_for_this_rate = rate.calculate(subtotal)
-            total_tax += tax_amount_for_this_rate
+        # 1. Calcular Impuestos Regionales (IVA)
+        if region_id:
+            rates = await self.get_tax_rates_for_region(region_id)
+            for rate in rates:
+                # Calcular monto de este impuesto
+                amount = rate.calculate(subtotal)
+                vat_amount += amount
 
-            breakdown.append({"name": rate.name, "rate": float(rate.rate), "amount": float(tax_amount_for_this_rate)})
+                breakdown.append(
+                    {"name": rate.name, "rate": float(rate.rate), "amount": float(amount), "type": "region"}
+                )
 
-        total_tax = total_tax.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        total_with_tax = subtotal + total_tax
+        # 2. Calcular Impuesto a la Moneda (IGTF)
+        if currency_id:
+            # Buscar la moneda para ver su tax_rate
+            # Usamos el chunk 'finance' donde están las currencies
+            row = await self.db_manager.fetchone(
+                "finance", "SELECT tax_rate FROM currencies WHERE id = ?", (currency_id,)
+            )
 
-        logger.info(
-            f"Impuesto calculado para Región {region_id}: Subtotal {subtotal}, Impuesto {total_tax}, Total {total_with_tax}"
+            if row and row.get("tax_rate"):
+                # tax_rate viene como float/decimal desde DB
+                currency_tax_rate = Decimal(str(row["tax_rate"]))
+
+                if currency_tax_rate > 0:
+                    # Lógica IGTF: Se aplica sobre el monto TOTAL a pagar (Subtotal + IVA)
+                    # Si el pago es en divisas, el IGTF es sobre el total de la operación.
+                    base_for_igtf = subtotal + vat_amount
+                    # El tax_rate en DB se asume porcentual o decimal?
+                    # El modelo Currency dice tax_rate Decimal default 0.
+                    # Si guardamos 0.03 (3%) o 3.0?
+                    # Asumiremos que se guarda como Decimal puro (ej. 0.03) para consistencia con TaxRate.
+                    # Sin embargo, si entra como 3.0 en UI, hay que ver.
+                    # Por seguridad, si es > 1, dividimos entre 100? No, confiemos en el input.
+
+                    amount_igtf = base_for_igtf * currency_tax_rate
+                    igtf_amount += amount_igtf
+
+                    breakdown.append(
+                        {
+                            "name": f"IGTF ({currency_id})",
+                            "rate": float(currency_tax_rate),
+                            "amount": float(amount_igtf),
+                            "type": "currency",
+                        }
+                    )
+
+        total_tax = vat_amount + igtf_amount
+        total = subtotal + total_tax
+
+        return TaxBreakdown(
+            subtotal=subtotal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            vat_amount=vat_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            igtf_amount=igtf_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            total_tax=total_tax.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            total=total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            breakdown=breakdown,
         )
-
-        return {"subtotal": subtotal, "tax_amount": total_tax, "total_with_tax": total_with_tax, "breakdown": breakdown}
 
     # --- Conversores de Fila (Row) a Modelo (Pydantic) ---
 

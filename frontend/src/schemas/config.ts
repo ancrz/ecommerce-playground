@@ -31,6 +31,12 @@ export const CustomizationSchema = z.object({
   font_family: z.string(),
   custom_css: z.string().nullable(),
   updated_at: z.string().datetime(),
+  // Fiscal Data (added for invoice generation)
+  name: z.string().optional().nullable(),
+  rif: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  // Icons
   icon_products_url: z.string().url().nullable(),
   icon_business_url: z.string().url().nullable(),
   icon_customization_url: z.string().url().nullable(),

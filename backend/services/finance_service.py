@@ -34,7 +34,7 @@ class FinanceService:
         symbol: str,
         is_base: bool = False,
         exchange_rate: Decimal = Decimal("1.0"),
-        # REFACTOR: tax_percentage eliminado
+        tax_rate: Decimal = Decimal("0"),
     ) -> Currency:
         """
         Crear nueva moneda.
@@ -58,7 +58,7 @@ class FinanceService:
             base_currency_id=None,
             exchange_rate=exchange_rate,
             is_active=True,
-            # tax_percentage eliminado
+            tax_rate=tax_rate,
         )
 
         try:
@@ -68,8 +68,8 @@ class FinanceService:
                 """
                 INSERT INTO currencies (
                     id, name, symbol, is_base, exchange_rate,
-                    base_currency_id, is_active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    base_currency_id, is_active, tax_rate, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     currency.id,
@@ -79,15 +79,16 @@ class FinanceService:
                     float(currency.exchange_rate),
                     currency.base_currency_id,
                     currency.is_active,
+                    float(currency.tax_rate),
                     currency.created_at.isoformat(),
                     currency.updated_at.isoformat(),
                 ),
             )
-            logger.info(f"Moneda creada: {name} (Base: {is_base})")
+            logger.info(f"Moneda creada: {name} (Base: {is_base}, Tax: {tax_rate})")
             return currency
         except Exception as e:
             logger.error(f"Error al crear moneda {name}: {e}", exc_info=True)
-            raise ValueError(f"Error creando moneda (¿nombre o símbolo duplicado?): {str(e)}")
+            raise ValueError(f"Error creando moneda (¿nombre o símbolo duplicado?): {str(e)}") from e
 
     async def get_currency(self, currency_id: str) -> Currency | None:
         """Obtener moneda por ID"""
@@ -139,6 +140,28 @@ class FinanceService:
         )
 
         logger.info(f"Tasa de {currency.name} actualizada a {new_rate}")
+        return await self.get_currency(currency_id)
+
+    async def update_tax_rate(self, currency_id: str, new_rate: Decimal) -> Currency | None:
+        """Actualizar tasa de impuesto (IGTF)"""
+        currency = await self.get_currency(currency_id)
+        if not currency:
+            return None
+
+        if new_rate < 0:
+            raise ValueError("La tasa de impuesto no puede ser negativa.")
+
+        await self.db_manager.execute(
+            "finance",
+            """
+            UPDATE currencies 
+            SET tax_rate = ?, updated_at = ?
+            WHERE id = ?
+        """,
+            (float(new_rate), datetime.now().isoformat(), currency_id),
+        )
+
+        logger.info(f"Tasa de impuesto de {currency.name} actualizada a {new_rate}")
         return await self.get_currency(currency_id)
 
     # REFACTOR: set_tax_percentage FUE ELIMINADO.

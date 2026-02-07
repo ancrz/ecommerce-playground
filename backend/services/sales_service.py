@@ -16,7 +16,9 @@ from ..models import DailyReport, PaymentDetails, Sale
 
 # Importar Servicios dependientes (Inyección de Dependencias)
 from .cart_service import CartService
+from .invoice_service import InvoiceService  # Nuevo servicio
 from .product_service import ProductService
+from .tax_service import TaxService
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +28,30 @@ class SalesService:
     Servicio para la lógica de negocio de Ventas y Cierre de Caja.
     """
 
-    def __init__(self, db_manager: DatabaseManager, cart_service: CartService, product_service: ProductService):
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        cart_service: CartService,
+        product_service: ProductService,
+        tax_service: TaxService,
+        invoice_service: InvoiceService,
+    ):
         self.db_manager = db_manager
         self.cart_service = cart_service
         self.product_service = product_service
-        logger.info("SalesService inicializado (con dependencias de CartService y ProductService)")
+        self.tax_service = tax_service
+        self.invoice_service = invoice_service
+        logger.info("SalesService inicializado (con todas las dependencias)")
 
     async def complete_sale(self, cart_id: str, payment_details: PaymentDetails, completed_by: str) -> Sale:
         """
         Completa una venta desde un carrito.
         1. Valida el carrito.
         2. ¡Actualiza el stock de productos! (CRÍTICO)
-        3. Crea el registro de Venta (Sale) copiando los totales (con impuestos).
-        4. Actualiza el estado del Carrito (completed).
+        3. Recalcula impuestos (IGTF) basado en la moneda de pago.
+        4. Crea el registro de Venta (Sale).
+        5. Actualiza el estado del Carrito (completed).
+        6. Genera Factura (Async / Background).
         """
 
         # 1. Obtener el carrito con todos los totales calculados
@@ -60,7 +73,16 @@ class SalesService:
             # (En un sistema real, aquí iría una lógica de "rollback" de transacción)
             raise ValueError(f"Error de inventario: {e}")
 
-        # 3. Crear el registro de Venta (histórico)
+        # 3. Recalcular impuestos (IGTF) segun ID de moneda (si aplica)
+        # Usamos el currency_id del carrito.
+        # Validar si el pago es en divisas para IGTF (Simulacion basada en currency_id)
+
+        # AHORA: Pasamos region_id para IVA y currency_id para IGTF
+        tax_breakdown = await self.tax_service.calculate_taxes(
+            subtotal=cart.subtotal, region_id=cart.region_id, currency_id=cart.currency_id
+        )
+
+        # 4. Crear el registro de Venta (histórico)
         sale = Sale(
             cart_id=cart_id,
             customer_name=cart.customer_name,
@@ -69,11 +91,12 @@ class SalesService:
             currency_id=cart.currency_id,
             payment_details=payment_details,
             completed_by=completed_by,
-            # Copiar los datos fiscales y de totales exactos del carrito
+            # Usar los totales recalculados por TaxService (incluye IGTF)
             region_id=cart.region_id,
-            subtotal=cart.subtotal,
-            tax_amount=cart.tax_amount,
-            total_with_tax=cart.total_with_tax,
+            subtotal=tax_breakdown.subtotal,
+            tax_amount=tax_breakdown.total_tax,  # IVA + IGTF
+            igtf_amount=tax_breakdown.igtf_amount,  # Guardar explícitamente IGTF
+            total_with_tax=tax_breakdown.total,
         )
 
         await self.db_manager.execute(
@@ -82,8 +105,8 @@ class SalesService:
             INSERT INTO sales (
                 id, cart_id, customer_name, customer_id, items, currency_id, 
                 payment_details, status, completed_by, completed_at,
-                region_id, subtotal, tax_amount, total_with_tax
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                region_id, subtotal, tax_amount, igtf_amount, total_with_tax
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 sale.id,
@@ -99,11 +122,12 @@ class SalesService:
                 sale.region_id,
                 float(sale.subtotal),
                 float(sale.tax_amount),
+                float(sale.igtf_amount),
                 float(sale.total_with_tax),
             ),
         )
 
-        # 4. Actualizar estado del Carrito (completado)
+        # 5. Actualizar estado del Carrito (completado)
         await self.db_manager.execute(
             "cart",
             """
@@ -114,6 +138,16 @@ class SalesService:
         )
 
         logger.info(f"Venta {sale.id} (Carrito {cart_id}) completada por {completed_by}.")
+
+        # 6. Generar Factura (Dispara y olvida / await)
+        # En producción idealmente esto va a una cola de tareas (Celery/Redis)
+        # Aquí lo hacemos await directo pero soportando fallos
+        try:
+            await self.invoice_service.generate_and_send_invoice(sale)
+        except Exception as e:
+            logger.error(f"Error generando factura para venta {sale.id}: {e}")
+            # No fallamos la venta si la factura falla (fail-open para la venta)
+
         return sale
 
     async def cancel_sale(self, cart_id: str, cancelled_by: str) -> dict[str, str]:

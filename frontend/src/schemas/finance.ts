@@ -6,6 +6,7 @@ export const CurrencySchema = BaseEntitySchema.extend({
   symbol: z.string(),
   is_base: z.boolean(),
   exchange_rate: z.number(),
+  tax_rate: z.number().default(0),
   base_currency_id: z.string().uuid().nullable(),
   is_active: z.boolean(),
 });

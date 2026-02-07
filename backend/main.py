@@ -7,30 +7,11 @@ REFACTORIZADO (v2.1 RBAC + Impuestos):
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
-
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
-# --- 1. Importar Config ---
-from .core.config import settings
-
-# --- 2. Importar Database Manager ---
-from .database.manager import DatabaseManager
-
-# --- 3. Importar Servicios ---
-from .services.business_service import BusinessService
-from .services.cart_service import CartService
-from .services.customization_service import CustomizationService
-from .services.finance_service import FinanceService
-from .services.image_service import ImageService
-from .services.product_service import ProductService
-from .services.sales_service import SalesService
-from .services.tax_service import TaxService
-from .services.user_service import UserService
 
 # --- 4. Importar Routers (APIs) ---
 from .api import auth as auth_router
@@ -41,23 +22,48 @@ from .api import customization as customization_router
 from .api import finance as finance_router
 from .api import images as images_router
 from .api import products as products_router
+from .api import roles as roles_router
 from .api import sales as sales_router
 from .api import tax_admin as tax_admin_router
 from .api import user_admin as user_admin_router
 from .api import websocket as websocket_router
 
-# Configurar logging (centralizado)
+# --- 1. Importar Config ---
+from .core.config import settings
+
+# --- 3. Exception Handlers ---
+# --- 2. Importar Database Manager ---
+from .database.manager import DatabaseManager
+
+# --- 1. Importar Config ---
+# --- 5. Importar Servicios ---
+from .services.business_service import BusinessService
+from .services.cart_service import CartService
+from .services.customization_service import CustomizationService
+from .services.finance_service import FinanceService
+from .services.image_service import ImageService
+from .services.product_service import ProductService
+from .services.sales_service import SalesService
+from .services.tax_service import TaxService
+from .services.user_service import UserService
+from .services.email_service import EmailService  # Nuevo
+from .services.invoice_service import InvoiceService  # Nuevo
+
+# Configuración de Logging del Backend (Moved to avoid Import warnings)
 logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-7s | [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+    force=True,
 )
+
 logger = logging.getLogger(__name__)
 
 # Variables globales para servicios
 db_manager: DatabaseManager | None = None
 
 
-# --- 5. Inicialización Controlada (Lifespan) ---
+# --- 6. Inicialización Controlada (Lifespan) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación"""
@@ -94,20 +100,28 @@ async def lifespan(app: FastAPI):
     app.state.tax_service = tax_service
     customization_service = CustomizationService(db_manager=db_manager, image_service=image_service)
     app.state.customization_service = customization_service
+    email_service = EmailService()  # Nuevo
+    app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
-    cart_service = CartService(
+    invoice_service = InvoiceService(business_service=business_service, email_service=email_service) # Nuevo (Depende de Business y Email)
+    app.state.invoice_service = invoice_service
+
+    app.state.cart_service = CartService(
         db_manager=db_manager,
         product_service=product_service,
         tax_service=tax_service,
     )
-    app.state.cart_service = cart_service
-    sales_service = SalesService(
+    app.state.sales_service = SalesService(
         db_manager=db_manager,
-        cart_service=cart_service,
+        cart_service=app.state.cart_service,
         product_service=product_service,
+        tax_service=tax_service,
+        invoice_service=invoice_service, # Inyección de dependencia
     )
-    app.state.sales_service = sales_service
+    app.state.client_logs_service = None  # Placeholder if needed
+
+    logger.info("✓ Servicios inicializados.")
 
     # Paso 3: Asegurar carpetas de 'uploads'
     try:
@@ -157,7 +171,11 @@ app.include_router(cart_router.router, prefix="/api/cart", tags=["Cart"])
 app.include_router(sales_router.router, prefix="/api/sales", tags=["Sales"])
 app.include_router(finance_router.router, prefix="/api/finance", tags=["Finance"])
 app.include_router(tax_admin_router.router, prefix="/api/admin/tax", tags=["Tax Admin"])
+
+# ...
+
 app.include_router(user_admin_router.router, prefix="/api/admin/users", tags=["User Admin"])
+app.include_router(roles_router.router, prefix="/api/admin/roles", tags=["Role Admin"])
 app.include_router(business_router.router, prefix="/api/business", tags=["Business"])
 app.include_router(customization_router.router, prefix="/api/admin/customization", tags=["Customization"])
 app.include_router(images_router.router, prefix="/api/images", tags=["Images"])

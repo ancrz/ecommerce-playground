@@ -10,6 +10,7 @@ class Currency(BaseEntity):
     symbol: str = Field(..., min_length=1, max_length=10)
     is_base: bool = False
     exchange_rate: Decimal = Field(default=Decimal("1.0"), gt=0)
+    tax_rate: Decimal = Field(default=Decimal(0), ge=0)  # Impuesto asociado (IGTF)
     base_currency_id: str | None = None
     is_active: bool = True
 

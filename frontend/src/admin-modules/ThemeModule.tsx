@@ -4,12 +4,12 @@
  * REFACTORIZADO (FASE 4):
  * 1. Botón "Guardar Cambios" usa clase .btn-primary
  */
-import React, { useState, useEffect, ChangeEvent, ElementType } from 'react';
-import { Save, Upload, Package, Building, Palette, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
+import { useState, useEffect, ChangeEvent, ElementType } from 'react';
+import { Save, Package, Building, Palette, DollarSign, TrendingUp, Users, Percent } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
-import type { Customization } from '../../types';
+import type { Customization } from '../types';
 
 // Importar componentes reutilizables
 import { Select, TextArea, ColorPicker } from '../components/FormControls';
@@ -93,6 +93,51 @@ export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
           >
             {fonts.map(font => <option key={font} value={font}>{font}</option>)}
           </Select>
+
+          {/* Nuevos Campos de Identidad Fiscal */}
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-semibold mb-2">Datos Fiscales (Para Facturación)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Legal / Comercial</label>
+                   <input 
+                     type="text" 
+                     className="w-full border rounded p-2 text-sm"
+                     value={custom.name || ''}
+                     onChange={(e) => setCustom({...custom, name: e.target.value})}
+                   />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">RIF</label>
+                   <input 
+                     type="text" 
+                     className="w-full border rounded p-2 text-sm"
+                     value={custom.rif || ''}
+                     onChange={(e) => setCustom({...custom, rif: e.target.value})}
+                     placeholder="J-12345678-9"
+                   />
+                </div>
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                   <input 
+                     type="text" 
+                     className="w-full border rounded p-2 text-sm"
+                     value={custom.phone || ''}
+                     onChange={(e) => setCustom({...custom, phone: e.target.value})}
+                   />
+                </div>
+                 <div className="md:col-span-2">
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Fiscal</label>
+                   <textarea 
+                     className="w-full border rounded p-2 text-sm"
+                     rows={2}
+                     value={custom.address || ''}
+                     onChange={(e) => setCustom({...custom, address: e.target.value})}
+                   />
+                </div>
+            </div>
+          </div>
+
           <TextArea 
             label="CSS Personalizado (Avanzado)"
             value={custom.custom_css || ''}
@@ -150,22 +195,29 @@ function IconUploader(
     cacheKey?: string
   }
 ) {
+  // URL base del servidor (si value es relativo)
+  const imageUrl = value ? (value.startsWith('http') ? value : `${SERVER_URL}${value}`) : null;
+
   return (
     <div className="flex items-center gap-4 p-3 border rounded-lg">
-      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-        {value ? (
-          <img src={`${SERVER_URL}${value}?t=${cacheKey || '1'}`} alt={label} className="w-full h-full object-contain image-preview" />
+      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+        {imageUrl ? (
+          <img 
+            src={`${imageUrl}?t=${cacheKey || '1'}`} 
+            alt={label} 
+            className="w-full h-full object-contain p-1" 
+          />
         ) : (
           <Icon size={24} className="text-gray-500" />
         )}
       </div>
-      <div className="flex-grow">
+      <div className="grow">
         <label className="block text-sm font-semibold text-gray-700">{label}</label>
         <input 
           type="file" 
           accept="image/*" 
           onChange={(e) => onChange(e, moduleName)}
-          className="text-xs text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          className="block w-full text-xs text-gray-600 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           data-testid={`icon-upload-${moduleName}`}
         />
       </div>

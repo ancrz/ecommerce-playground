@@ -19,9 +19,10 @@ import aiosmtplib  # Para envío de correo asíncrono
 
 # --- Dependencias para JWT ---
 import jwt
-import requests  # Para validar Captcha
+import requests  # type: ignore  # Para validar Captcha
 from jwt import PyJWTError
 
+from ..core.config import settings
 from ..database.manager import DatabaseManager
 
 # --- Importaciones Internas ---
@@ -30,9 +31,9 @@ from ..models import PasswordResetToken, User, UserCreateRequest, UserUpdateRequ
 logger = logging.getLogger(__name__)
 
 # --- Configuración JWT ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-jwt-key")  # ¡Cambiar en producción!
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8 horas
+# ACCESS_TOKEN_EXPIRE_MINUTES removed, using settings directly
 
 
 class UserService:
@@ -76,12 +77,15 @@ class UserService:
 
     def _serialize_roles(self, roles: list[str]) -> str:
         """Convierte la lista de roles (Python) a un string JSON (DB)"""
-        return json.dumps(sorted(list(set(roles))))
+        return json.dumps(sorted(set(roles)))
 
     def _deserialize_roles(self, roles_json: str) -> list[str]:
         """Convierte el string JSON (DB) a una lista de roles (Python)"""
         try:
-            return json.loads(roles_json or "[]")
+            val = json.loads(roles_json or "[]")
+            if isinstance(val, list):
+                return [str(v) for v in val]
+            return []
         except json.JSONDecodeError:
             return []
 
@@ -102,11 +106,14 @@ class UserService:
             return None
 
     # --- INICIO DE LA MEJORA (RBAC) ---
-    async def get_all_users(self) -> list[User]:
+    async def get_all_users(self, skip: int = 0, limit: int = 100) -> list[User]:
         """
-        Obtiene una lista de TODOS los usuarios (para el Admin Panel).
+        Obtiene una lista de usuarios (para el Admin Panel) con paginación.
         """
-        rows = await self.db_manager.fetchall("users", "SELECT * FROM users ORDER BY username")
+        # Usamos parameter binding para limit y offset por seguridad
+        rows = await self.db_manager.fetchall(
+            "users", "SELECT * FROM users ORDER BY username LIMIT ? OFFSET ?", (limit, skip)
+        )
         users = []
         for row in rows:
             user = await self._row_to_user(row)
@@ -210,7 +217,7 @@ class UserService:
             "sub": user.id,
             "username": user.username,
             "roles": user.roles,
-            "exp": datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+            "exp": datetime.now() + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES),
         }
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         logger.info(f"JWT creado para usuario: {user.username}")
@@ -335,7 +342,7 @@ class UserService:
                 "https://hcaptcha.com/siteverify", data={"secret": CAPTCHA_SECRET_KEY, "response": captcha_token}
             )
             response.raise_for_status()
-            return response.json().get("success", False)
+            return bool(response.json().get("success", False))
         except Exception as e:
             logger.error(f"Error al validar Captcha: {e}")
             return False
@@ -345,11 +352,11 @@ class UserService:
         Envía un correo usando un Relay SMTP (aiosmtplib).
         (Cumple con la premisa de 'tecnologías simples')
         """
-        SMTP_HOST = os.getenv("SMTP_HOST")
-        SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-        SMTP_USER = os.getenv("SMTP_USER")
-        SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-        SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "no-reply@farmalux.com")
+        SMTP_HOST = settings.SMTP_HOST
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USER = settings.SMTP_USER
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SMTP_FROM_EMAIL = settings.SMTP_FROM_EMAIL or "no-reply@farmalux.com"
 
         if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
             logger.error("Error de configuración de Correo: Variables SMTP no definidas.")
@@ -391,7 +398,7 @@ class UserService:
             logger.info(f"Correo de recuperación enviado exitosamente a: {to_email}")
         except Exception as e:
             logger.error(f"Error al enviar correo: {e}", exc_info=True)
-            raise ValueError("Error al enviar el correo de recuperación.")
+            raise ValueError("Error al enviar el correo de recuperación.") from e
 
     async def _create_reset_token(self, user_id: str) -> str:
         """
@@ -441,6 +448,9 @@ class UserService:
             return {"message": "Si existe una cuenta con este email, se enviará un código."}
 
         plain_token = await self._create_reset_token(user.id)
+
+        if not user.email:
+            return {"message": "El usuario no tiene email configurado."}
 
         subject = "Tu Código de Recuperación de Farmalux"
         await self._send_email(user.email, subject, plain_token)

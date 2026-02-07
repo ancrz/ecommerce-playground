@@ -26,7 +26,7 @@ import React, {
 } from 'react';
 import { 
   DollarSign, Palette, Building, Package, TrendingUp, 
-  Users, Percent, Loader2 
+  Users, Percent, Loader2, Shield 
 } from 'lucide-react';
 
 // Importar el contexto
@@ -43,6 +43,7 @@ const TaxModule = lazy(() => import('../admin-modules/TaxModule'));
 const ContentModule = lazy(() => import('../admin-modules/ContentModule'));
 const ThemeModule = lazy(() => import('../admin-modules/ThemeModule'));
 const UserManagementModule = lazy(() => import('../admin-modules/UserManagementModule'));
+const RoleManagementModule = lazy(() => import('../admin-modules/RoleManagementModule'));
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL
@@ -80,6 +81,14 @@ const ModuleIcon = ({
 };
 
 
+// Componente de fallback para React.Suspense
+const ModuleLoader = () => (
+  <div className="flex justify-center items-center p-24" data-testid="module-loader">
+    <Loader2 size={48} className="animate-spin text-blue-600" />
+    <span className="text-2xl ml-4 text-gray-700">Cargando Módulo...</span>
+  </div>
+);
+
 // --- Componente Principal: AdminPanel ---
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState(''); // Inicia vacío
@@ -98,7 +107,8 @@ export default function AdminPanel() {
     { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
     { id: 'content', label: 'Contenido', icon: Building, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },
     { id: 'theme', label: 'Tema (Visual)', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
-    { id: 'users', label: 'Usuarios (RBAC)', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
+    { id: 'users', label: 'Usuarios', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
+    { id: 'roles', label: 'Roles y Permisos', icon: Shield, iconUrl: null, roles: ['admin'], component: RoleManagementModule },
   ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
   
   // Filtrar pestañas basado en los roles del usuario
@@ -114,10 +124,13 @@ export default function AdminPanel() {
       // Si está vacía o ya no es válida (ej. cambio de roles),
       // establece la primera pestaña visible como activa.
       if (!currentTabIsValid) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         setActiveTab(visibleTabs[0].id);
       }
     }
-  }, [visibleTabs]); // Solo depende de 'visibleTabs'
+    // Eliminamos activeTab de deps para evitar loops si setActiveTab cambia la referencia (no debería, pero es seguro)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleTabs]);
   
 
   // --- Manejo de Teclado (Accesibilidad y E2E) ---
@@ -172,13 +185,7 @@ export default function AdminPanel() {
       );
   }
 
-  // Componente de fallback para React.Suspense
-  const ModuleLoader = () => (
-    <div className="flex justify-center items-center p-24" data-testid="module-loader">
-      <Loader2 size={48} className="animate-spin text-blue-600" />
-      <span className="text-2xl ml-4 text-gray-700">Cargando Módulo...</span>
-    </div>
-  );
+
 
   return (
     <div className="min-h-screen" data-testid="admin-panel">

@@ -10,6 +10,7 @@ class LoginRequest(BaseModel):
 
     username: str
     password: str
+    guest_cart_id: str | None = None
 
 
 class User(BaseEntity):
@@ -21,9 +22,13 @@ class User(BaseEntity):
     username: str = Field(..., min_length=3, max_length=50)
     password_hash: str
     full_name: str | None = None  # Para el "Panel de Usuario"
-    email: str | None = Field(None, unique=True)  # Para recuperación
-    roles: list[str] = Field(default_factory=list)  # Ej: ["admin", "sales_manager"]
+    email: str | None = Field(None)  # Para recuperación
+    role_id: str | None = Field(default=None)  # FK a roles.id
     is_active: bool = True
+    is_deleted: bool = False  # Soft delete
+
+    # Deprecated: 'roles' list (legacy support until migration complete)
+    roles: list[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
