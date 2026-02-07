@@ -74,7 +74,7 @@ export default function ProductDetailModal({ isOpen, onClose, product: initialPr
     } else if (product?.image_url || initialProduct?.image_url) {
       setGalleryImages([{
         id: 'main',
-        product_id: initialProduct!.id,
+        product_id: initialProduct.id,
         image_url: (product?.image_url || initialProduct?.image_url)!,
         is_main: true,
         display_order: 0
@@ -82,7 +82,7 @@ export default function ProductDetailModal({ isOpen, onClose, product: initialPr
     } else {
       setGalleryImages([]);
     }
-  }, [galleryData, product?.image_url, initialProduct?.image_url]);
+  }, [galleryData, product?.image_url, initialProduct]);
 
   // ==================== SUBSCRIPCIÓN WS ====================
   useEffect(() => {

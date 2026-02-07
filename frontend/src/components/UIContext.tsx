@@ -23,16 +23,13 @@ interface ModalState {
   title: string;
   message: string;
   type: 'alert' | 'confirm' | 'prompt';
-  resolve: (value: any) => void;
+  resolve: (value: boolean | string | void | null) => void;
   defaultValue?: string;
 }
 
 export const UIProvider = ({ children }: { children: ReactNode }) => {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [promptValue, setPromptValue] = useState('');
-  const { customization } = useApp();
-
-  const primaryColor = customization?.primary_color || '#264192';
 
   const alert = (message: string, title = 'Atención') => {
     return new Promise<void>((resolve) => {
@@ -42,7 +39,7 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
 
   const confirm = (message: string, title = 'Confirmar') => {
     return new Promise<boolean>((resolve) => {
-      setModal({ isOpen: true, title, message, type: 'confirm', resolve });
+      setModal({ isOpen: true, title, message, type: 'confirm', resolve: resolve as (v: any) => void });
     });
   };
 
@@ -53,7 +50,7 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const handleClose = (result: any) => {
+  const handleClose = (result: boolean | string | void | null) => {
     if (modal) {
       modal.resolve(result);
       setModal(null);

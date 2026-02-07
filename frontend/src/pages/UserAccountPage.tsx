@@ -44,8 +44,8 @@ const ProfileForm = ({ user, onProfileUpdate }: {
       const updatedUser = await api.updateMe(updates);
       setSuccess("¡Perfil actualizado exitosamente!");
       onProfileUpdate(updatedUser); // Actualiza el contexto/storage
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -111,8 +111,8 @@ const PasswordForm = () => {
       await api.changeMyPassword(request);
       setSuccess("¡Contraseña cambiada exitosamente!");
       setFormData({ old_password: "", new_password: "" }); // Limpiar formulario
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error: unknown) {
+      setError((error as Error).message);
     } finally {
       setLoading(false);
     }

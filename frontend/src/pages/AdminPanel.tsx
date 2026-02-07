@@ -25,8 +25,8 @@ import React, {
     ElementType // REFACTOR: Añadido ElementType para tipado
 } from 'react';
 import { 
-  DollarSign, Palette, Building, Package, TrendingUp, 
-  Users, Percent, Loader2, Shield 
+  Palette, Package, 
+  Users, Loader2 
 } from 'lucide-react';
 
 // Importar el contexto
@@ -37,13 +37,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 // --- Importación Dinámica (Lazy Loading) de "Chunks" ---
 // (REFACTOR: Módulos importados con React.lazy para code-splitting)
 const ProductsModule = lazy(() => import('../admin-modules/ProductsModule'));
-const SalesModule = lazy(() => import('../admin-modules/SalesModule'));
-const FinanceModule = lazy(() => import('../admin-modules/FinanceModule'));
-const TaxModule = lazy(() => import('../admin-modules/TaxModule'));
-const ContentModule = lazy(() => import('../admin-modules/ContentModule'));
-const ThemeModule = lazy(() => import('../admin-modules/ThemeModule'));
 const UserManagementModule = lazy(() => import('../admin-modules/UserManagementModule'));
-const RoleManagementModule = lazy(() => import('../admin-modules/RoleManagementModule'));
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL
@@ -101,15 +95,15 @@ export default function AdminPanel() {
   // 'customization' es la única dependencia (para los iconUrl).
   const allTabs = useMemo(() => [
     // REFACTOR (Punto 4): 'component' es ahora una REFERENCIA, no JSX.
-    { id: 'products', label: 'Productos', icon: Package, iconUrl: customization?.icon_products_url, roles: ['admin', 'products_manager'], component: ProductsModule },
-    { id: 'sales', label: 'Ventas (POS)', icon: TrendingUp, iconUrl: customization?.icon_sales_url, roles: ['admin', 'sales_manager'], component: SalesModule },
-    { id: 'finance', label: 'Finanzas', icon: DollarSign, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: FinanceModule },
-    { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
-    { id: 'content', label: 'Contenido', icon: Building, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },
-    { id: 'theme', label: 'Tema (Visual)', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
-    { id: 'users', label: 'Usuarios', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
-    { id: 'roles', label: 'Roles y Permisos', icon: Shield, iconUrl: null, roles: ['admin'], component: RoleManagementModule },
-  ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconUrl: customization?.icon_dashboard_url, roles: ['admin', 'sales_manager', 'products_manager'], component: DashboardModule },
+      { id: 'pos', label: 'Punto de Venta', icon: ShoppingCart, iconUrl: customization?.icon_pos_url, roles: ['admin', 'sales_manager'], component: POSModule },
+      { id: 'products', label: 'Productos', icon: Package, iconUrl: customization?.icon_products_url, roles: ['admin', 'products_manager'], component: ProductsModule },
+      { id: 'orders', label: 'Pedidos', icon: ClipboardList, iconUrl: customization?.icon_orders_url, roles: ['admin', 'sales_manager'], component: OrdersModule },
+      { id: 'users', label: 'Gestión de Usuarios', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
+      // Roles tab removed - merged into UserManagementModule
+      { id: 'customization', label: 'Tema', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin'], component: CustomizationModule },
+      { id: 'settings', label: 'Configuración', icon: Settings, iconUrl: customization?.icon_settings_url, roles: ['admin'], component: SettingsModule },
+    ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
   
   // Filtrar pestañas basado en los roles del usuario
   const visibleTabs = useMemo(() => allTabs.filter(tab => 
@@ -185,12 +179,10 @@ export default function AdminPanel() {
       );
   }
 
-
-
   return (
-    <div className="min-h-screen" data-testid="admin-panel">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900" data-testid="admin-panel">
       {/* Navegación por Pestañas (Filtrada por RBAC y A11y) */}
-      <div className="bg-white shadow-md border-b sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6">
           <div 
             className="flex gap-1 overflow-x-auto no-scrollbar" 

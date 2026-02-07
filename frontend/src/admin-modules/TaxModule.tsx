@@ -6,8 +6,8 @@
  * 2. Botón "Nueva Tasa" ahora usa .btn-primary (azul) en lugar
  * del verde codificado.
  */
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Plus, Edit2 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
@@ -16,7 +16,7 @@ import type { Region, TaxRate } from '../../types';
 
 // Importar componentes reutilizables
 import { ResponsiveModal } from '../components/common/ResponsiveModal';
-import { Input, Select, Checkbox } from '../components/FormControls'; // Importar Checkbox
+import { Input, Checkbox } from '../components/FormControls'; // Importar Checkbox
 import { TouchButton } from '../components/common/TouchButton';
 
 // --- Componente Principal del Módulo ---
@@ -35,7 +35,7 @@ export default function TaxModule() {
     try {
       setLoading(true);
       setRegions(await api.getRegions(false)); // Cargar todas (activas e inactivas)
-    } catch (e: any) { await alert("Error cargando regiones: " + e.message); }
+    } catch (error: unknown) { await alert("Error cargando regiones: " + (error as Error).message); }
     finally { setLoading(false); }
   }, [alert]);
 
@@ -48,8 +48,8 @@ export default function TaxModule() {
             setLoading(true);
             const rates = await api.getTaxRatesForRegion(selectedRegion.id);
             setTaxRates(rates);
-        } catch (e: any) {
-            await alert("Error cargando tasas: " + e.message);
+        } catch (error: unknown) {
+            await alert("Error cargando tasas: " + (error as Error).message);
         } finally {
             setLoading(false);
         }
@@ -74,7 +74,7 @@ export default function TaxModule() {
       setShowRegionForm(false);
       setEditingRegion(null);
       loadRegions();
-    } catch (e: any) { await alert("Error: " + e.message); }
+    } catch (error: unknown) { await alert("Error: " + (error as Error).message); }
   };
   
   const handleRateSave = async (data: any) => {
@@ -90,7 +90,7 @@ export default function TaxModule() {
       setShowRateForm(false);
       // Refrescar tasas
       api.getTaxRatesForRegion(selectedRegion.id).then(setTaxRates);
-    } catch (e: any) { await alert("Error: " + e.message); }
+    } catch (error: unknown) { await alert("Error: " + (error as Error).message); }
   };
 
   const totalTaxRate = useMemo(() => {

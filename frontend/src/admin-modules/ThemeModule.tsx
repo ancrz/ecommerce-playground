@@ -42,8 +42,8 @@ export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
       setCustom(updatedCustom);
       // Forzar refresh global (aplica CSS y fuentes)
       onUpdate(); 
-    } catch (error: any) {
-      await alert('Error guardando: ' + error.message);
+    } catch (error: unknown) {
+      await alert('Error guardando: ' + (error as Error).message);
     }
     setSaving(false);
   };
@@ -59,8 +59,8 @@ export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
       setCustom(updatedCustom); // Actualizar estado local con todos los datos
       onUpdate(); // Refrescar AdminPanel.tsx (para mostrar el nuevo icono)
       await alert(`✓ Icono de ${moduleName} actualizado`);
-    } catch (error: any) {
-      await alert(`Error subiendo icono: ${error.message}`);
+    } catch (error: unknown) {
+      await alert(`Error subiendo icono: ${(error as Error).message}`);
     }
     setSaving(false);
   };

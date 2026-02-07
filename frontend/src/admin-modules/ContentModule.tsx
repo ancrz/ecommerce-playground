@@ -33,7 +33,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
   // Cargar datos al montar
   useEffect(() => {
     api.getBusinessInfo().then(setInfo).catch(err => toast("Error cargando info: " + err.message, 'error'));
-  }, []);
+  }, [toast]);
   
   const handleSave = async () => {
     setSaving(true);
@@ -50,8 +50,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       toast('✓ Información actualizada', 'success');
       // 3. Forzar refresh global (actualiza Header/Footer)
       onUpdate();
-    } catch (error: any) {
-      toast('Error guardando: ' + error.message, 'error');
+    } catch (error: unknown) {
+      toast('Error guardando: ' + (error as Error).message, 'error');
     }
     setSaving(false);
   };
@@ -74,8 +74,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       
       // 3. Forzar refresh global
       onUpdate();
-    } catch (error: any) {
-      toast(`Error subiendo imagen: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      toast(`Error subiendo imagen: ${(error as Error).message}`, 'error');
     }
     setSaving(false);
   };
@@ -88,8 +88,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       setInfo(updatedInfo);
       toast('✓ Icono de red social actualizado.', 'success');
       onUpdate();
-    } catch (error: any) {
-      toast(`Error subiendo icono: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      toast(`Error subiendo icono: ${(error as Error).message}`, 'error');
     }
     setSaving(false);
   };

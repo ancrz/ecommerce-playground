@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { useUI } from '../components/UIContext';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

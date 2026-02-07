@@ -1,15 +1,16 @@
 /**
  * src/components/Header.tsx
  * Encabezado principal del sitio.
- * REFACTORIZADO (FASE 3):
- * 1. Consume 'selectedCurrency' (objeto) en lugar de 'selectedCurrencyId'.
- * 2. El 'onChange' del selector ahora busca y setea el objeto Currency completo.
+ * REFACTORIZADO (FASE 3 & 4):
+ * 1. Consume 'selectedCurrency' (objeto).
+ * 2. Integra 'UserMenu' para gestión de usuario.
+ * 3. Oculta barra de búsqueda en rutas de admin.
  */
 import React from 'react';
-import { ShoppingCart, User, LogOut, Shield, Search } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-// Importa el hook del contexto
+import { ShoppingCart, User, Search } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
+import UserMenu from './UserMenu';
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = '';
@@ -20,16 +21,17 @@ export default function Header() {
     customization,
     businessInfo,
     user,
-    // REFACTOR FASE 3: Consumir el objeto y la nueva función
     selectedCurrency, 
     currencies,
     setSelectedCurrency,
-    // ...
     getCartItemCount,
     showCartModal,
     showLoginModal,
-    handleLogout
   } = useApp();
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = React.useState('');
 
   const cartItemCount = getCartItemCount();
   
@@ -38,12 +40,13 @@ export default function Header() {
   const accentColor = customization?.accent_color || '#ffffff';
   const secondaryColor = customization?.secondary_color || '#ffdd00';
 
-  // Determinar el enlace del "Panel de Usuario" (RBAC)
+  // Determinar si estamos en ruta de admin
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  // Determinar el enlace del "Panel de Usuario" (RBAC) - Para vista móvil simplificada
   const hasAdminRole = user && user.roles.length > 0;
   const accountLink = hasAdminRole ? "/admin" : "/account";
-  const accountLabel = hasAdminRole ? "Admin Panel" : "Mi Cuenta";
   
-  // REFACTOR FASE 3: Nuevo handler para el selector
   const handleCurrencyChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newCurrencyId = event.target.value;
     const newCurrency = currencies.find(c => c.id === newCurrencyId);
@@ -51,10 +54,6 @@ export default function Header() {
       setSelectedCurrency(newCurrency);
     }
   };
-
-  // Search Logic
-  const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,33 +106,36 @@ export default function Header() {
           </div>
         </div>
         
-        {/* Search Bar - Responsive */}
-        <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-none">
-          <form onSubmit={handleSearch} className="relative group">
-             <input 
-               type="text" 
-               placeholder="Buscar productos..." 
-               value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
-               className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all text-sm md:text-base"
-             />
-             <button 
-               type="submit"
-               className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
-             >
-               <Search size={18} />
-             </button>
-          </form>
-        </div>
+        {/* Search Bar - Responsive - Hidden on Admin */}
+        {!isAdminRoute && (
+          <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-none">
+            <form onSubmit={handleSearch} className="relative group">
+              <input 
+                type="text" 
+                placeholder="Buscar productos..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all text-sm md:text-base"
+              />
+              <button 
+                type="submit"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
+              >
+                <Search size={18} />
+              </button>
+            </form>
+          </div>
+        )}
 
         <div className="hidden md:flex items-center gap-6">
           <div className="flex items-center gap-2">
             <select
               value={selectedCurrency?.id || ''}
               onChange={handleCurrencyChange}
-              className="px-3 py-2 rounded-lg text-gray-800 text-sm focus:ring-2 focus:ring-yellow-400 border-none"
+              className="px-3 py-2 rounded-lg text-gray-800 text-sm focus:ring-2 focus:ring-yellow-400 border-none appearance-none cursor-pointer hover:bg-white transition"
               data-testid="currency-select"
               disabled={!selectedCurrency}
+              style={{ paddingRight: '1rem', textAlign: 'center' }}
             >
               {currencies.map(currency => (
                 <option key={currency.id} value={currency.id}>
@@ -159,28 +161,14 @@ export default function Header() {
           </button>
           
           {user ? (
-            <div className="flex items-center gap-4">
-                <Link 
-                  to={accountLink}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm whitespace-nowrap"
-                >
-                    {hasAdminRole ? <Shield size={18} /> : <User size={18} />}
-                    {accountLabel}
-                </Link>
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm"
-                >
-                    <LogOut size={18} />
-                </button>
-            </div>
+            <UserMenu />
           ) : (
             <button
               onClick={showLoginModal}
               className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm"
             >
               <User size={18} />
-              <span>Admin</span>
+              <span>Ingresar</span>
             </button>
           )}
         </div>

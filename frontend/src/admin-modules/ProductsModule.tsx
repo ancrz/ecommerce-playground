@@ -22,13 +22,13 @@ import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
 import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
 import { ResponsiveModal } from "../components/common/ResponsiveModal";
 import { TouchButton } from "../components/common/TouchButton";
+import { Pagination } from "../components/ui/Pagination";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
 
 // --- Componente Principal del Módulo ---
 export default function ProductsModule() {
-  const { alert } = useUI();
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [refreshKey, setRefreshKey] = useState(0); // Para forzar recarga de lista
@@ -123,6 +123,7 @@ export default function ProductsModule() {
       <ProductList
         onEdit={handleEdit}
         refreshKey={refreshKey}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
       />
 
       {/* Modal Estándar */}
@@ -169,9 +170,11 @@ export default function ProductsModule() {
 function ProductList({
   onEdit,
   refreshKey,
+  onRefresh,
 }: {
   onEdit: (product: Product) => void;
   refreshKey: number;
+  onRefresh: () => void;
 }) {
   // State for products list
   const [products, setProducts] = useState<Product[]>([]);
@@ -187,31 +190,30 @@ function ProductList({
   const { showToast } = useFeedback();
   const { confirm } = useUI();
 
-  // Wrap loadProducts in useCallback to fix dependency warnings
-  const loadProducts = useCallback(async () => {
-    try {
-      const skip = (currentPage - 1) * itemsPerPage;
-      // Fetch + 1 to check if there is a next page
-      const data = await api.getAllProducts(skip, itemsPerPage + 1);
-       
-      if (data.length > itemsPerPage) {
-          setHasMore(true);
-          setProducts(data.slice(0, itemsPerPage)); // Remove the extra item check
-      } else {
-          setHasMore(false);
-          setProducts(data);
-      }
-    } catch (error) {
-      console.error("Error loading products:", error);
-      showToast("Error cargando productos", "error");
-    }
-  }, [currentPage, itemsPerPage, showToast]);
-
   useEffect(() => {
-    // eslint-disable-next-line
-    setLoading(true);
-    loadProducts().finally(() => setLoading(false));
-  }, [loadProducts, refreshKey]); // Reload on page change
+    const fetchProducts = async () => {
+        try {
+            setLoading(true);
+            const skip = (currentPage - 1) * itemsPerPage;
+            // Fetch + 1 to check if there is a next page
+            const data = await api.getAllProducts(skip, itemsPerPage + 1);
+            
+            if (data.length > itemsPerPage) {
+                setHasMore(true);
+                setProducts(data.slice(0, itemsPerPage));
+            } else {
+                setHasMore(false);
+                setProducts(data);
+            }
+        } catch (error) {
+            console.error("Error loading products:", error);
+            showToast("Error cargando productos", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+    void fetchProducts();
+  }, [currentPage, itemsPerPage, showToast, refreshKey]); // Reload on page change or refreshKey
 
   const handleDelete = async (productId: string, productName: string) => {
      // ... (mismo handler)
@@ -222,8 +224,7 @@ function ProductList({
     try {
       await api.deleteProduct(productId);
       showToast('Producto eliminado', 'success');
-      setLoading(true);
-      loadProducts().finally(() => setLoading(false));
+      onRefresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error desconocido";
       showToast('Error: ' + message, 'error');
@@ -254,66 +255,66 @@ function ProductList({
   return (
     <div className="space-y-6">
       {/* VISTA DESKTOP (TABLA) - Hidden on Mobile */}
-      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Imagen</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Producto</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">SKU</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Precio</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Stock</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Imagen</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Producto</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">SKU</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Precio</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Stock</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {products.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <td className="px-4 py-3">
                     {product.image_url ? (
                       <img
                         src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
                         alt={product.name}
-                        className="w-12 h-12 object-cover rounded border"
+                        className="w-12 h-12 object-cover rounded border dark:border-gray-600"
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center border text-gray-400">
+                      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center border dark:border-gray-600 text-gray-400">
                         <Image size={20} />
                       </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-800">{product.name}</div>
-                    <div className="text-xs text-gray-500">{product.category || "Sin categoría"}</div>
+                    <div className="font-semibold text-gray-800 dark:text-gray-100">{product.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{product.category || "Sin categoría"}</div>
                     <div className="flex gap-1 mt-1">
-                        {product.is_featured && <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] rounded">Star</span>}
-                        {product.is_discount && <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">%</span>}
+                        {product.is_featured && <span className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 text-[10px] rounded">Star</span>}
+                        {product.is_discount && <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 text-[10px] rounded">%</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{product.sku || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">{product.sku || "-"}</td>
                   <td className="px-4 py-3">
-                    <div className="font-bold text-gray-900">{formatPrice(product.price)}</div>
+                    <div className="font-bold text-gray-900 dark:text-white">{formatPrice(product.price)}</div>
                     {product.is_discount && (
-                         <div className="text-xs text-red-500 line-through opacity-75">
+                         <div className="text-xs text-red-500 dark:text-red-400 line-through opacity-75">
                              {formatPrice(product.price / ((100 - product.discount_percentage)/100))}
                          </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        product.stock > 10 ? "bg-green-100 text-green-800" :
-                        product.stock > 0 ? "bg-yellow-100 text-yellow-800" :
-                        "bg-red-100 text-red-800"
+                        product.stock > 10 ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300" :
+                        product.stock > 0 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300" :
+                        "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
                     }`}>
                         {product.stock} un.
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
-                      <TouchButton onClick={() => onEdit(product)} variant="ghost" icon={Edit2} iconOnly className="text-blue-600" />
-                      <TouchButton onClick={() => handleDelete(product.id, product.name)} variant="ghost" icon={Trash2} iconOnly className="text-red-600" />
+                      <TouchButton onClick={() => onEdit(product)} variant="ghost" icon={Edit2} iconOnly className="text-blue-600 dark:text-blue-400" />
+                      <TouchButton onClick={() => handleDelete(product.id, product.name)} variant="ghost" icon={Trash2} iconOnly className="text-red-600 dark:text-red-400" />
                     </div>
                   </td>
                 </tr>
@@ -328,7 +329,7 @@ function ProductList({
         {products.map((product) => (
             <div 
                 key={product.id} 
-                className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-300 hover:shadow-xl hover:-translate-y-1 transition-all"
+                className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex gap-4 relative animate-in fade-in zoom-in-95 duration-300 hover:shadow-xl hover:-translate-y-1 transition-all"
             >
                 {/* Imagen (Aspect Ratio Moderno) */}
                 <div className="shrink-0 relative group cursor-pointer" onClick={() => onEdit(product)}>
@@ -340,7 +341,7 @@ function ProductList({
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center border border-dashed text-gray-300">
+                      <div className="w-24 h-24 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-center border border-dashed border-gray-200 dark:border-gray-600 text-gray-300 dark:text-gray-500">
                         <Image size={24} />
                       </div>
                     )}
@@ -349,7 +350,7 @@ function ProductList({
                 {/* Info */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
-                        <h3 className="font-bold text-gray-900 truncate pr-6 leading-tight">{product.name}</h3>
+                        <h3 className="font-bold text-gray-900 dark:text-white truncate pr-6 leading-tight">{product.name}</h3>
                         <p className="text-xs text-gray-400 mt-1">{product.sku}</p>
                     </div>
                     
@@ -390,28 +391,16 @@ function ProductList({
         ))}
       </div>
 
-      {/* PAGINACIÓN (Next/Prev) */}
-      <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
-            <TouchButton
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="secondary"
-            >
-                Anterior
-            </TouchButton>
-            
-            <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
-                Página {currentPage}
-            </span>
+import { Pagination } from "../components/ui/Pagination";
 
-            <TouchButton
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={!hasMore}
-                variant="secondary"
-            >
-                Siguiente
-            </TouchButton>
-      </div>
+// ... inside ProductList component render
+      {/* PAGINACIÓN */}
+      <Pagination
+        currentPage={currentPage}
+        hasMore={hasMore}
+        onPageChange={handlePageChange}
+        className="mt-6 pb-20 md:pb-8"
+      />
     </div>
   );
 }

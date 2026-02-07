@@ -265,7 +265,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       setLoading(false);
     };
     loadData();
-  }, [selectedCurrency]); // Depende de la moneda global
+  }, [selectedCurrency, alert]); // Depende de la moneda global
 
   const handleCreateCart = async () => {
     if (!regionId || !currencyId) {
@@ -326,8 +326,8 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       
       setCart(recoveredCart);
       await alert("✓ Carrito recuperado exitosamente.");
-    } catch (e: any) {
-      await alert("Error recuperando carrito: " + (e.message || "ID Inválido"));
+    } catch (e: unknown) {
+      await alert("Error recuperando carrito: " + ((e as Error).message || "ID Inválido"));
     } finally {
         setLoading(false);
     }
@@ -489,7 +489,7 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (productId: strin
     setLoading(true);
     try {
       setResults(await api.searchProducts(query));
-    } catch (e: unknown) { await alert("Error buscando: " + (e as Error).message); }
+    } catch (_e: unknown) { await alert("Error buscando: " + (_e as Error).message); }
     setLoading(false);
   };
   

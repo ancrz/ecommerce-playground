@@ -16,7 +16,7 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const initialQuery = searchParams.get("q") || "";
 
-  const { addToCart, formatPrice, customization } = useApp();
+  const { addToCart, formatPrice } = useApp();
   const { showToast } = useFeedback();
 
   const [query, setQuery] = useState(initialQuery);
@@ -28,16 +28,7 @@ export default function SearchPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
-  useEffect(() => {
-    if (initialQuery) {
-      handleSearch(initialQuery);
-    } else {
-        // Load initial "All Products" if no query?
-        loadAllProducts();
-    }
-  }, [initialQuery]);
-
-  const loadAllProducts = async () => {
+  const loadAllProducts = useCallback(async () => {
       setLoading(true);
       try {
           // Fetch generic list of products (maybe paginated later)
@@ -48,9 +39,9 @@ export default function SearchPage() {
       } finally {
           setLoading(false);
       }
-  }
+  }, []);
 
-  const handleSearch = async (text: string) => {
+  const handleSearch = useCallback(async (text: string) => {
     setLoading(true);
     try {
       const results = await api.searchProducts(text);
@@ -61,7 +52,16 @@ export default function SearchPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
+
+  useEffect(() => {
+    if (initialQuery) {
+      void handleSearch(initialQuery);
+    } else {
+        // Load initial "All Products" if no query?
+        void loadAllProducts();
+    }
+  }, [initialQuery, handleSearch, loadAllProducts]);
 
   const onSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +69,7 @@ export default function SearchPage() {
       navigate(`/search?q=${encodeURIComponent(query)}`);
     } else {
         navigate('/search'); // Clear
-        loadAllProducts();
+        void loadAllProducts();
     }
   };
 
@@ -79,8 +79,8 @@ export default function SearchPage() {
     try {
       await addToCart(product.id, 1);
       showToast("Producto agregado", "success");
-    } catch (error: any) {
-      showToast(error.message || "Error", "error");
+    } catch (error: unknown) {
+      showToast((error as Error).message || "Error", "error");
     } finally {
       setAddingId(null);
     }

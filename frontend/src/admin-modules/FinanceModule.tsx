@@ -4,7 +4,7 @@
  * REFACTORIZADO (FASE 4):
  * 1. Botones usan clases .btn-primary, .btn-secondary, .btn-link
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 
 // Importar API y Contexto
@@ -36,7 +36,7 @@ export default function FinanceModule() {
     try {
       setLoading(true);
       setCurrencies(await api.getCurrencies());
-    } catch (e: any) { await alert("Error cargando monedas: " + e.message); }
+    } catch (error: unknown) { await alert("Error cargando monedas: " + (error as Error).message); }
     finally { setLoading(false); }
   }, [alert]);
   
@@ -56,8 +56,8 @@ export default function FinanceModule() {
       await alert('✓ Moneda creada');
       loadCurrencies();
       setShowForm(false);
-    } catch (error: any) {
-      await alert('Error creando moneda: ' + error.message);
+    } catch (error: unknown) {
+      await alert('Error creando moneda: ' + (error as Error).message);
     }
   };
   
@@ -71,8 +71,8 @@ export default function FinanceModule() {
       try {
         await api.updateCurrencyRate(id, parseFloat(newRate));
         loadCurrencies();
-      } catch (error: any) {
-        await alert('Error actualizando tasa: ' + error.message);
+      } catch (error: unknown) {
+        await alert('Error actualizando tasa: ' + (error as Error).message);
       }
     }
   };
@@ -83,8 +83,8 @@ export default function FinanceModule() {
       try {
         await api.updateCurrencyTaxRate(id, parseFloat(newRate));
         loadCurrencies();
-      } catch (error: any) {
-        await alert('Error actualizando IGTF: ' + error.message);
+      } catch (error: unknown) {
+        await alert('Error actualizando IGTF: ' + (error as Error).message);
       }
     }
   };
@@ -95,8 +95,8 @@ export default function FinanceModule() {
         await api.setBaseCurrency(id);
         await alert(`✓ ${name} es ahora la nueva moneda base.`);
         loadCurrencies();
-      } catch (error: any) {
-        await alert('Error estableciendo moneda base: ' + error.message);
+      } catch (error: unknown) {
+        await alert('Error estableciendo moneda base: ' + (error as Error).message);
       }
     }
   };
@@ -110,8 +110,8 @@ export default function FinanceModule() {
       try {
         await api.deleteCurrency(id);
         loadCurrencies();
-      } catch (error: any) {
-        await alert('Error eliminando moneda: ' + error.message);
+      } catch (error: unknown) {
+        await alert('Error eliminando moneda: ' + (error as Error).message);
       }
     }
   };

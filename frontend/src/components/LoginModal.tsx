@@ -6,7 +6,7 @@
  * 1. Botones usan clases .btn-primary y .btn-link
  */
 import React, { useState } from "react";
-import { Loader2, AlertCircle, Lock } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Importar API y Tipos

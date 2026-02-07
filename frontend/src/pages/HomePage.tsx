@@ -4,7 +4,7 @@
  * REFACTORIZADO: Carga sus propios datos (sliders, búsqueda) y
  * consume el AppContext (useApp) para precios y carrito.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Star,
   Tag,
@@ -51,8 +51,8 @@ function ProductSlider({
     try {
       await addToCart(productId, 1);
       showToast('¡Producto agregado al carrito!', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Error al agregar', 'error');
+    } catch (error: unknown) {
+      showToast((error as Error).message || 'Error al agregar', 'error');
     } finally {
       setAddingProductId(null);
     }
