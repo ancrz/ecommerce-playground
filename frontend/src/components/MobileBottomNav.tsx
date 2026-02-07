@@ -4,13 +4,8 @@ import { useApp } from '../App';
 import { Z_INDEX } from '../constants';
 
 export default function MobileBottomNav() {
-  const { user, getCartItemCount } = useApp();
-  const cartCount = getCartItemCount();
+  const { user, showLoginModal } = useApp(); // showLoginModal for public users
 
-  // REFACTOR: Mostrar para todos (Invitados + Usuarios)
-  // Requirement: "mobile usar un navbar para el modo: cuando el usuario inicia sesión." 
-  // Update: Guest users also need navigation (Home, Search, Cart).
-  // if (!user) return null; <-- REMOVED
 
   return (
     <nav 
@@ -26,13 +21,23 @@ export default function MobileBottomNav() {
         <span className="text-[10px] mt-1">Inicio</span>
       </NavLink>
 
-      <NavLink 
-        to="/account" 
-        className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-blue-600' : 'text-gray-500'}`}
-      >
-        <User size={24} />
-        <span className="text-[10px] mt-1">Cuenta</span>
-      </NavLink>
+      {user ? (
+        <NavLink 
+          to="/account" 
+          className={({ isActive }) => `flex flex-col items-center justify-center w-full h-full ${isActive ? 'text-blue-600' : 'text-gray-500'}`}
+        >
+          <User size={24} />
+          <span className="text-[10px] mt-1">Cuenta</span>
+        </NavLink>
+      ) : (
+        <button 
+          onClick={showLoginModal} // Needs showLoginModal from useApp
+          className="flex flex-col items-center justify-center w-full h-full text-gray-500 hover:text-blue-600"
+        >
+          <User size={24} />
+          <span className="text-[10px] mt-1">Entrar</span>
+        </button>
+      )}
 
       {/* Cart Button (Opens Modal via logic, but here acts as visual trigger or link) */}
       {/* If current design uses a Modal for Cart, this might need to call showCartModal context */}

@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { config } from './config';
 
-const AXIOS_INSTANCE = axios.create({
+export const AXIOS_INSTANCE = axios.create({
   baseURL: config.apiUrl, // Usa la URL base de tu configuración
 });
 

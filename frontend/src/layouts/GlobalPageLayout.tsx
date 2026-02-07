@@ -30,12 +30,10 @@ export default function GlobalPageLayout({ children }: { children: React.ReactNo
         <Footer />
       </div>
 
-      {/* Mobile Bottom Nav (Authenticated Only) */}
-      {user && (
-          <div className="md:hidden">
-            <MobileBottomNav />
-          </div>
-      )}
+      {/* Mobile Bottom Nav (Always Visible) */}
+      <div className="md:hidden">
+        <MobileBottomNav />
+      </div>
     </div>
   );
 }
