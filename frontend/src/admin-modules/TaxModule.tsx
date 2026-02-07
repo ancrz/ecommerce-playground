@@ -15,7 +15,7 @@ import { useUI } from '../components/UIContext';
 import type { Region, TaxRate } from '../../types';
 
 // Importar componentes reutilizables
-import { Modal } from '../components/Modal';
+import { ResponsiveModal } from '../components/common/ResponsiveModal';
 import { Input, Select, Checkbox } from '../components/FormControls'; // Importar Checkbox
 import { TouchButton } from '../components/common/TouchButton';
 
@@ -102,33 +102,35 @@ export default function TaxModule() {
     <>
       {/* Formulario Modal para Regiones */}
       {showRegionForm && (
-        <Modal 
+        <ResponsiveModal 
           title={editingRegion ? "Editar Región" : "Nueva Región Fiscal"} 
           isOpen={showRegionForm} 
           onClose={() => { setShowRegionForm(false); setEditingRegion(null); }}
           size="md"
+          icon={<Plus className="w-6 h-6" />}
         >
           <RegionForm 
             region={editingRegion} 
             onSave={handleRegionSave} 
             onCancel={() => { setShowRegionForm(false); setEditingRegion(null); }} 
           />
-        </Modal>
+        </ResponsiveModal>
       )}
       
       {/* Formulario Modal para Tasas */}
       {showRateForm && selectedRegion && (
-        <Modal 
+        <ResponsiveModal 
           title={`Nueva Tasa para ${selectedRegion.name}`} 
           isOpen={showRateForm} 
           onClose={() => setShowRateForm(false)}
           size="md"
+          icon={<Plus className="w-6 h-6" />}
         >
           <TaxRateForm 
             onSave={handleRateSave} 
             onCancel={() => setShowRateForm(false)} 
           />
-        </Modal>
+        </ResponsiveModal>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

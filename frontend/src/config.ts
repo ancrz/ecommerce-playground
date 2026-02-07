@@ -24,14 +24,34 @@ interface AppConfig {
 }
 
 /**
+ * Helper para obtener variables de entorno de forma segura
+ * tanto en Vite (Runtime) como en Orval (Build time).
+ */
+const getEnv = (key: string, fallback: string): string => {
+  // Verificamos si estamos en un entorno con import.meta.env (Vite)
+  // Usamos un chequeo de tipo string para evitar que esbuild lo marque como error en CJS
+  const globalEnv = (typeof process !== 'undefined' && process.env) || {};
+  
+  try {
+    // Intentar acceso dinámico
+    const viteEnv = (import.meta as any).env;
+    if (viteEnv && viteEnv[key]) return viteEnv[key];
+  } catch {
+    // Ignorar si falla el acceso a import.meta
+  }
+
+  return globalEnv[key] || fallback;
+};
+
+/**
  * Configuración de la aplicación.
  * Centraliza el acceso a variables de entorno de Vite.
  */
 export const config: AppConfig = {
-  apiUrl: import.meta.env.VITE_API_URL || '/api',
-  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:8042',
-  appName: import.meta.env.VITE_APP_NAME || 'E-Commerce Demo',
-  debug: import.meta.env.VITE_DEBUG === 'true',
+  apiUrl: getEnv('VITE_API_URL', '/api'),
+  backendUrl: getEnv('VITE_BACKEND_URL', 'http://localhost:8042'),
+  appName: getEnv('VITE_APP_NAME', 'E-Commerce Demo'),
+  debug: getEnv('VITE_DEBUG', 'false') === 'true',
 };
 
 /**

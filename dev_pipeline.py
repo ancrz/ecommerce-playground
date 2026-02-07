@@ -172,17 +172,20 @@ def sync_soft():
 
 
 def regenerate_frontend():
-    """Regenera cliente Orval."""
+    """Regenera cliente Orval usando esquema estático."""
     logger.info(">>> GENERANDO CLIENTE FRONTEND (ORVAL) <<<")
 
-    # Necesitamos backend arriba para el swagger json?
-    # dev-pipeline.sh espera backend.
+    python_exe = get_venv_python()
+    export_script = PROJECT_ROOT / "scripts" / "export_openapi.py"
 
-    backend_port = int(os.environ.get("BACKEND_PORT", 8042))
-    if not wait_for_backend(port=backend_port, timeout=10):
-        logger.warning("⚠️ Backend no disponible. Intentando lectura de archivo local si existe o fallando.")
+    logger.info("Generando openapi.json estático...")
+    if export_script.exists():
+        run_command([python_exe, str(export_script)], cwd=PROJECT_ROOT)
+    else:
+        logger.error("❌ No se encontró scripts/export_openapi.py")
+        sys.exit(1)
 
-    logger.info("Ejecutando generación de API...")
+    logger.info("Ejecutando generación de API (Orval)...")
     run_command([NPM_CMD, "run", "generate:api"], cwd=FRONTEND_DIR)
     logger.info("✓ Cliente actualizado.")
 

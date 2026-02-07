@@ -176,7 +176,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
             </button>
           </div>
         </div>
-      </Modal>
+      </ResponsiveModal>
     );
   }
   

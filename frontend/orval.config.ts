@@ -5,7 +5,7 @@ const BACKEND_URL = process.env.VITE_BACKEND_URL || 'http://localhost:8042';
 export default defineConfig({
   'ecommerce-playground': {
     input: {
-      target: `${BACKEND_URL}/openapi.json`,
+      target: './openapi.json',
     },
     output: {
       mode: 'tags-split',

@@ -103,9 +103,7 @@ export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ToastProvider>
-        <UIProvider>
-          <AppContent />
-        </UIProvider>
+        <AppContent />
       </ToastProvider>
     </BrowserRouter>
   );
@@ -400,57 +398,59 @@ function AppContent() {
 
   return (
     <AppContext.Provider value={contextValue}>
-      {/* Modales Globales */}
-      <LoginModal
-        isOpen={showLogin}
-        onClose={() => setShowLogin(false)}
-        onLogin={handleLogin}
-      />
-      <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
+      <UIProvider>
+        {/* Modales Globales */}
+        <LoginModal
+          isOpen={showLogin}
+          onClose={() => setShowLogin(false)}
+          onLogin={handleLogin}
+        />
+        <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
 
-      {/* Rutas de la aplicación (E2E Test) */}
-      <div data-testid="app-container">
-        <Routes>
-          {/* Rutas Públicas (Layout principal) */}
-          <Route path="/" element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="search" element={<SearchPage />} />
+        {/* Rutas de la aplicación (E2E Test) */}
+        <div data-testid="app-container">
+          <Routes>
+            {/* Rutas Públicas (Layout principal) */}
+            <Route path="/" element={<Layout />}>
+              <Route index element={<HomePage />} />
+              <Route path="search" element={<SearchPage />} />
 
-            {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
+              {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
+              <Route
+                path="account"
+                element={
+                  <ProtectedUserRoute user={user}>
+                    <UserAccountPage />
+                  </ProtectedUserRoute>
+                }
+              />
+
+              {/* Ruta de Admin (RBAC) */}
+              <Route
+                path="admin/*"
+                element={
+                  <ProtectedAdminRoute user={user}>
+                    <AdminPanel />
+                  </ProtectedAdminRoute>
+                }
+              />
+            </Route>
+
+            {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
             <Route
-              path="account"
-              element={
-                <ProtectedUserRoute user={user}>
-                  <UserAccountPage />
-                </ProtectedUserRoute>
-              }
+              path="/password-reset"
+              element={<PasswordResetRequestPage />}
+            />
+            <Route
+              path="/password-reset/validate"
+              element={<PasswordResetValidatePage />}
             />
 
-            {/* Ruta de Admin (RBAC) */}
-            <Route
-              path="admin/*"
-              element={
-                <ProtectedAdminRoute user={user}>
-                  <AdminPanel />
-                </ProtectedAdminRoute>
-              }
-            />
-          </Route>
-
-          {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
-          <Route
-            path="/password-reset"
-            element={<PasswordResetRequestPage />}
-          />
-          <Route
-            path="/password-reset/validate"
-            element={<PasswordResetValidatePage />}
-          />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </UIProvider>
     </AppContext.Provider>
   );
 }

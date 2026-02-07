@@ -6,7 +6,7 @@
  * 1. Botones usan clases .btn-primary y .btn-link
  */
 import React, { useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Importar API y Tipos
@@ -14,8 +14,9 @@ import * as api from "../api";
 import type { TokenResponse } from "../types";
 
 // Importar componentes reutilizables
-import { Modal } from "./Modal";
+import { ResponsiveModal } from "./common/ResponsiveModal";
 import { Input } from "./FormControls";
+import { TouchButton } from "./common/TouchButton";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -61,11 +62,12 @@ export default function LoginModal({
   if (!isOpen) return null;
 
   return (
-    <Modal
-      title="Iniciar Sesión (Admin)"
+    <ResponsiveModal
+      title="Iniciar Sesión"
       isOpen={isOpen}
       onClose={onClose}
       size="md"
+      icon={<Lock className="w-6 h-6" />}
     >
       <form
         onSubmit={(e) => {
@@ -100,28 +102,29 @@ export default function LoginModal({
         )}
 
         {/* REFACTOR FASE 4: Botón Primario */}
-        <button
+        <TouchButton
           type="submit"
           disabled={loading}
-          className="btn-primary w-full flex items-center justify-center gap-2"
+          variant="primary"
+          loading={loading}
+          className="w-full"
           data-testid="login-submit-button"
         >
-          {loading && <Loader2 size={20} className="animate-spin" />}
-          {loading ? "Iniciando..." : "Ingresar"}
-        </button>
+          Ingresar
+        </TouchButton>
 
         <div className="text-center mt-4">
           {/* REFACTOR FASE 4: Botón de Enlace */}
           <Link
             to="/password-reset"
             onClick={onClose} // Cierra el modal antes de navegar
-            className="btn-link text-sm"
+            className="text-sm text-blue-600 hover:underline font-medium"
             data-testid="forgot-password-link"
           >
             ¿Olvidó su contraseña?
           </Link>
         </div>
       </form>
-    </Modal>
+    </ResponsiveModal>
   );
 }

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Modal } from './Modal';
+import { ResponsiveModal } from './common/ResponsiveModal';
+import { TouchButton } from './common/TouchButton';
 import { useApp } from '../App';
+import { AlertCircle, HelpCircle, FileText } from 'lucide-react';
 
 interface UIContextType {
   alert: (message: string, title?: string) => Promise<void>;
@@ -63,29 +65,15 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
     <UIContext.Provider value={{ alert, confirm, prompt }}>
       {children}
       {modal && (
-        <Modal
+        <ResponsiveModal
           isOpen={modal.isOpen}
           title={modal.title}
           onClose={() => handleClose(modal.type === 'confirm' ? false : null)}
           size="sm"
-          footer={
-            <div className="flex justify-end gap-2">
-              {(modal.type === 'confirm' || modal.type === 'prompt') && (
-                <button
-                  onClick={() => handleClose(modal.type === 'confirm' ? false : null)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-              )}
-              <button
-                onClick={() => handleClose(modal.type === 'prompt' ? promptValue : true)}
-                className="px-4 py-2 text-white rounded-lg transition-opacity hover:opacity-90"
-                style={{ backgroundColor: primaryColor }}
-              >
-                Aceptar
-              </button>
-            </div>
+          icon={
+            modal.type === 'alert' ? <AlertCircle className="w-6 h-6" /> :
+            modal.type === 'confirm' ? <HelpCircle className="w-6 h-6 text-blue-500" /> :
+            <FileText className="w-6 h-6 text-green-500" />
           }
         >
           <div className="space-y-4">
@@ -96,15 +84,33 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
                 type="text"
                 value={promptValue}
                 onChange={(e) => setPromptValue(e.target.value)}
-                className="w-full p-2 border rounded-lg focus:ring-2 outline-none"
-                style={{ borderColor: primaryColor }}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none transition-all"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleClose(promptValue);
                 }}
               />
             )}
+            
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t mt-4">
+              {(modal.type === 'confirm' || modal.type === 'prompt') && (
+                <TouchButton
+                  onClick={() => handleClose(modal.type === 'confirm' ? false : null)}
+                  variant="secondary"
+                  className="flex-1 sm:flex-none"
+                >
+                  Cancelar
+                </TouchButton>
+              )}
+              <TouchButton
+                onClick={() => handleClose(modal.type === 'prompt' ? promptValue : true)}
+                variant="primary"
+                className="flex-1 sm:flex-none"
+              >
+                Aceptar
+              </TouchButton>
+            </div>
           </div>
-        </Modal>
+        </ResponsiveModal>
       )}
     </UIContext.Provider>
   );

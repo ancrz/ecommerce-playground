@@ -21,7 +21,7 @@ interface CurrencyFormData {
 }
 
 // Importar componentes reutilizables
-import { Modal } from '../components/Modal';
+import { ResponsiveModal } from '../components/common/ResponsiveModal';
 import { Input, Checkbox } from '../components/FormControls';
 import { TouchButton } from '../components/common/TouchButton';
 
@@ -132,9 +132,9 @@ export default function FinanceModule() {
       </div>
       
       {showForm && (
-        <Modal title="Nueva Moneda" isOpen={showForm} onClose={() => setShowForm(false)} size="md">
+        <ResponsiveModal title="Nueva Moneda" isOpen={showForm} onClose={() => setShowForm(false)} size="md" icon={<Plus className="w-6 h-6" />}>
           <CurrencyForm onSave={handleSave} onCancel={() => setShowForm(false)} currencies={currencies} />
-        </Modal>
+        </ResponsiveModal>
       )}
       
       <div className="bg-white rounded-lg shadow overflow-hidden">
