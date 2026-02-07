@@ -6,7 +6,7 @@ REFACTORIZADO: Expone el UserService (RBAC + Autogestión).
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Importar Modelos DTO
@@ -24,22 +24,28 @@ from ..models import (
 # Importar el Servicio
 from ..services.user_service import UserService
 
-# Importar los guardianes de usuario y roles
-from ..utils.auth import get_current_user, get_user_service
+# Importar DEPENDENCIAS ESTANDARIZADAS (Transfusion)
+from .deps import get_current_user, get_user_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
+# --- (Removed Local Dependency Logic to deps.py) ---
+
 # --- Endpoints Públicos (Login/Logout) ---
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest = Body(...), service: UserService = Depends(get_user_service)):
+async def login(
+    request: Request,  # Necesitamos Request para acceder a app.state
+    login_data: LoginRequest = Body(...),
+    service: UserService = Depends(get_user_service),
+):
     """
     Login de usuario.
     """
-    user = await service.authenticate_user(request.username, request.password)
+    user = await service.authenticate_user(login_data.username, login_data.password)
 
     if not user:
         raise HTTPException(
@@ -48,9 +54,20 @@ async def login(request: LoginRequest = Body(...), service: UserService = Depend
 
     token = service.create_token(user)
 
+    # --- INICIO LÓGICA DE FUSIÓN DE CARRITO DE INVITADO ---
+    if login_data.guest_cart_id:
+        try:
+            cart_service = request.app.state.cart_service
+            # user.id es str, full_name puede ser None
+            user_name = user.full_name or user.username
+            await cart_service.assign_guest_cart(login_data.guest_cart_id, str(user.id), user_name)
+        except Exception as e:
+            logger.error(f"Fallo no crítico al fusionar carrito: {e}")
+    # --- FIN LÓGICA ---
+
     # Explicitly convert User to UserPublic for the response
-    # Use model_dump with exclude to remove password_hash
-    user_public = UserPublic.model_validate(user).model_dump(exclude={"password_hash"})
+    # Use model_validate to get the object, not a dict, to satisfy type checkers
+    user_public = UserPublic.model_validate(user)
 
     return TokenResponse(
         access_token=token,
@@ -86,10 +103,10 @@ async def request_password_reset(
         await service.request_password_reset(request.email, request.captcha_token)
         return {"message": "Si existe una cuenta con este email, se enviará un código."}
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error en request_password_reset: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error al procesar la solicitud de reseteo.")
+        raise HTTPException(status_code=500, detail="Error al procesar la solicitud de reseteo.") from e
 
 
 @router.post("/validate-password-reset", response_model=dict[str, str])
@@ -103,10 +120,10 @@ async def validate_password_reset(
         result = await service.reset_password(request.email, request.token, request.new_password)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error en validate_password_reset: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error al resetear la contraseña.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno.") from e
 
 
 # --- Endpoints de "Panel de Usuario" (Autogestión, Protegido) ---
@@ -150,10 +167,10 @@ async def update_me(
         )
 
     try:
-        updated_user = await service.update_user_profile(user_id, updates)
+        updated_user = await service.update_user_profile(str(user_id), updates)
         return updated_user
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/me/password", response_model=dict[str, str])
@@ -167,7 +184,7 @@ async def change_my_password(
     """
     user_id = current_user.get("id")
     try:
-        await service.change_password(user_id, request.old_password, request.new_password)
+        await service.change_password(str(user_id), request.old_password, request.new_password)
         return {"message": "Contraseña cambiada exitosamente."}
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
