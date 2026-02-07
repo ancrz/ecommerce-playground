@@ -143,40 +143,35 @@ Aquí reside la **magia de la automatización**. No escribimos tipos manualmente
 4.  **Orval**: Ingiere el contrato y genera código TypeScript, Hooks y Validadores Zod (Dependencia Horizontal).
 
 ```mermaid
+---
+config:
+  layout: fixed
+---
 flowchart LR
-    %% Nodos del Backend
-    subgraph Backend_World ["🐍 Backend Domain"]
+ subgraph Backend_World["🐍 Backend Domain"]
         PY["Pydantic Models"]
         SQL["SQLAlchemy Models"]
         AL["Alembic Migrations"]
-        OAPI["OpenAPI Spec (JSON)"]
-
-        PY -.->|Validation| API_EP["API Endpoints"]
-        SQL -->|Defines| PY
-        SQL -->|Generates| AL
-        API_EP -->|Auto-Generates| OAPI
-    end
-
-    %% Pipeline de Automatización
-    subgraph Bridge ["⚙️ Automation Bridge"]
+        OAPI["OpenAPI Spec JSON"]
+        API_EP["API Endpoints"]
+  end
+ subgraph Bridge["⚙️ Automation Bridge"]
         PL["dev_pipeline.py"]
-    end
-
-    %% Nodos del Frontend
-    subgraph Frontend_World ["⚛️ Frontend Domain"]
+  end
+ subgraph Frontend_World["⚛️ Frontend Domain"]
         ORVAL["Orval Codegen"]
-        TS["types.generated.ts"]
-        HOOKS["hooks.generated.ts"]
+        TS["TypeScript Interfaces"]
+        ZOD["Zod Schemas"]
+        HOOKS["React Query Hooks"]
+  end
+    PY -. Validation .-> API_EP
+    SQL -- Defines --> PY
+    SQL -- Generates --> AL
+    API_EP -- "Auto-Generates" --> OAPI
+    ORVAL -- Generates --> TS & ZOD & HOOKS
+    OAPI -- Input --> PL
+    PL -- Trigger --> ORVAL
 
-        ORVAL -->|Generates| TS
-        ORVAL -->|Generates| HOOKS
-    end
-
-    %% Relaciones Cross-Domain
-    OAPI -->|Input| PL
-    PL -->|Trigger| ORVAL
-
-    %% Estilos
     style Backend_World fill:#f3e5f5,stroke:#7b1fa2
     style Bridge fill:#eceff1,stroke:#546e7a,stroke-dasharray: 5 5
     style Frontend_World fill:#e3f2fd,stroke:#1565c0
