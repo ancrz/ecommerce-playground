@@ -9,7 +9,7 @@
  * 4. Guarda el precio convirtiéndolo de vuelta a la moneda base (ej. Bs.).
  */
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2 } from "lucide-react";
+import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2, Package, Tag, CreditCard } from "lucide-react";
 
 // Importar API y Contexto
 import * as api from "../api";
@@ -19,7 +19,8 @@ import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
 import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
 import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
-import { Modal } from "../components/Modal"; // Importar componente estándar
+import { ResponsiveModal } from "../components/common/ResponsiveModal";
+import { TouchButton } from "../components/common/TouchButton";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -108,14 +109,14 @@ export default function ProductsModule() {
         <h2 className="text-2xl font-bold text-gray-800">
           Lista de Productos
         </h2>
-        <button
+        <TouchButton
           onClick={handleNewProduct}
           data-testid="add-product-button"
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold flex items-center gap-2"
+          icon={Plus}
+          variant="primary"
         >
-          <Plus size={20} />
           Nuevo Producto
-        </button>
+        </TouchButton>
       </div>
       <ProductList
         onEdit={handleEdit}
@@ -123,15 +124,16 @@ export default function ProductsModule() {
       />
 
       {/* Modal Estándar */}
-      <Modal
+      <ResponsiveModal
         isOpen={showForm}
         onClose={() => {
             setShowForm(false);
             setEditingProduct(null);
         }}
         title={editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
-        size="xl" // Usar versión inmersiva en móvil gracias a la lógica de Modal.tsx
-        footer={null} // El footer ya está dentro del form para manejar el submit
+        subtitle={editingProduct ? 'Modificar datos del producto' : 'Agrega un nuevo producto al catálogo'}
+        icon={<Package className="w-6 h-6" />}
+        size="lg"
       >
           <ProductForm
             key={editingProduct ? editingProduct.id : 'new'}
@@ -152,7 +154,7 @@ export default function ProductsModule() {
             }}
             selectedCurrency={selectedCurrency}
           />
-      </Modal>
+      </ResponsiveModal>
     </>
   );
 }
@@ -313,13 +315,9 @@ function ProductList({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => onEdit(product)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition" title="Editar">
-                        <Edit2 size={18} />
-                      </button>
-                      <button onClick={() => handleDelete(product.id, product.name)} className="p-1.5 text-red-600 hover:bg-red-50 rounded transition" title="Eliminar">
-                        <Trash2 size={18} />
-                      </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <TouchButton onClick={() => onEdit(product)} variant="ghost" icon={Edit2} iconOnly className="text-blue-600" />
+                      <TouchButton onClick={() => handleDelete(product.id, product.name)} variant="ghost" icon={Trash2} iconOnly className="text-red-600" />
                     </div>
                   </td>
                 </tr>
@@ -398,25 +396,25 @@ function ProductList({
 
       {/* PAGINACIÓN (Next/Prev) */}
       <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
-            <button 
+            <TouchButton
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
+                variant="secondary"
             >
                 Anterior
-            </button>
+            </TouchButton>
             
             <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
                 Página {currentPage}
             </span>
 
-            <button 
+            <TouchButton
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={!hasMore}
-                className="px-4 py-2 bg-white rounded-lg border shadow-sm text-gray-700 font-medium disabled:opacity-50 hover:bg-gray-50 transition"
+                variant="secondary"
             >
                 Siguiente
-            </button>
+            </TouchButton>
       </div>
     </div>
   );
@@ -504,17 +502,17 @@ function ProductForm({
       data-testid="product-form"
     >
       {/* Tab Nav */}
-      <div className="flex border-b mb-6">
+      <div className="flex border-b mb-6 overflow-x-auto">
          <button
            type="button"
-           className={`px-4 py-2 font-medium ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+           className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
            onClick={() => setActiveTab('details')}
          >
-           Detalles
+           1. Detalles
          </button>
          <button
             type="button"
-            className={`px-4 py-2 font-medium ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
             onClick={() => {
                 if (!formData.id) {
                     alert("Guarda el producto primero para gestionar imágenes");
@@ -523,14 +521,14 @@ function ProductForm({
                 setActiveTab('images');
             }}
          >
-           Imágenes
+           2. Imágenes
          </button>
          <button
             type="button"
-            className={`px-4 py-2 font-medium ${activeTab === 'config' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'config' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
             onClick={() => setActiveTab('config')}
          >
-           Configuración
+           3. Configuración
          </button>
       </div>
 
@@ -538,11 +536,15 @@ function ProductForm({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Columna Izquierda: Datos */}
         <div className="md:col-span-2 space-y-4">
+          <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2">
+              <Tag size={16} /> Información Básica
+          </h3>
           <Input
             label="Nombre *"
             value={formData.name || ""}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
+            placeholder="Ej. Paracetamol 500mg"
           />
           <TextArea
             label="Descripción"
@@ -557,29 +559,39 @@ function ProductForm({
             value={formData.sku || ""}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label={`Precio (${selectedCurrency?.symbol || "..."}) *`}
-              type="number"
-              step="0.01"
-              min="0"
-              value={displayPrice}
-              onChange={handlePriceChange}
-              required
-              data-testid="product-price-input"
-            />
-            <Input
-              label="Stock"
-              type="number"
-              min="0"
-              value={formData.stock || 0}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  stock: parseInt(e.target.value) || 0,
-                })
-              }
-            />
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2 mb-3">
+                 <CreditCard size={16} /> Precios
+              </h3>
+              <Input
+                label={`Precio (${selectedCurrency?.symbol || "..."}) *`}
+                type="number"
+                step="0.01"
+                min="0"
+                value={displayPrice}
+                onChange={handlePriceChange}
+                required
+                data-testid="product-price-input"
+              />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2 mb-3">
+                 <Package size={16} /> Inventario
+              </h3>
+              <Input
+                label="Stock"
+                type="number"
+                min="0"
+                value={formData.stock || 0}
+                onChange={(e) =>
+                    setFormData({
+                    ...formData,
+                    stock: parseInt(e.target.value) || 0,
+                    })
+                }
+              />
+            </div>
           </div>
           <Input
             label="Categoría"
@@ -686,27 +698,25 @@ function ProductForm({
       {activeTab !== 'images' && (
       <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
         {/* Botones */}
-        <button
-          type="submit"
-          disabled={isSaving || !formData.name || !displayPrice}
-          data-testid="product-form-save-button"
-          className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold disabled:bg-gray-400 flex items-center justify-center gap-2"
-        >
-          <Save size={20} />
-          {isSaving
-            ? "Guardando..."
-            : formData.id
-            ? "Guardar Cambios"
-            : "Crear Producto"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSaving}
-          className="px-6 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition font-semibold"
-        >
+        <div className="flex-1">
+            <TouchButton
+            type="submit"
+            disabled={isSaving || !formData.name || !displayPrice}
+            data-testid="product-form-save-button"
+            variant="primary"
+            icon={Save}
+            loading={isSaving}
+            >
+            {isSaving
+                ? "Guardando..."
+                : formData.id
+                ? "Guardar Cambios"
+                : "Crear Producto"}
+            </TouchButton>
+        </div>
+        <TouchButton type="button" onClick={onCancel} variant="secondary">
           Cancelar
-        </button>
+        </TouchButton>
       </div>
       )}
     </form>
@@ -779,20 +789,22 @@ function ProductImageManager({ productId }: { productId: string }) {
     }
   };
 
-  if (loading && images.length === 0) return <div className="p-8 text-center">Cargando imágenes...</div>;
+  if (loading && images.length === 0) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="animate-spin" /> Cargando imágenes...</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Galería de Imágenes ({images.length}/5)</h3>
         {images.length < 5 && (
-            <button
+            <TouchButton
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              variant="primary"
+              icon={Upload}
+              className="text-sm px-3 py-1 mb-0"
             >
-              <Upload size={18} /> Subir Imagen
-            </button>
+              Subir Imagen
+            </TouchButton>
         )}
         <input
           type="file"
