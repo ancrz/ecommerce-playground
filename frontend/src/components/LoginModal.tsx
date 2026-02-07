@@ -6,7 +6,7 @@
  * 1. Botones usan clases .btn-primary y .btn-link
  */
 import React, { useState } from "react";
-import { X, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 // Importar API y Tipos
@@ -39,7 +39,8 @@ export default function LoginModal({
 
     try {
       // Llama a la API (Módulo 60)
-      const response = await api.apiLogin(username, password);
+      const guestCartId = localStorage.getItem("cart_id") || undefined;
+      const response = await api.apiLogin(username, password, guestCartId);
       if (response.access_token && response.user) {
         // Llama al callback de App.tsx
         onLogin(response);
@@ -47,18 +48,15 @@ export default function LoginModal({
       } else {
         setError("Credenciales inválidas");
       }
-    } catch (err: any) {
-      setError("Error al iniciar sesión: " + (err.message || "Error de red"));
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Error de red";
+      setError("Error al iniciar sesión: " + errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && username && password) {
-      handleSubmit();
-    }
-  };
+
 
   if (!isOpen) return null;
 

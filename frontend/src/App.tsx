@@ -12,6 +12,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // Importar Layouts y Páginas (muchas de estas son NUEVAS)
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
+import SearchPage from "./pages/SearchPage"; // NEW
 import AdminPanel from "./pages/AdminPanel";
 import UserAccountPage from "./pages/UserAccountPage"; // ¡NUEVO! (Para /account)
 import PasswordResetRequestPage from "./pages/PasswordResetRequestPage"; // ¡NUEVO! (Paso 1)
@@ -128,49 +129,49 @@ function AppContent() {
   const [showCart, setShowCart] = useState(false);   // restored
   const [appKey, setAppKey] = useState(0); // Para forzar recarga
 
-  // Cargar datos iniciales (públicos)
-  const loadInitialData = async () => {
-    // Helper para llamadas seguras que no rompen la app
-    const safeFetch = async <T,>(
-      fn: () => Promise<T>,
-      fallback: T | null = null
-    ) => {
-      try {
-        return await fn();
-      } catch (error) {
-        console.warn("Fallo en carga inicial opcional:", error);
-        return fallback;
+  useEffect(() => {
+    // Cargar datos iniciales (públicos)
+    const loadInitialData = async () => {
+      // Helper para llamadas seguras que no rompen la app
+      const safeFetch = async <T,>(
+        fn: () => Promise<T>,
+        fallback: T | null = null
+      ) => {
+        try {
+          return await fn();
+        } catch (error) {
+          console.warn("Fallo en carga inicial opcional:", error);
+          return fallback;
+        }
+      };
+
+      const business = await safeFetch(() => api.getBusinessInfo());
+      const custom = await safeFetch(() => api.getCustomization());
+
+      // Currencies y Regions son arrays, fallback []
+      const curr = (await safeFetch(() => api.getCurrencies())) || [];
+      const regs = (await safeFetch(() => api.getRegions())) || [];
+
+      if (business) setBusinessInfo(business);
+      if (custom) {
+        setCustomization(custom);
+        applyGlobalStyles(custom);
+      }
+
+      setCurrencies(curr);
+      setRegions(regs);
+
+      // REFACTOR FASE 3: Setear el objeto completo
+      if (curr.length > 0) {
+        const baseCurrency = curr.find((c) => c.is_base);
+        if (baseCurrency) {
+          setSelectedCurrency(baseCurrency);
+        } else {
+          setSelectedCurrency(curr[0]);
+        }
       }
     };
 
-    const business = await safeFetch(() => api.getBusinessInfo());
-    const custom = await safeFetch(() => api.getCustomization());
-
-    // Currencies y Regions son arrays, fallback []
-    const curr = (await safeFetch(() => api.getCurrencies())) || [];
-    const regs = (await safeFetch(() => api.getRegions())) || [];
-
-    if (business) setBusinessInfo(business);
-    if (custom) {
-      setCustomization(custom);
-      applyGlobalStyles(custom);
-    }
-
-    setCurrencies(curr);
-    setRegions(regs);
-
-    // REFACTOR FASE 3: Setear el objeto completo
-    if (curr.length > 0) {
-      const baseCurrency = curr.find((c) => c.is_base);
-      if (baseCurrency) {
-        setSelectedCurrency(baseCurrency);
-      } else {
-        setSelectedCurrency(curr[0]);
-      }
-    }
-  };
-
-  useEffect(() => {
     loadInitialData();
   }, [appKey]); // Recargar si appKey cambia
 
@@ -275,7 +276,7 @@ function AppContent() {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart);
       // Feedback se maneja en el componente que llama (ProductDetailModal, HomePage)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error al agregar al carrito:", error);
       throw error; // Re-lanzar para que el componente lo maneje
     }
@@ -286,7 +287,7 @@ function AppContent() {
     try {
       const updatedCart = await api.removeItem(cart.id, productId);
       setCart(updatedCart);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error al eliminar del carrito:", error);
       throw error;
     }
@@ -410,6 +411,7 @@ function AppContent() {
           {/* Rutas Públicas (Layout principal) */}
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
+            <Route path="search" element={<SearchPage />} />
 
             {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
             <Route

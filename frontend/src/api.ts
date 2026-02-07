@@ -146,10 +146,10 @@ const authFetchForm = async <T>(
 
 // ==================== API de Autenticación (Pública) ====================
 
-export const apiLogin = (username: string, password: string): Promise<TokenResponse> => {
+export const apiLogin = (username: string, password: string, guest_cart_id?: string): Promise<TokenResponse> => {
   return authFetch<TokenResponse>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, guest_cart_id }),
   }, TokenResponseSchema); // <-- Validar
 };
 

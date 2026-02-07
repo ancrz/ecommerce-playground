@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Loader2, AlertCircle, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
+import { Loader2, AlertCircle, Trash2, Plus, Minus, ShoppingBag, Copy, Download } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
@@ -17,9 +17,6 @@ import { useFeedback } from './ui/FeedbackModal';
 
 // Importar componentes reutilizables
 import { Modal } from './Modal';
-
-// URL base del servidor (relativa, para el proxy)
-const SERVER_URL = "";
 
 interface CartModalProps {
   isOpen: boolean;
@@ -31,6 +28,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const { showToast } = useFeedback();
   const [loading, setLoading] = useState<string | null>(null); // ID del item que está cargando
   const [error, setError] = useState('');
+  const [qrCode, setQrCode] = useState<string | null>(null); // QR Code Data URI
+  const [showQR, setShowQR] = useState(false); // Toggle QR View
 
   // Modificar cantidad de un item
   const handleUpdateQuantity = async (productId: string, newQuantity: number) => {
@@ -73,21 +72,116 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     }
   };
 
-  // Proceder al checkout
-  const handleCheckout = () => {
-    showToast(
-      "Funcionalidad de checkout disponible en el módulo de Ventas (POS).", 
-      'info'
-    );
-    onClose();
+  // Proceder al checkout (Generar QR)
+  const handleCheckout = async () => {
+    if (!cart) return;
+    
+    setLoading('checkout');
+    setError('');
+
+    try {
+      // 1. Obtener QR del backend
+      const response = await api.getCartQR(cart.id);
+      setQrCode(response.qr_code);
+      setShowQR(true);
+    } catch (err: any) {
+      const message = err.message || 'Error al generar código de pedido';
+      setError(message);
+      showToast(message, 'error');
+    } finally {
+      setLoading(null);
+    }
   };
+
+  const handleCopyID = () => {
+    if (!cart) return;
+    const id = cart.customer_id.replace('guest-', '').toUpperCase();
+    navigator.clipboard.writeText(id);
+    showToast('ID copiado al portapapeles', 'success');
+  };
+
+  const handleDownloadQR = () => {
+    if (!qrCode) return;
+    const link = document.createElement('a');
+    link.href = qrCode;
+    link.download = `pedido-${cart?.customer_id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleClose = () => {
+    setShowQR(false);
+    setQrCode(null);
+    onClose();
+  }
   
   if (!isOpen) return null;
   
   const isEmpty = !cart || cart.items.length === 0;
   
+  // VISTA DE QR (CHECKOUT)
+  if (showQR && cart && qrCode) {
+    return (
+      <Modal title="📱 Código de Pedido" isOpen={isOpen} onClose={handleClose} size="md">
+        <div className="text-center space-y-6 py-4">
+          
+          <div className="relative group inline-block">
+             <div className="bg-white p-4 rounded-xl border shadow-sm">
+                <img src={qrCode} alt="Código QR del Pedido" className="w-64 h-64 object-contain" />
+             </div>
+             <button
+                onClick={handleDownloadQR}
+                className="absolute shadow-lg bottom-2 right-2 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-50 hover:text-blue-600 transition border"
+                title="Descargar QR"
+             >
+                <Download size={20} />
+             </button>
+          </div>
+          
+          <div>
+            <p className="text-gray-500 text-sm mb-1 uppercase tracking-wide font-semibold">ID del Pedido</p>
+            <div className="flex items-center justify-center gap-2">
+                <p className="text-3xl font-mono font-bold text-gray-800 tracking-wider">
+                  {cart.customer_id.replace('guest-', '').toUpperCase()}
+                </p>
+                <button
+                    onClick={handleCopyID}
+                    className="p-2 text-gray-400 hover:text-blue-600 transition hover:bg-blue-50 rounded-lg"
+                    title="Copiar ID"
+                >
+                    <Copy size={20} />
+                </button>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 text-blue-800 p-4 rounded-lg text-sm">
+            <p className="font-bold mb-1">ℹ️ Instrucciones:</p>
+            <p>Dirígete al mostrador y muestra este código al vendedor para procesar tu pago y retirar tus productos.</p>
+          </div>
+
+          <div className="pt-4 border-t">
+            <div className="flex justify-between items-center mb-4 text-lg">
+                <span className="text-gray-600">Total a Pagar:</span>
+                <span className="font-bold text-xl" style={{ color: 'var(--color-primary)' }}>
+                    {formatPrice(cart.total_with_tax)}
+                </span>
+            </div>
+            
+            <button
+              onClick={handleClose}
+              className="w-full py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+            >
+              Cerrar y Seguir Comprando
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+  
   return (
-    <Modal title="🛒 Carrito de Compras" isOpen={isOpen} onClose={onClose} size="lg">
+    <Modal title="🛒 Carrito de Compras" isOpen={isOpen} onClose={handleClose} size="lg">
       <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-2" data-testid="cart-items-list">
         {!isEmpty ? (
           cart.items.map(item => {
@@ -101,7 +195,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                 }`}
               >
                 {/* Thumbnail (placeholder si no hay imagen) */}
-                <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center overflow-hidden">
                   <span className="text-2xl">📦</span>
                 </div>
 
