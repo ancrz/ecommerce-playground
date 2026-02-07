@@ -103,9 +103,10 @@ def rebuild_schema_hard():
     logger.warning("ESTO BORRARÁ LOS DATOS DE NEGOCIO.")
 
     # Confirmación
-    response = input("¿Estás seguro? (y/n): ")
-    if response.lower() != "y":
-        sys.exit(0)
+    if not args.yes:
+        response = input("¿Estás seguro? (y/n): ")
+        if response.lower() != "y":
+            sys.exit(0)
 
     python_exe = get_venv_python()
 
@@ -221,7 +222,9 @@ def main():
     parser.add_argument("--front", action="store_true", help="Regenerar frontend")
     parser.add_argument("--back", action="store_true", help="Reiniciar/Reload Backend")
     parser.add_argument("--full", action="store_true", help="Full reset (Hard + Front)")
+    parser.add_argument("--yes", action="store_true", help="Skip confirmation for hard reset")
 
+    global args
     args = parser.parse_args()
 
     # Cargar .env para saber puertos

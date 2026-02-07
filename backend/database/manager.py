@@ -328,6 +328,7 @@ _SCHEMAS_SQLITE = {
         .replace("TIMESTAMPTZ", "TEXT")
         .replace("DATE", "TEXT")
         .replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
+        .replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")
         for s in _SCHEMAS_POSTGRES["sales"]
     ],
     "finance": [
@@ -336,6 +337,7 @@ _SCHEMAS_SQLITE = {
         .replace("VARCHAR(100)", "TEXT")
         .replace("VARCHAR(10)", "TEXT")
         .replace("TIMESTAMPTZ", "TEXT")
+        .replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")
         for s in _SCHEMAS_POSTGRES["finance"]
     ],
     "business": [
@@ -430,11 +432,20 @@ class DatabaseManager:
                     conn = await aiosqlite.connect(db_path)
                     conn.row_factory = aiosqlite.Row
                     self._connections[chunk_name] = conn
-                    await conn.execute("PRAGMA foreign_keys = ON;")
+                    await conn.execute("PRAGMA foreign_keys = OFF;")
 
                     if chunk_name in _SCHEMAS_SQLITE:
                         for schema in _SCHEMAS_SQLITE[chunk_name]:
-                            await conn.execute(schema)
+                            try:
+                                await conn.execute(schema)
+                            except Exception as e:
+                                # Ignorar error de columna duplicada en migraciones (ALTER TABLE)
+                                # SQLite no soporta "ADD COLUMN IF NOT EXISTS" nativamente en versiones viejas
+                                # o la sintaxis difiere, así que intentamos añadir y si falla porque existe, ignoramos.
+                                if "duplicate column" in str(e).lower():
+                                    logger.warning(f"Aviso migración SQLite: {e}")
+                                else:
+                                    raise
                         await conn.commit()
                     logger.info(f"Chunk (SQLite) '{chunk_name}' [conectado] en {db_path}")
                 except Exception as e:
@@ -524,7 +535,9 @@ class DatabaseManager:
                 async with db.execute(query, params) as cursor:
                     rows = await cursor.fetchall()
 
-            return [row_to_dict(row) for row in rows]
+            # Ensure row_to_dict doesn't return None here, or filter it out.
+            # aiosqlite/asyncpg rows are generally not None if fetched.
+            return [d for r in rows if (d := row_to_dict(r)) is not None]
         except Exception as e:
             logger.error(
                 f"Error en fetchall (chunk: {chunk_name}, DB: {DB_TYPE}): {e}\nQuery: {original_query}\nParams: {params}",
@@ -554,7 +567,7 @@ class DatabaseManager:
             # y otros errores de base de datos.
             logger.error(f"Error de base de datos en chunk '{chunk_name}': {e}. Query: {original_query}")
             # Re-lanza como ValueError para que los servicios lo manejen
-            raise ValueError(f"Error de base de datos: {e}")
+            raise ValueError(f"Error de base de datos: {e}") from e
 
     def _adapt_query(self, query: str, params: tuple) -> str:
         """
