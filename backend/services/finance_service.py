@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class FinanceService:
     """
     Servicio para operaciones financieras.
-    Implementa reglas de negocio estrictas para la moneda base (Lógica SAP).
+    Implementa reglas de negocio estrictas para la moneda base.
     NO maneja impuestos.
     """
 
@@ -40,7 +40,7 @@ class FinanceService:
         Crear nueva moneda.
         """
 
-        # REGLA SAP: No se puede crear una moneda base si ya existe una.
+        # REGLA: No se puede crear una moneda base si ya existe una.
         if is_base:
             base_currency = await self.get_base_currency()
             if base_currency:
@@ -121,7 +121,7 @@ class FinanceService:
             logger.warning(f"Intento de actualizar tasa de moneda inexistente: {currency_id}")
             return None
 
-        # REGLA SAP: No se puede cambiar la tasa de la moneda base
+        # REGLA: No se puede cambiar la tasa de la moneda base
         if currency.is_base:
             logger.error(f"Intento ILEGAL de cambiar tasa de moneda base: {currency.name}")
             raise ValueError("No se puede cambiar la tasa de la moneda base. La tasa es 1.0 por definición.")
@@ -132,7 +132,7 @@ class FinanceService:
         await self.db_manager.execute(
             "finance",
             """
-            UPDATE currencies 
+            UPDATE currencies
             SET exchange_rate = ?, updated_at = ?
             WHERE id = ?
         """,
@@ -154,7 +154,7 @@ class FinanceService:
         await self.db_manager.execute(
             "finance",
             """
-            UPDATE currencies 
+            UPDATE currencies
             SET tax_rate = ?, updated_at = ?
             WHERE id = ?
         """,
@@ -169,7 +169,7 @@ class FinanceService:
     async def delete_currency(self, currency_id: str) -> dict[str, any]:
         """
         Desactivar moneda (Soft Delete).
-        REGLA SAP: Bloquea el borrado de la moneda base.
+        REGLA: Bloquea el borrado de la moneda base.
         """
         currency = await self.get_currency(currency_id)
         if not currency:
@@ -193,7 +193,7 @@ class FinanceService:
     async def set_base_currency(self, new_base_currency_id: str) -> dict[str, any]:
         """
         Define una nueva moneda base y recalcula todas las demás tasas en relación a ella.
-        Esta es la "migración controlada" que cumple con la lógica SAP.
+        Esta es la "migración controlada" que cumple con la lógica de negocio.
         """
         logger.warning(f"INICIANDO MIGRACIÓN DE MONEDA BASE a {new_base_currency_id}")
 
@@ -220,7 +220,7 @@ class FinanceService:
             await self.db_manager.execute(
                 "finance",
                 """
-                UPDATE currencies 
+                UPDATE currencies
                 SET exchange_rate = ?, is_base = ?, updated_at = ?
                 WHERE id = ?
             """,

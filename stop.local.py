@@ -221,10 +221,10 @@ def load_env():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
-                                    key = key.strip()
-                                    value = value.strip().strip('"').strip("'")
-                                    if key:
-                                        os.environ[key] = value
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    os.environ[key] = value
 
 def is_port_in_use(port: int) -> bool:
     """Verifica si un puerto está en uso."""

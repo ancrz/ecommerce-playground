@@ -1,8 +1,8 @@
+import os
 import sys
 
 import requests
 
-import os
 PORT = os.getenv("BACKEND_PORT", "8042")
 BASE_URL = f"http://localhost:{PORT}/api"
 

@@ -11,14 +11,17 @@ import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
+import { useUI } from '../components/UIContext';
 import type { Region, TaxRate } from '../../types';
 
 // Importar componentes reutilizables
 import { Modal } from '../components/Modal';
 import { Input, Select, Checkbox } from '../components/FormControls'; // Importar Checkbox
+import { TouchButton } from '../components/common/TouchButton';
 
 // --- Componente Principal del Módulo ---
 export default function TaxModule() {
+  const { alert } = useUI();
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
@@ -28,43 +31,50 @@ export default function TaxModule() {
   const [showRateForm, setShowRateForm] = useState(false);
   const [editingRegion, setEditingRegion] = useState<Region | null>(null);
 
-  const loadRegions = async () => {
-    setLoading(true);
+  const loadRegions = useCallback(async () => {
     try {
+      setLoading(true);
       setRegions(await api.getRegions(false)); // Cargar todas (activas e inactivas)
-    } catch (e: any) { alert("Error cargando regiones: " + e.message); }
-    setLoading(false);
-  };
+    } catch (e: any) { await alert("Error cargando regiones: " + e.message); }
+    finally { setLoading(false); }
+  }, [alert]);
 
-  useEffect(() => { loadRegions(); }, []);
+  useEffect(() => { void loadRegions(); }, [loadRegions]);
 
   useEffect(() => {
     if (selectedRegion) {
-      setLoading(true);
-      api.getTaxRatesForRegion(selectedRegion.id)
-         .then(setTaxRates)
-         .catch(e => alert("Error cargando tasas: " + e.message))
-         .finally(() => setLoading(false));
+      const loadRates = async () => {
+        try {
+            setLoading(true);
+            const rates = await api.getTaxRatesForRegion(selectedRegion.id);
+            setTaxRates(rates);
+        } catch (e: any) {
+            await alert("Error cargando tasas: " + e.message);
+        } finally {
+            setLoading(false);
+        }
+      };
+      void loadRates();
     } else {
       setTaxRates([]);
     }
-  }, [selectedRegion]); // Recargar tasas cuando la región cambia
+  }, [selectedRegion, alert]); // Recargar tasas cuando la región cambia
 
   const handleRegionSave = async (data: Partial<Region>) => {
     try {
       if (editingRegion) {
         // Actualizar
         await api.updateRegion(editingRegion.id, data);
-        alert("✓ Región actualizada");
+        await alert("✓ Región actualizada");
       } else {
         // Crear
         await api.createRegion(data);
-        alert("✓ Región creada");
+        await alert("✓ Región creada");
       }
       setShowRegionForm(false);
       setEditingRegion(null);
       loadRegions();
-    } catch (e: any) { alert("Error: " + e.message); }
+    } catch (e: any) { await alert("Error: " + e.message); }
   };
   
   const handleRateSave = async (data: any) => {
@@ -76,11 +86,11 @@ export default function TaxModule() {
         rate: parseFloat(data.rate),
         priority: parseInt(data.priority) || 1
       });
-      alert("✓ Tasa creada");
+      await alert("✓ Tasa creada");
       setShowRateForm(false);
       // Refrescar tasas
       api.getTaxRatesForRegion(selectedRegion.id).then(setTaxRates);
-    } catch (e: any) { alert("Error: " + e.message); }
+    } catch (e: any) { await alert("Error: " + e.message); }
   };
 
   const totalTaxRate = useMemo(() => {
@@ -125,13 +135,15 @@ export default function TaxModule() {
         <div className="md:col-span-1 bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Regiones Fiscales</h2>
           {/* REFACTOR FASE 4: Botón Primario */}
-          <button
+          <TouchButton
             onClick={() => { setEditingRegion(null); setShowRegionForm(true); }}
-            className="btn-primary w-full mb-4"
+            variant="primary"
+            icon={Plus}
+            className="w-full mb-4"
             data-testid="tax-add-region-btn"
           >
-            <Plus size={20} /> Nueva Región
-          </button>
+            Nueva Región
+          </TouchButton>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {loading && <p>Cargando...</p>}
             {regions.map(region => (
@@ -165,13 +177,15 @@ export default function TaxModule() {
           {selectedRegion ? (
             <>
               {/* REFACTOR FASE 4: Botón Primario */}
-              <button
+              <TouchButton
                 onClick={() => setShowRateForm(true)}
                 data-testid="taxrate-add-button"
-                className="btn-primary w-full mb-4"
+                variant="primary"
+                icon={Plus}
+                className="w-full mb-4"
               >
-                <Plus size={20} /> Nueva Tasa para esta Región
-              </button>
+                Nueva Tasa para esta Región
+              </TouchButton>
               <div className="space-y-2">
                 {loading && <p>Cargando tasas...</p>}
                 {taxRates.map(rate => (
@@ -218,9 +232,9 @@ function RegionForm({ region, onSave, onCancel }: { region: Region | null, onSav
       <Input label="Código Postal" value={data.zip_code} onChange={(e) => setData({...data, zip_code: e.target.value})} />
       <Checkbox label="Región Activa" checked={data.is_active} onChange={(e) => setData({...data, is_active: e.target.checked})} />
       {/* REFACTOR FASE 4: Botón Primario y Secundario */}
-      <div className="flex gap-3 pt-4 border-t mt-4">
-        <button type="submit" className="btn-primary flex-1" data-testid="region-save-button">Guardar Región</button>
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancelar</button>
+      <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t mt-4">
+        <TouchButton type="button" onClick={onCancel} variant="secondary" className="flex-1 sm:flex-none">Cancelar</TouchButton>
+        <TouchButton type="submit" variant="primary" className="flex-1" data-testid="region-save-button">Guardar Región</TouchButton>
       </div>
     </form>
   );
@@ -242,9 +256,9 @@ function TaxRateForm({ onSave, onCancel }: { onSave: (data: any) => void, onCanc
       <Input label="Prioridad (Orden de cálculo)" type="number" step="1" min="1" value={data.priority} onChange={(e) => setData({...data, priority: parseInt(e.target.value) || 1})} required />
       
       {/* REFACTOR FASE 4: Botón Primario y Secundario */}
-      <div className="flex gap-3 pt-4 border-t mt-4">
-        <button type="submit" className="btn-primary flex-1" data-testid="taxrate-save-button">Guardar Tasa</button>
-        <button type="button" onClick={onCancel} className="btn-secondary">Cancelar</button>
+      <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t mt-4">
+        <TouchButton type="button" onClick={onCancel} variant="secondary" className="flex-1 sm:flex-none">Cancelar</TouchButton>
+        <TouchButton type="submit" variant="primary" className="flex-1" data-testid="taxrate-save-button">Guardar Tasa</TouchButton>
       </div>
     </form>
   );

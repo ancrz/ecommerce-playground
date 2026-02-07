@@ -16,10 +16,10 @@ Uso:
 Este script orquesta todos los demás y maneja los casos de uso comunes.
 """
 
-import sys
+import logging
 import os
 import subprocess
-import logging
+import sys
 from pathlib import Path
 
 # Configuración
@@ -37,7 +37,7 @@ def get_python_executable():
     venv_python = PROJECT_ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin") / "python"
     if os.name == "nt":
         venv_python = venv_python.with_suffix(".exe")
-    
+
     if venv_python.exists():
         return str(venv_python)
     return sys.executable
@@ -47,14 +47,14 @@ def run_script(script_name: str, *args) -> int:
     """Ejecuta un script del proyecto."""
     python = get_python_executable()
     script_path = PROJECT_ROOT / script_name
-    
+
     if not script_path.exists():
         logger.error(f"❌ Script no encontrado: {script_path}")
         return 1
-    
+
     cmd = [python, str(script_path)] + list(args)
     logger.info(f"Ejecutando: {' '.join(cmd)}")
-    
+
     result = subprocess.run(cmd, cwd=PROJECT_ROOT)
     return result.returncode
 
@@ -131,9 +131,9 @@ def main():
     if len(sys.argv) < 2:
         print_help()
         return 1
-    
+
     command = sys.argv[1].lower()
-    
+
     commands = {
         'setup': cmd_setup,
         'start': cmd_start,
@@ -148,12 +148,12 @@ def main():
         '--help': lambda: (print_help(), 0)[1],
         '-h': lambda: (print_help(), 0)[1],
     }
-    
+
     if command not in commands:
         logger.error(f"❌ Comando desconocido: {command}")
         print_help()
         return 1
-    
+
     return commands[command]()
 
 

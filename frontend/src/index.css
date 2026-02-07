@@ -1,4 +1,13 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+@theme {
+  --color-primary: var(--color-primary, #264192);
+  --color-secondary: var(--color-secondary, #ffdd00);
+  --color-accent: var(--color-accent, #ffffff);
+  
+  --font-sans: "Poppins", system-ui, sans-serif;
+}
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
@@ -10,7 +19,7 @@
   }
 }
 
-/* Standard CSS Variables (Fixes IDE warning for @theme) */
+/* Fallback for variables if not set by JS */
 :root {
   --color-primary: #264192;
   --color-secondary: #ffdd00;

@@ -12,6 +12,7 @@ import { Plus, Edit2, KeyRound, Save, User as UserIcon, Shield, Loader2 } from "
 
 // Importar API y Contexto
 import * as api from "../api";
+import { useUI } from "../components/UIContext";
 import type { User } from "../types";
 // Importar los DTOs de Intención (definidos en types.ts)
 import type { UserCreateRequest, UserUpdateRequest } from "../types";
@@ -76,17 +77,17 @@ export default function UserManagementModule() {
         return api.updateUser(id, data as UserUpdateRequest);
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      alert(
+      await alert(
         variables.isNew
           ? "✓ Usuario creado exitosamente."
           : "✓ Usuario actualizado exitosamente."
       );
       handleCloseForm();
     },
-    onError: (err: any) => {
-      alert("Error guardando usuario: " + (err.message || err));
+    onError: async (err: any) => {
+      await alert("Error guardando usuario: " + (err.message || err));
     },
   });
 
@@ -382,6 +383,7 @@ const UserFormModal = ({
   ) => void;
   onCancel: () => void;
 }) => {
+  const { alert } = useUI();
   const [formData, setFormData] = useState({
     username: user?.username || "",
     full_name: user?.full_name || "",
@@ -403,7 +405,7 @@ const UserFormModal = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const payload: Partial<UserCreateRequest | UserUpdateRequest> = {
@@ -417,7 +419,7 @@ const UserFormModal = ({
     const isNew = !user;
     if (isNew) {
       if (formData.plain_password.length < 8) {
-        alert("La contraseña debe tener al menos 8 caracteres.");
+        await alert("La contraseña debe tener al menos 8 caracteres.");
         return;
       }
       (payload as UserCreateRequest).plain_password = formData.plain_password;
@@ -535,23 +537,24 @@ const PasswordResetModal = ({
   user: User;
   onClose: () => void;
 }) => {
+  const { alert } = useUI();
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 8) {
-      alert("La contraseña debe tener al menos 8 caracteres.");
+      await alert("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
     setLoading(true);
     try {
       await api.adminResetPassword(user.id, newPassword);
-      alert("✓ Contraseña reseteada exitosamente.");
+      await alert("✓ Contraseña reseteada exitosamente.");
       onClose(); // Cierra el modal
     } catch (e: any) {
-      alert("Error reseteando contraseña: " + e.message);
+      await alert("Error reseteando contraseña: " + e.message);
     } finally {
       setLoading(false);
     }

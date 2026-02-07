@@ -10,7 +10,7 @@ import logging
 import os
 import random
 import secrets
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from typing import Any
 
@@ -217,7 +217,7 @@ class UserService:
             "sub": user.id,
             "username": user.username,
             "roles": user.roles,
-            "exp": datetime.now() + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES),
+            "exp": datetime.now(UTC) + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES),
         }
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         logger.info(f"JWT creado para usuario: {user.username}")

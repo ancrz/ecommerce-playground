@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
+
 # Ontological Adaptation: Relative import for ecommerce-playground structure (same directory)
 from .i18n import detect_language, translate
 

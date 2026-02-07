@@ -9,10 +9,12 @@ import { Save, Package, Building, Palette, DollarSign, TrendingUp, Users, Percen
 
 // Importar API y Contexto
 import * as api from '../api';
+import { useUI } from '../components/UIContext';
 import type { Customization } from '../types';
 
 // Importar componentes reutilizables
 import { Select, TextArea, ColorPicker } from '../components/FormControls';
+import { TouchButton } from '../components/common/TouchButton';
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = '';
@@ -22,25 +24,26 @@ interface ThemeModuleProps {
 }
 
 export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
+  const { alert } = useUI();
   const [custom, setCustom] = useState<Partial<Customization>>({});
   const [saving, setSaving] = useState(false);
   
   // Cargar datos al montar
   useEffect(() => {
-    api.getCustomization().then(setCustom).catch(err => alert("Error cargando config: " + err.message));
-  }, []);
+    api.getCustomization().then(setCustom).catch(async err => await alert("Error cargando config: " + err.message));
+  }, [alert]);
   
   const handleSave = async () => {
     setSaving(true);
     try {
       // Llama a la API (Módulo 2)
       const updatedCustom = await api.updateCustomization(custom);
-      alert('✓ Personalización actualizada');
+      await alert('✓ Personalización actualizada');
       setCustom(updatedCustom);
       // Forzar refresh global (aplica CSS y fuentes)
       onUpdate(); 
     } catch (error: any) {
-      alert('Error guardando: ' + error.message);
+      await alert('Error guardando: ' + error.message);
     }
     setSaving(false);
   };
@@ -55,9 +58,9 @@ export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
       const updatedCustom = await api.uploadModuleIcon(moduleName, file);
       setCustom(updatedCustom); // Actualizar estado local con todos los datos
       onUpdate(); // Refrescar AdminPanel.tsx (para mostrar el nuevo icono)
-      alert(`✓ Icono de ${moduleName} actualizado`);
+      await alert(`✓ Icono de ${moduleName} actualizado`);
     } catch (error: any) {
-      alert(`Error subiendo icono: ${error.message}`);
+      await alert(`Error subiendo icono: ${error.message}`);
     }
     setSaving(false);
   };
@@ -169,15 +172,16 @@ export default function ThemeModule({ onUpdate }: ThemeModuleProps) {
       
       <div className="md:col-span-2 text-right mt-6">
         {/* REFACTOR FASE 4: Botón Primario */}
-        <button 
+        <TouchButton 
           onClick={handleSave} 
           disabled={saving} 
-          className="btn-primary"
+          variant="primary"
+          icon={Save}
           data-testid="theme-save-button"
+          className="ml-auto" // Align right
         >
-          <Save size={18} />
           {saving ? 'Guardando...' : 'Guardar Cambios'}
-        </button>
+        </TouchButton>
       </div>
     </div>
   );

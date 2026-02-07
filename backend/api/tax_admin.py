@@ -86,7 +86,7 @@ async def create_region(
     try:
         return await service.create_region(name, country, state, city, zip_code)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/regions/{region_id}", response_model=Region, dependencies=[Depends(is_finance_manager)])  # RBAC
@@ -106,7 +106,7 @@ async def update_region(
             raise HTTPException(status_code=404, detail="Región no encontrada.")
         return updated_region
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete(
@@ -123,7 +123,7 @@ async def delete_region(
     try:
         return await service.delete_region(region_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # --- Endpoints de Tasas de Impuesto (Protegidos) ---
@@ -157,7 +157,7 @@ async def create_tax_rate(
     try:
         return await service.create_tax_rate(name, region_id, Decimal(str(rate)), priority)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put("/tax-rates/{tax_rate_id}", response_model=TaxRate, dependencies=[Depends(is_finance_manager)])  # RBAC
@@ -176,7 +176,7 @@ async def update_tax_rate(
             raise HTTPException(status_code=404, detail="Tasa de impuesto no encontrada.")
         return updated_rate
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete(
@@ -193,4 +193,4 @@ async def delete_tax_rate(
     try:
         return await service.delete_tax_rate(tax_rate_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e

@@ -10,14 +10,13 @@ en backend/database/manager.py para compatibilidad.
 Para migraciones futuras, considerar migrar a un solo archivo SQLite
 o usar SQLAlchemy ORM completo.
 """
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
-from alembic import context
 import os
 import sys
+from logging.config import fileConfig
+
+from sqlalchemy import MetaData, engine_from_config, pool
+
+from alembic import context
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,9 +34,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Add your model's MetaData object here for 'autogenerate' support
-# from backend.models import Base
-# target_metadata = Base.metadata
-target_metadata = None
+
+target_metadata = MetaData()
 
 
 def run_migrations_offline() -> None:
@@ -77,7 +75,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
+            connection=connection,
             target_metadata=target_metadata,
             render_as_batch=True,  # Required for SQLite ALTER TABLE support
         )

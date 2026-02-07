@@ -151,7 +151,7 @@ async def set_base_currency(currency_id: str, service: FinanceService = Depends(
 async def delete_currency(currency_id: str, service: FinanceService = Depends(get_finance_service)):
     """
     Desactivar una moneda.
-    REGLA SAP: No se puede eliminar la moneda base.
+    REGLA: No se puede eliminar la moneda base.
     (Protegido: 'admin', 'finance_manager')
     """
     try:

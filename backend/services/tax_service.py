@@ -64,7 +64,7 @@ class TaxService:
             return region
         except Exception as e:
             logger.error(f"Error al crear región {name}: {e}", exc_info=True)
-            raise ValueError(f"Error creando región (¿nombre duplicado?): {str(e)}")
+            raise ValueError(f"Error creando región (¿nombre duplicado?): {str(e)}") from e
 
     async def get_regions(self, active_only: bool = True) -> list[Region]:
         """Obtiene todas las regiones fiscales"""

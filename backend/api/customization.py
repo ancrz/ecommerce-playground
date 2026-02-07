@@ -39,12 +39,12 @@ async def update_customization(
     try:
         return await service.update_customization(updates)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al actualizar customization: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al actualizar la base de datos: {e}"
-        )
+        ) from e
 
 
 @router.post("/icon/{module_name}", response_model=Customization)
@@ -61,7 +61,7 @@ async def upload_module_icon(
         file_data = await file.read()
         return await service.upload_module_icon(module_name, file_data, file.filename)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error procesando imagen: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error procesando imagen: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error procesando imagen: {e}") from e

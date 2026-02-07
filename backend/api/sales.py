@@ -39,10 +39,10 @@ async def complete_sale(
         sale = await service.complete_sale(cart_id, payment_details, username)
         return sale
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         # Captura genérica (ej. error de BD)
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {e}") from e
 
 
 @router.post("/{cart_id}/cancel", response_model=dict[str, str])
@@ -54,7 +54,7 @@ async def cancel_sale(
         username = current_user.get("username", "admin")
         return await service.cancel_sale(cart_id, username)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/daily", response_model=DailyReport, dependencies=[Depends(is_sales_manager)])
@@ -76,4 +76,4 @@ async def close_day(current_user: dict = Depends(get_current_user), service: Sal
         return await service.close_day_report(username)
     except ValueError as e:
         # Error si el día ya fue cerrado
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

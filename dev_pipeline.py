@@ -133,7 +133,7 @@ def rebuild_schema_hard():
     else:
         logger.warning("⚠️ No se encontró scripts/seed_data.py")
 
-    logger.success("✓ Reset completo finalizado.")
+    logger.info("✓ Reset completo finalizado.")
 
 
 def sync_soft():
@@ -147,17 +147,17 @@ def sync_soft():
     logger.info("Detectando cambios (Alembic autogenerate)...")
     # Capturamos output para ver si hubo cambios
     try:
+        # Asegurar que el directorio de versiones existe
+        versions_dir = PROJECT_ROOT / "alembic" / "versions"
+        versions_dir.mkdir(parents=True, exist_ok=True)
+
         output = run_command(
             [python_exe, "-m", "alembic", "revision", "--autogenerate", "-m", migration_name],
             cwd=PROJECT_ROOT,
             capture_output=True,
         )
 
-        # Analizamos output (Alembic no devuelve error code 1 si no hay cambios, pero imprime mensajes)
-        # Una forma más segura es ver si se creó un archivo en alembic/versions
-        # Pero por ahora confiamos en el upgrade.
-
-        # En versiones modernas, si no hay cambios, a veces no crea archivo o dice "No changes detected"
+        # Analizamos output
         if "No changes in schema detected" in output:
             logger.info("✓ Sin cambios pendientes en modelos.")
         else:
@@ -166,7 +166,9 @@ def sync_soft():
 
     except Exception as e:
         logger.error(f"Error en autogenerate: {e}")
-        sys.exit(1)
+        # No salimos con error fatal aquí para permitir que el pipeline siga si es posible
+        # o al menos dar un mensaje claro.
+        logger.warning("⚠️ La sincronización automática falló. Verifica alembic/env.py y tus modelos.")
 
 
 def regenerate_frontend():

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Session Management
+    JWT_EXPIRATION_HOURS: int = Field(24, validation_alias="JWT_EXPIRATION_HOURS")
     SESSION_EXPIRE_MINUTES: int = 60
     GUEST_SESSION_EXPIRE_MINUTES: int = 43200  # 30 days
 
@@ -48,6 +49,10 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = []
 
     def model_post_init(self, __context):
+        # Calcular minutos desde horas
+        if self.JWT_EXPIRATION_HOURS:
+            self.SESSION_EXPIRE_MINUTES = self.JWT_EXPIRATION_HOURS * 60
+
         # Asegurar que CORS_ORIGINS use el puerto correcto cargado de env
         if not self.CORS_ORIGINS:
             self.CORS_ORIGINS = [
@@ -58,7 +63,7 @@ class Settings(BaseSettings):
         # Sincronizar BACKEND_URL si el puerto cambió pero la URL no
         if f":{self.PORT}" not in self.BACKEND_URL and "localhost" in self.BACKEND_URL:
              self.BACKEND_URL = f"http://localhost:{self.PORT}"
-        
+
         # Sincronizar API_DOMAIN
         if "localhost" in self.API_DOMAIN and f":{self.PORT}" not in self.API_DOMAIN:
             self.API_DOMAIN = f"localhost:{self.PORT}"

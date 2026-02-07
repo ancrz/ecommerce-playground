@@ -92,7 +92,7 @@ class CustomizationService:
             return await self.get_customization()
         except Exception as e:
             logger.error(f"Error al actualizar customization: {e}", exc_info=True)
-            raise ValueError(f"Error al actualizar la base de datos: {e}")
+            raise ValueError(f"Error al actualizar la base de datos: {e}") from e
 
     async def upload_module_icon(self, module_name: str, file_data: bytes, original_filename: str) -> Customization:
         """

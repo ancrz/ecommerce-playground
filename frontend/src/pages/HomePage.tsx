@@ -106,7 +106,7 @@ function ProductSlider({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {visibleProducts.map((product) => (
           <div
             key={product.id}
@@ -250,20 +250,23 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Barra de Búsqueda */}
-      <div className="bg-white shadow-sm py-6 mb-8 rounded-lg">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Buscar productos por nombre, SKU o descripción..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              data-testid="search-input"
-            />
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-12">
+      {/* Barra de Búsqueda Responsive */}
+      <div className="bg-white shadow-sm p-4 md:py-6 mb-8 rounded-xl border border-gray-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="Buscar por nombre, SKU..."
+                className="w-full pl-11 pr-4 py-3 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all"
+                data-testid="search-input"
+              />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            </div>
             <button
               onClick={handleSearch}
               disabled={loadingSearch}
@@ -271,15 +274,14 @@ export default function HomePage() {
                 backgroundColor: customization?.secondary_color || "#ffdd00",
                 color: "#000",
               }}
-              className="px-6 py-3 rounded-lg hover:opacity-90 transition font-semibold flex items-center gap-2 disabled:opacity-50"
+              className="px-8 py-3 rounded-xl hover:opacity-90 transition font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm active:scale-95"
               data-testid="search-button"
             >
               {loadingSearch ? (
                 <Loader2 className="animate-spin" />
               ) : (
-                <Search size={20} />
+                "Buscar"
               )}
-              Buscar
             </button>
           </div>
         </div>

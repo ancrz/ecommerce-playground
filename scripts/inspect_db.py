@@ -1,6 +1,6 @@
-import sqlite3
-import os
 import json
+import os
+import sqlite3
 import sys
 
 if len(sys.argv) < 2:
@@ -37,7 +37,7 @@ for table_name_tuple in tables:
         continue
 
     for row in rows:
-        row_dict = dict(zip(column_names, row))
+        row_dict = dict(zip(column_names, row, strict=False))
         print(json.dumps(row_dict, indent=2, default=str)) # default=str to handle datetime objects
 
 conn.close()

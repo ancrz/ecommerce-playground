@@ -15,6 +15,7 @@ import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2, Package, Ta
 import * as api from "../api";
 import { useApp } from "../App";
 import { useFeedback } from "../components/ui/FeedbackModal";
+import { useUI } from "../components/UIContext";
 import type { Product, Currency } from "../types";
 // Importar los DTOs de Intención (deben estar en types.ts)
 import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
@@ -27,6 +28,7 @@ const SERVER_URL = "";
 
 // --- Componente Principal del Módulo ---
 export default function ProductsModule() {
+  const { alert } = useUI();
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [refreshKey, setRefreshKey] = useState(0); // Para forzar recarga de lista
@@ -182,7 +184,8 @@ function ProductList({
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
-  const { showToast, confirm } = useFeedback();
+  const { showToast } = useFeedback();
+  const { confirm } = useUI();
 
   // Wrap loadProducts in useCallback to fix dependency warnings
   const loadProducts = useCallback(async () => {
@@ -212,14 +215,7 @@ function ProductList({
 
   const handleDelete = async (productId: string, productName: string) => {
      // ... (mismo handler)
-      const confirmed = await confirm({
-      title: 'Eliminar Producto',
-      message: `¿Eliminar "${productName}"? Esta acción no se puede deshacer.`,
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar',
-      type: 'danger',
-      
-    });
+      const confirmed = await confirm(`¿Eliminar "${productName}"? Esta acción no se puede deshacer.`, 'Eliminar Producto');
     
     if (!confirmed) return;
     
@@ -434,6 +430,7 @@ function ProductForm({
   isSaving: boolean;
   selectedCurrency: Currency | null;
 }) {
+  const { alert } = useUI();
   // Initialize state directly. The 'key' on the component instance handles resets.
   const [formData, setFormData] = useState<Partial<Product>>(product || {
     name: "",
@@ -513,9 +510,9 @@ function ProductForm({
          <button
             type="button"
             className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => {
+            onClick={async () => {
                 if (!formData.id) {
-                    alert("Guarda el producto primero para gestionar imágenes");
+                    await alert("Guarda el producto primero para gestionar imágenes");
                     return;
                 }
                 setActiveTab('images');
@@ -725,6 +722,7 @@ function ProductForm({
 
 // --- Componente: Gestor de Imágenes (Galería) ---
 function ProductImageManager({ productId }: { productId: string }) {
+  const { confirm } = useUI();
   const [images, setImages] = useState<ProductImage[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useFeedback();
@@ -769,7 +767,7 @@ function ProductImageManager({ productId }: { productId: string }) {
   };
 
   const handleDelete = async (imageId: string) => {
-    if (!confirm("¿Eliminar esta imagen?")) return;
+    if (!await confirm("¿Eliminar esta imagen?")) return;
     try {
       await deleteProductImage(productId, imageId);
       showToast("Imagen eliminada", "success");

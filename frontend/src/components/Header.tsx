@@ -67,63 +67,73 @@ export default function Header() {
     <header style={{
       backgroundColor: primaryColor,
       color: accentColor,
-      padding: '1rem 2rem',
       boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
-    }} data-testid="header-public">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-4">
-          {/* REFACTOR: Mostrar Isotipo (Siempre visible, o solo móvil? Usuario dice: mobile solo isotipo) */}
-          {businessInfo?.icon_url && (
-            <img 
-              src={`${SERVER_URL}${businessInfo.icon_url}?t=${businessInfo.updated_at}`} 
-              alt="Isotipo" 
-              className="h-8 w-8 object-contain" 
-            />
-          )}
+    }} className="py-4 px-6 md:px-8" data-testid="header-public">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <Link to="/" className="flex items-center gap-4">
+            {/* Isotipo (Always visible) */}
+            {businessInfo?.icon_url && (
+              <img 
+                src={`${SERVER_URL}${businessInfo.icon_url}?t=${businessInfo.updated_at}`} 
+                alt="Isotipo" 
+                className="h-8 w-8 object-contain" 
+              />
+            )}
 
-          {/* REFACTOR: Mostrar Logo (Oculto en móvil, visible en desktop) */}
-          {businessInfo?.logo_url ? (
-            <img 
-              src={`${SERVER_URL}${businessInfo.logo_url}?t=${businessInfo.updated_at}`} 
-              alt="Logo" 
-              className="h-12 w-auto object-contain hidden md:block" 
-            />
-          ) : (
-             /* Fallback: Si no hay logo, mostrar texto solo en desktop si hay isotipo */
-             !businessInfo?.icon_url && <h1 className="text-2xl font-bold">{businessInfo?.name || 'E-Commerce Core'}</h1>
-          )}
-        </Link>
+            {/* Logo (Desktop only) */}
+            {businessInfo?.logo_url ? (
+              <img 
+                src={`${SERVER_URL}${businessInfo.logo_url}?t=${businessInfo.updated_at}`} 
+                alt="Logo" 
+                className="h-10 w-auto object-contain hidden md:block" 
+              />
+            ) : (
+              !businessInfo?.icon_url && <h1 className="text-xl font-bold">{businessInfo?.name || 'E-Commerce'}</h1>
+            )}
+          </Link>
+
+          {/* Mobile Cart/Login (Simplified) */}
+          <div className="flex items-center gap-4 md:hidden">
+             <button onClick={showCartModal} className="relative p-2">
+                <ShoppingCart size={24} />
+                {cartItemCount > 0 && <span style={{ backgroundColor: secondaryColor, color: '#000' }} className="absolute -top-1 -right-1 text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">{cartItemCount}</span>}
+             </button>
+             {user ? (
+               <Link to={accountLink} className="p-2 bg-white/20 rounded-lg"><User size={20} /></Link>
+             ) : (
+               <button onClick={showLoginModal} className="p-2 bg-white/20 rounded-lg"><User size={20} /></button>
+             )}
+          </div>
+        </div>
         
-        {/* Search Bar - Visible on Desktop, Hidden on Mobile (Mobile uses BottomNav Search) */}
-        <div className="flex-1 max-w-xl mx-8 hidden md:block">
+        {/* Search Bar - Responsive */}
+        <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-none">
           <form onSubmit={handleSearch} className="relative group">
              <input 
                type="text" 
                placeholder="Buscar productos..." 
                value={searchTerm}
                onChange={(e) => setSearchTerm(e.target.value)}
-               className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all"
+               className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all text-sm md:text-base"
              />
              <button 
                type="submit"
                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
              >
-               <Search size={20} />
+               <Search size={18} />
              </button>
           </form>
         </div>
 
-        <div className="flex items-center gap-6">
-          {/* Selector de Moneda (Oculto en móvil si no cabe, o visible siempre? Dejémoslo hidden md:block si es secundario, o visible) 
-              Industry standard: Currency usually in footer or menu on mobile. Let's hide on small screens to save space. */}
-          <div className="hidden md:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-6">
+          <div className="flex items-center gap-2">
             <select
-              // REFACTOR FASE 3: Usar el objeto
               value={selectedCurrency?.id || ''}
               onChange={handleCurrencyChange}
-              className="px-3 py-2 rounded-lg text-gray-800 focus:ring-2 focus:ring-yellow-400 border-none"
+              className="px-3 py-2 rounded-lg text-gray-800 text-sm focus:ring-2 focus:ring-yellow-400 border-none"
               data-testid="currency-select"
-              disabled={!selectedCurrency} // Deshabilitar mientras carga
+              disabled={!selectedCurrency}
             >
               {currencies.map(currency => (
                 <option key={currency.id} value={currency.id}>
@@ -133,10 +143,9 @@ export default function Header() {
             </select>
           </div>
           
-          {/* Botón de Carrito (Visible en Desktop, en Móvil está en BottomBar) */}
           <button
             onClick={showCartModal}
-            className="relative p-2 hover:bg-white/10 rounded-lg transition hidden md:block" 
+            className="relative p-2 hover:bg-white/10 rounded-lg transition" 
             data-testid="cart-button"
           >
             <ShoppingCart size={24} />
@@ -149,35 +158,29 @@ export default function Header() {
             )}
           </button>
           
-          {/* Lógica de Autenticación (RBAC) - Desktop Only (Mobile uses BottomNav) */}
           {user ? (
-            <div className="hidden md:flex items-center gap-4">
-                {/* REFACTOR: Enlace al Panel de Usuario o Admin */}
+            <div className="flex items-center gap-4">
                 <Link 
                   to={accountLink}
-                  data-testid="account-link"
-                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition"
+                  className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm whitespace-nowrap"
                 >
-                    {hasAdminRole ? <Shield size={20} /> : <User size={20} />}
+                    {hasAdminRole ? <Shield size={18} /> : <User size={18} />}
                     {accountLabel}
                 </Link>
                 <button
                     onClick={handleLogout}
-                    data-testid="logout-button"
-                    className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition"
+                    className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm"
                 >
-                    <LogOut size={20} />
-                    Salir
+                    <LogOut size={18} />
                 </button>
             </div>
           ) : (
             <button
               onClick={showLoginModal}
-              data-testid="login-button"
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition"
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition text-sm"
             >
-              <User size={20} />
-              <span className="hidden sm:inline">Admin</span>
+              <User size={18} />
+              <span>Admin</span>
             </button>
           )}
         </div>

@@ -432,6 +432,8 @@ class DatabaseManager:
                     conn = await aiosqlite.connect(db_path)
                     conn.row_factory = aiosqlite.Row
                     self._connections[chunk_name] = conn
+                    await conn.execute("PRAGMA journal_mode=WAL;")  # Enable WAL for concurrency
+                    await conn.execute("PRAGMA synchronous=NORMAL;") # Faster writes
                     await conn.execute("PRAGMA foreign_keys = OFF;")
 
                     if chunk_name in _SCHEMAS_SQLITE:
@@ -446,8 +448,16 @@ class DatabaseManager:
                                     logger.warning(f"Aviso migración SQLite: {e}")
                                 else:
                                     raise
+
+                        # --- Índices de Optimización (SQLite) ---
+                        if chunk_name == "sales":
+                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);")
+                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_region ON sales(region_id);")
+                        elif chunk_name == "cart":
+                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_carts_customer ON carts(customer_id);")
+
                         await conn.commit()
-                    logger.info(f"Chunk (SQLite) '{chunk_name}' [conectado] en {db_path}")
+                    logger.info(f"Chunk (SQLite) '{chunk_name}' [conectado, WAL enabled] en {db_path}")
                 except Exception as e:
                     logger.error(f"Error inicializando chunk (SQLite) '{chunk_name}' en {db_path}: {e}", exc_info=True)
                     raise

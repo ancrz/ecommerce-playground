@@ -40,14 +40,14 @@ from .database.manager import DatabaseManager
 from .services.business_service import BusinessService
 from .services.cart_service import CartService
 from .services.customization_service import CustomizationService
+from .services.email_service import EmailService  # Nuevo
 from .services.finance_service import FinanceService
 from .services.image_service import ImageService
+from .services.invoice_service import InvoiceService  # Nuevo
 from .services.product_service import ProductService
 from .services.sales_service import SalesService
 from .services.tax_service import TaxService
 from .services.user_service import UserService
-from .services.email_service import EmailService  # Nuevo
-from .services.invoice_service import InvoiceService  # Nuevo
 
 # Configuración de Logging del Backend (Moved to avoid Import warnings)
 logging.basicConfig(

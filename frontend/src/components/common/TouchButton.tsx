@@ -54,7 +54,7 @@ export const TouchButton: React.FC<TouchButtonProps> = ({
   
   // Variant-specific styles
   const variantClasses = {
-    primary: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg shadow-sm',
+    primary: 'bg-primary hover:opacity-90 active:scale-95 text-accent rounded-lg shadow-sm',
     secondary: 'bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 border border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg',
     ghost: 'bg-transparent hover:bg-gray-100 active:bg-gray-200 dark:hover:bg-slate-700 dark:active:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg',
     outline: 'bg-transparent border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg',

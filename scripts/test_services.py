@@ -1,21 +1,30 @@
 import asyncio
+import logging
 import sys
 from pathlib import Path
-import logging
+
+# Agregar el directorio raíz del proyecto al path para que las importaciones absolutas funcionen
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from create_dummy_data import (  # noqa: E402
+    create_dummy_admin_user,
+    create_dummy_currencies,
+    create_dummy_products,
+    create_dummy_tax_region,
+    reset_database_files,
+)
+
+from backend.database.manager import DatabaseManager  # noqa: E402
+from backend.services.finance_service import FinanceService  # noqa: E402
+from backend.services.product_service import ProductService  # noqa: E402
+from backend.services.tax_service import TaxService  # noqa: E402
+from backend.services.user_service import UserService  # noqa: E402
 
 # --- Configuración ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Agregar el directorio raíz del proyecto al path para que las importaciones absolutas funcionen
-sys.path.insert(0, str(Path(__file__).parent))
-
-from backend.database.manager import DatabaseManager
-from backend.services.product_service import ProductService
-from backend.services.user_service import UserService
-from backend.services.finance_service import FinanceService
-from backend.services.tax_service import TaxService
-from create_dummy_data import create_dummy_admin_user, create_dummy_currencies, create_dummy_tax_region, create_dummy_products, reset_database_files
 
 async def main():
     """

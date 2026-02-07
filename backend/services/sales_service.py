@@ -71,7 +71,7 @@ class SalesService:
         except ValueError as e:
             logger.error(f"Error de stock al completar venta {cart_id}: {e}")
             # (En un sistema real, aquí iría una lógica de "rollback" de transacción)
-            raise ValueError(f"Error de inventario: {e}")
+            raise ValueError(f"Error de inventario: {e}") from e
 
         # 3. Recalcular impuestos (IGTF) segun ID de moneda (si aplica)
         # Usamos el currency_id del carrito.
@@ -103,7 +103,7 @@ class SalesService:
             "sales",
             """
             INSERT INTO sales (
-                id, cart_id, customer_name, customer_id, items, currency_id, 
+                id, cart_id, customer_name, customer_id, items, currency_id,
                 payment_details, status, completed_by, completed_at,
                 region_id, subtotal, tax_amount, igtf_amount, total_with_tax
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -131,7 +131,7 @@ class SalesService:
         await self.db_manager.execute(
             "cart",
             """
-            UPDATE carts SET status = 'completed', qr_code = NULL 
+            UPDATE carts SET status = 'completed', qr_code = NULL
             WHERE id = ?
             """,
             (cart_id,),
@@ -162,7 +162,7 @@ class SalesService:
         await self.db_manager.execute(
             "cart",
             """
-            UPDATE carts SET status = 'cancelled', qr_code = NULL 
+            UPDATE carts SET status = 'cancelled', qr_code = NULL
             WHERE id = ?
             """,
             (cart_id,),
@@ -177,8 +177,8 @@ class SalesService:
         rows = await self.db_manager.fetchall(
             "sales",
             """
-            SELECT * FROM sales 
-            WHERE DATE(completed_at) = ? 
+            SELECT * FROM sales
+            WHERE DATE(completed_at) = ?
             ORDER BY completed_at DESC
             """,
             (today,),

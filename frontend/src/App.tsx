@@ -22,6 +22,7 @@ import PasswordResetValidatePage from "./pages/PasswordResetValidatePage"; // ¡
 import LoginModal from "./components/LoginModal";
 import CartModal from "./components/CartModal";
 import { ToastProvider } from "./components/ui/Toast";
+import { UIProvider } from "./components/UIContext";
 
 // Importar API y Tipos
 import * as api from "./api";
@@ -102,7 +103,9 @@ export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <ToastProvider>
-        <AppContent />
+        <UIProvider>
+          <AppContent />
+        </UIProvider>
       </ToastProvider>
     </BrowserRouter>
   );
@@ -216,7 +219,7 @@ function AppContent() {
           "Error crítico: No se pudo crear un carrito nuevo.",
           error
         );
-        alert("Error crítico: No se pudo inicializar el carrito de compras.");
+        await alert("Error crítico: No se pudo inicializar el carrito de compras.");
       }
     };
 

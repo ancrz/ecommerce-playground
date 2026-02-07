@@ -16,7 +16,7 @@ import { useApp } from '../App';
 import { useFeedback } from './ui/FeedbackModal';
 
 // Importar componentes reutilizables
-import { Modal } from './Modal';
+import { ResponsiveModal } from './common/ResponsiveModal';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -123,7 +123,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   // VISTA DE QR (CHECKOUT)
   if (showQR && cart && qrCode) {
     return (
-      <Modal title="📱 Código de Pedido" isOpen={isOpen} onClose={handleClose} size="md">
+      <ResponsiveModal title="Código de Pedido" isOpen={isOpen} onClose={handleClose} size="md" icon={<QrCode className="w-6 h-6" />}>
         <div className="text-center space-y-6 py-4">
           
           <div className="relative group inline-block">
@@ -181,8 +181,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   }
   
   return (
-    <Modal title="🛒 Carrito de Compras" isOpen={isOpen} onClose={handleClose} size="lg">
-      <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-2" data-testid="cart-items-list">
+    <ResponsiveModal title="Carrito de Compras" isOpen={isOpen} onClose={handleClose} size="lg" icon={<ShoppingBag className="w-6 h-6" />}>
+      <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-2" data-testid="cart-items-list">
         {!isEmpty ? (
           cart.items.map(item => {
             const isItemLoading = loading === item.product_id;
@@ -190,46 +190,62 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
             return (
               <div 
                 key={item.product_id} 
-                className={`flex gap-4 p-3 rounded-lg border transition ${
-                  isItemLoading ? 'bg-gray-50 opacity-70' : 'bg-white hover:bg-gray-50'
+                className={`flex flex-col sm:flex-row gap-4 p-4 rounded-xl border transition ${
+                  isItemLoading ? 'bg-gray-50 opacity-70' : 'bg-white hover:bg-gray-100 hover:shadow-sm'
                 }`}
               >
-                {/* Thumbnail (placeholder si no hay imagen) */}
-                <div className="w-16 h-16 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center overflow-hidden">
-                  <span className="text-2xl">📦</span>
+                {/* Mobile Header: Name + Trash */}
+                <div className="flex justify-between items-start sm:hidden">
+                   <h3 className="font-bold text-gray-900 truncate flex-1" title={item.product_name}>
+                    {item.product_name}
+                  </h3>
+                  <button
+                      onClick={() => handleRemoveItem(item.product_id)}
+                      disabled={isItemLoading}
+                      className="ml-2 p-1 text-red-500"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                 </div>
 
-                {/* Info del producto */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-800 truncate" title={item.product_name}>
+                {/* Thumbnail + Controls Row */}
+                <div className="flex gap-4 items-center">
+                    <div className="w-20 h-20 bg-gray-50 rounded-xl shrink-0 flex items-center justify-center overflow-hidden border">
+                      <span className="text-3xl">📦</span>
+                    </div>
+
+                    <div className="flex-1 sm:hidden flex flex-col justify-center">
+                         <p className="font-bold text-lg text-blue-700">
+                            {formatPrice(item.subtotal)}
+                        </p>
+                        <div className="flex items-center bg-gray-100 rounded-lg w-fit mt-1">
+                            <button onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)} className="p-1.5"><Minus size={14} /></button>
+                            <span className="px-2 font-bold text-sm">{item.quantity}</span>
+                            <button onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)} className="p-1.5"><Plus size={14} /></button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Desktop Info (Hidden on Mobile) */}
+                <div className="hidden sm:flex flex-1 min-w-0 flex-col justify-between">
+                  <h3 className="font-bold text-gray-800 truncate text-lg" title={item.product_name}>
                     {item.product_name}
                   </h3>
                   
-                  <p className="text-sm text-gray-500">
-                    Precio unitario: {formatPrice(item.price)}
-                  </p>
-
-                  {/* Controles de cantidad */}
-                  <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-4">
                     <div className="flex items-center bg-gray-100 rounded-lg">
                       <button
                         onClick={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
                         disabled={isItemLoading}
-                        className="p-1.5 hover:bg-gray-200 rounded-l-lg transition disabled:opacity-50"
-                        title="Reducir cantidad"
+                        className="p-1.5 hover:bg-gray-200 rounded-l-lg transition"
                       >
                         <Minus size={14} />
                       </button>
-                      
-                      <span className="w-8 text-center font-medium text-sm">
-                        {item.quantity}
-                      </span>
-                      
+                      <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
                       <button
                         onClick={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
                         disabled={isItemLoading}
-                        className="p-1.5 hover:bg-gray-200 rounded-r-lg transition disabled:opacity-50"
-                        title="Aumentar cantidad"
+                        className="p-1.5 hover:bg-gray-200 rounded-r-lg transition"
                       >
                         <Plus size={14} />
                       </button>
@@ -238,22 +254,19 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                     <button
                       onClick={() => handleRemoveItem(item.product_id)}
                       disabled={isItemLoading}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                      title="Eliminar"
+                      className="text-xs text-red-500 hover:underline"
                     >
-                      <Trash2 size={16} />
+                      Eliminar
                     </button>
                   </div>
                 </div>
 
-                {/* Subtotal del item */}
-                <div className="text-right flex flex-col justify-center">
-                  <p className="font-bold text-lg" style={{ color: 'var(--color-primary)' }}>
+                {/* Desktop Subtotal (Hidden on Mobile) */}
+                <div className="hidden sm:flex text-right flex-col justify-center min-w-[100px]">
+                  <p className="font-bold text-xl text-blue-700">
                     {formatPrice(item.subtotal)}
                   </p>
-                  {isItemLoading && (
-                    <Loader2 size={16} className="animate-spin mx-auto mt-1 text-gray-400" />
-                  )}
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Subtotal</p>
                 </div>
               </div>
             );
@@ -318,6 +331,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           </p>
         </>
       )}
-    </Modal>
+    </ResponsiveModal>
   );
 }

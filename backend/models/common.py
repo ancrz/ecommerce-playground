@@ -1,9 +1,9 @@
-import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
+
 from ..core.config import settings
 
 # URL base para generar URLs completas de imágenes

@@ -31,7 +31,7 @@ export function useStockUpdates(options: UseStockUpdatesOptions = {}) {
   useEffect(() => {
     if (!lastEvent) return;
     
-    // @ts-ignore - Event type checking
+    // @ts-expect-error - Event type checking logic
     const evt = lastEvent as any; 
 
     if (evt.type === 'stock_update' && onStockUpdate) {

@@ -84,7 +84,7 @@ Si cambias algo en el Backend (Modelos, API), ejecuta esto para actualizar el Fr
 
 ```bash
 python scripts/dev_pipeline.py
-# Regenera types.ts, hooks y validadores Zod
+# Opciones: --soft (default), --hard (reset DB), --front (solo cliente), --back (restart backend)
 ```
 
 ---
@@ -225,7 +225,7 @@ ecommerce-playground/
 
 ### 🏢 Core Modules (Admin Panel)
 
-- **Finance (SAP-like):** Multi-currency engine.
+- **Finance (Multi-currency):** Advanced engine.
 - **Tax Management:** Dynamic regional tax rules.
 - **User Management (RBAC):** Granular permissions.
 - **Product Catalogue:** Currency-aware pricing & inventory.

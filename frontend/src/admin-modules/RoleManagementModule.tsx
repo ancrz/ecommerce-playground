@@ -59,6 +59,7 @@ const PERM_LEVELS = [
 ];
 
 export default function RoleManagementModule() {
+  const { alert } = useUI();
   const [roles, setRoles] = useState<Role[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -141,7 +142,7 @@ export default function RoleManagementModule() {
       fetchRoles();
     } catch (error) {
         console.error("Error saving role:", error);
-        alert("Error al guardar el rol. Verifique que el nombre sea único.");
+        await alert("Error al guardar el rol. Verifique que el nombre sea único.");
     }
   };
 
@@ -169,7 +170,7 @@ export default function RoleManagementModule() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
@@ -177,7 +178,7 @@ export default function RoleManagementModule() {
           </h2>
           <p className="text-gray-500 mt-1">Gestione el acceso de los empleados mediante roles.</p>
         </div>
-        <Button onClick={startCreate} className="shadow-md hover:shadow-lg transition-all">
+        <Button onClick={startCreate} className="shadow-md hover:shadow-lg transition-all w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" /> Nuevo Rol
         </Button>
       </div>

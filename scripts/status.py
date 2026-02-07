@@ -9,13 +9,12 @@ Uso:
     python -m scripts.status
 """
 
-import sys
-import os
-import json
-import socket
 import logging
-from pathlib import Path
+import os
+import socket
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # --- Configuración ---
 logging.basicConfig(
@@ -30,19 +29,19 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 def load_env():
     """Carga variables de entorno desde .env."""
     env_file = PROJECT_ROOT / ".env"
-    
+
     if not env_file.exists():
         return
-    
-    with open(env_file, 'r', encoding='utf-8') as f:
+
+    with open(env_file, encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 key, _, value = line.partition('=')
-                                    key = key.strip()
-                                    value = value.strip().strip('"').strip("'")
-                                    if key:
-                                        os.environ[key] = value
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    os.environ[key] = value
 
 def is_port_in_use(port: int) -> bool:
     """Verifica si un puerto está en uso."""
@@ -57,7 +56,7 @@ def is_port_in_use(port: int) -> bool:
 def check_health(port: int, path: str = "/") -> bool:
     """Verifica si un servicio responde."""
     import urllib.request
-    
+
     try:
         with urllib.request.urlopen(f"http://localhost:{port}{path}", timeout=5) as response:
             return response.status == 200
@@ -85,59 +84,59 @@ def check_dir_exists(path: Path) -> str:
 def main():
     """Entry point principal."""
     load_env()
-    
+
     backend_port = int(os.getenv("BACKEND_PORT", "8042"))
     frontend_port = int(os.getenv("FRONTEND_PORT", "5173"))
-    
+
     print()
     print("╔════════════════════════════════════════════════════════════════╗")
     print("║          ecommerce-playground - Estado del Sistema               ║")
     print("╠════════════════════════════════════════════════════════════════╣")
     print("║                                                                ║")
-    
+
     # Servicios
     backend_running = is_port_in_use(backend_port)
     backend_healthy = check_health(backend_port, "/api/products") if backend_running else False
     frontend_running = is_port_in_use(frontend_port)
-    
+
     backend_status = "🟢 CORRIENDO" if backend_running else "🔴 DETENIDO"
     backend_health = "(healthy)" if backend_healthy else "(sin respuesta)" if backend_running else ""
     frontend_status = "🟢 CORRIENDO" if frontend_running else "🔴 DETENIDO"
-    
-    print(f"║  SERVICIOS                                                     ║")
+
+    print("║  SERVICIOS                                                     ║")
     print(f"║    Backend  (:{backend_port})  {backend_status:20} {backend_health:15}║")
     print(f"║    Frontend (:{frontend_port})  {frontend_status:20}                ║")
     print("║                                                                ║")
-    
+
     # Archivos de configuración
     env_status = "✓" if (PROJECT_ROOT / ".env").exists() else "✗"
     frontend_env_status = "✓" if (PROJECT_ROOT / "frontend" / ".env").exists() else "✗"
     venv_status = "✓" if (PROJECT_ROOT / ".venv").exists() else "✗"
     node_modules = "✓" if (PROJECT_ROOT / "frontend" / "node_modules").exists() else "✗"
-    
-    print(f"║  CONFIGURACIÓN                                                 ║")
+
+    print("║  CONFIGURACIÓN                                                 ║")
     print(f"║    .env (backend)         {env_status}                                    ║")
     print(f"║    frontend/.env          {frontend_env_status}                                    ║")
     print(f"║    .venv (Python)         {venv_status}                                    ║")
     print(f"║    node_modules           {node_modules}                                    ║")
     print("║                                                                ║")
-    
+
     # Base de datos
     db_path = PROJECT_ROOT / "data" / "database"
     db_files = list(db_path.glob("*.db")) if db_path.exists() else []
-    
-    print(f"║  BASE DE DATOS                                                 ║")
+
+    print("║  BASE DE DATOS                                                 ║")
     print(f"║    Directorio: {check_dir_exists(db_path):47}║")
     print(f"║    Archivos DB: {len(db_files):46}║")
     print("║                                                                ║")
-    
+
     # Uploads
     uploads_path = PROJECT_ROOT / "data" / "uploads"
-    
-    print(f"║  UPLOADS                                                       ║")
+
+    print("║  UPLOADS                                                       ║")
     print(f"║    Directorio: {check_dir_exists(uploads_path):47}║")
     print("║                                                                ║")
-    
+
     # URLs
     print("║  URLs                                                          ║")
     if backend_running:
@@ -148,10 +147,10 @@ def main():
     if not backend_running and not frontend_running:
         print("║    (No hay servicios corriendo)                                ║")
     print("║                                                                ║")
-    
+
     print("╚════════════════════════════════════════════════════════════════╝")
     print()
-    
+
     return 0
 
 

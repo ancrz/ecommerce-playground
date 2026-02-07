@@ -7,7 +7,7 @@
  * 2. Botones de POS (Iniciar Venta, Completar) ahora usan .btn-primary (azul)
  * en lugar del verde codificado, para seguir el tema.
  */
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   RefreshCw, FileText, Calendar, CheckCircle, XCircle, 
   Plus, Search, Package, ChevronLeft, ChevronRight,
@@ -17,6 +17,7 @@ import {
 // Importar API y Contexto
 import * as api from '../api';
 import { useApp } from '../App';
+import { useUI } from '../components/UIContext';
 import type { DailyReport, Cart, Region, Currency, Product } from '../types';
 
 // Importar componentes genéricos (asumimos que están en /components/)
@@ -28,6 +29,7 @@ import { Input, Select } from '../components/FormControls';
 
 // --- Componente Principal del Módulo ---
 export default function SalesModule() {
+  const { alert, confirm } = useUI();
   const [sales, setSales] = useState<DailyReport | null>(null);
   const [carts, setCarts] = useState<Cart[]>([]);
   const [showPOS, setShowPOS] = useState(false);
@@ -67,12 +69,12 @@ export default function SalesModule() {
   }, []);
   
   const handleCloseDay = async () => {
-    if (confirm('¿Estás seguro de cerrar el día? Esta acción genera el reporte final y no se puede revertir.')) {
+    if (await confirm('¿Estás seguro de cerrar el día? Esta acción genera el reporte final y no se puede revertir.')) {
       try {
         const report = await api.closeDay();
-        alert(`✓ Día cerrado con ${report.sales_count} ventas y un total de ${report.total.toFixed(2)}`); // (report.total es 'total_with_tax')
+        await alert(`✓ Día cerrado con ${report.sales_count} ventas y un total de ${report.total.toFixed(2)}`); // (report.total es 'total_with_tax')
         refreshAll();
-      } catch (error: unknown) { alert('Error cerrando el día: ' + (error as Error).message); }
+      } catch (error: unknown) { await alert('Error cerrando el día: ' + (error as Error).message); }
     }
   };
 
@@ -80,21 +82,21 @@ export default function SalesModule() {
     // REFACTOR: 'amount' no es necesario, el backend usa el total del carrito.
     // 'method' -> 'payment_method'
     const paymentDetails = { payment_method: "Efectivo", reference: "CAJA-01" };
-    if (!confirm(`Cobrar (Total c/ Imp): ${cart.total_with_tax.toFixed(2)} a ${cart.customer_name}?`)) return;
+    if (!await confirm(`Cobrar (Total c/ Imp): ${cart.total_with_tax.toFixed(2)} a ${cart.customer_name}?`)) return;
     try {
       await api.completeSale(cart.id, paymentDetails);
-      alert('✓ Venta completada');
+      await alert('✓ Venta completada');
       refreshAll();
-    } catch(error: unknown) { alert('Error completando venta: ' + (error as Error).message); }
+    } catch(error: unknown) { await alert('Error completando venta: ' + (error as Error).message); }
   };
 
   const handleCancelSale = async (cart: Cart) => {
-    if (!confirm(`¿Anular pedido de ${cart.customer_name}?`)) return;
+    if (!await confirm(`¿Anular pedido de ${cart.customer_name}?`)) return;
     try {
       await api.cancelSale(cart.id);
-      alert('Pedido anulado');
+      await alert('Pedido anulado');
       refreshAll();
-    } catch(error: unknown) { alert('Error anulando pedido: ' + (error as Error).message); }
+    } catch(error: unknown) { await alert('Error anulando pedido: ' + (error as Error).message); }
   };
   
   return (
@@ -145,12 +147,12 @@ export default function SalesModule() {
             </div>
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {carts.length > 0 ? carts.map(cart => (
-                <div key={cart.id} className="p-4 border rounded-lg flex justify-between items-center" data-testid={`pending-cart-${cart.id}`}>
+                <div key={cart.id} className="p-4 border rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" data-testid={`pending-cart-${cart.id}`}>
                   <div>
                     <div className="font-semibold">{cart.customer_name} <span className="text-gray-500 font-normal">({cart.customer_id})</span></div>
                     <div className="text-sm text-gray-500">Items: {cart.item_count} | Total: <span className="font-bold text-gray-800">Bs. {cart.total_with_tax.toFixed(2)}</span></div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full sm:w-auto justify-end">
                     {/* REFACTOR FASE 4: Botones de Icono (con color) */}
                     <div className="flex gap-2">
                        <TouchButton 
@@ -222,6 +224,7 @@ export default function SalesModule() {
 
 // --- Componente: Modal de "Iniciar Venta" (POS) ---
 function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComplete: () => void }) {
+  const { alert } = useUI();
   const [regions, setRegions] = useState<Region[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [cart, setCart] = useState<Cart | null>(null); // El carrito activo del POS
@@ -258,7 +261,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
           if (baseCurr) setCurrencyId(baseCurr.id);
           else if (currs.length > 0) setCurrencyId(currs[0].id);
         }
-      } catch (e: unknown) { alert("Error cargando datos: " + (e as Error).message); }
+      } catch (e: unknown) { await alert("Error cargando datos: " + (e as Error).message); }
       setLoading(false);
     };
     loadData();
@@ -266,14 +269,14 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
 
   const handleCreateCart = async () => {
     if (!regionId || !currencyId) {
-      alert("Debe seleccionar una región fiscal y una moneda.");
+      await alert("Debe seleccionar una región fiscal y una moneda.");
       return;
     }
     setLoading(true);
     try {
       const newCart = await api.createCart(customerName, customerId, regionId, currencyId);
       setCart(newCart);
-    } catch (e: unknown) { alert("Error creando carrito: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error creando carrito: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -283,7 +286,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     try {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart); 
-    } catch (e: unknown) { alert("Error añadiendo item: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error añadiendo item: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -292,9 +295,9 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     setLoading(true);
     try {
       await api.completeSale(cart.id, { payment_method: "Efectivo (POS)", reference: "CAJA-01" });
-      alert("✓ Venta de POS completada!");
+      await alert("✓ Venta de POS completada!");
       onSaleComplete(); 
-    } catch (e: unknown) { alert("Error completando venta: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error completando venta: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -322,9 +325,9 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       setCustomerId(recoveredCart.customer_id);
       
       setCart(recoveredCart);
-      alert("✓ Carrito recuperado exitosamente.");
+      await alert("✓ Carrito recuperado exitosamente.");
     } catch (e: any) {
-      alert("Error recuperando carrito: " + (e.message || "ID Inválido"));
+      await alert("Error recuperando carrito: " + (e.message || "ID Inválido"));
     } finally {
         setLoading(false);
     }
@@ -473,6 +476,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
 
 // --- Componente: Buscador de Productos (para POS) ---
 function ProductSearch({ onProductSelect }: { onProductSelect: (productId: string, quantity: number) => void }) {
+  const { alert } = useUI();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -485,7 +489,7 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (productId: strin
     setLoading(true);
     try {
       setResults(await api.searchProducts(query));
-    } catch (e: unknown) { alert("Error buscando: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error buscando: " + (e as Error).message); }
     setLoading(false);
   };
   
