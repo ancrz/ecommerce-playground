@@ -46,6 +46,8 @@ from .services.product_service import ProductService
 from .services.sales_service import SalesService
 from .services.tax_service import TaxService
 from .services.user_service import UserService
+from .services.email_service import EmailService  # Nuevo
+from .services.invoice_service import InvoiceService  # Nuevo
 
 # Configuración de Logging del Backend (Moved to avoid Import warnings)
 logging.basicConfig(
@@ -98,8 +100,13 @@ async def lifespan(app: FastAPI):
     app.state.tax_service = tax_service
     customization_service = CustomizationService(db_manager=db_manager, image_service=image_service)
     app.state.customization_service = customization_service
+    email_service = EmailService()  # Nuevo
+    app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
+    invoice_service = InvoiceService(business_service=business_service, email_service=email_service) # Nuevo (Depende de Business y Email)
+    app.state.invoice_service = invoice_service
+
     app.state.cart_service = CartService(
         db_manager=db_manager,
         product_service=product_service,
@@ -109,6 +116,8 @@ async def lifespan(app: FastAPI):
         db_manager=db_manager,
         cart_service=app.state.cart_service,
         product_service=product_service,
+        tax_service=tax_service,
+        invoice_service=invoice_service, # Inyección de dependencia
     )
     app.state.client_logs_service = None  # Placeholder if needed
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 
 from .common import BaseEntity
 
@@ -14,7 +14,6 @@ class CartItem(BaseModel):
     quantity: int = Field(..., gt=0)
     price: Decimal = Field(..., gt=0)  # Precio unitario (final_price, sin impuestos)
 
-    @computed_field
     @property
     def subtotal(self) -> Decimal:
         """Subtotal calculado (precio * cantidad)."""
@@ -34,12 +33,11 @@ class Cart(BaseEntity):
     status: str = Field(default="pending")
     currency_id: str = Field(...)  # REQUERIDO - sincronizado con frontend
     region_id: str = Field(...)  # REQUERIDO - sincronizado con frontend
-    subtotal: Decimal = Field(default=0)
-    tax_amount: Decimal = Field(default=0)
-    total_with_tax: Decimal = Field(default=0)
+    subtotal: Decimal = Field(default=Decimal(0))
+    tax_amount: Decimal = Field(default=Decimal(0))
+    total_with_tax: Decimal = Field(default=Decimal(0))
     qr_code: str | None = None
 
-    @computed_field
     @property
     def item_count(self) -> int:
         """Cantidad total de items en el carrito."""
@@ -67,7 +65,8 @@ class Sale(BaseEntity):
     completed_at: datetime = Field(default_factory=datetime.now)
     region_id: str | None = None
     subtotal: Decimal = Field(...)
-    tax_amount: Decimal = Field(...)
+    tax_amount: Decimal = Field(...)  # Total Tax (VAT + IGTF)
+    igtf_amount: Decimal = Field(default=Decimal(0))  # Porción IGTF (para mostrar en factura)
     total_with_tax: Decimal = Field(...)
 
     class Config:

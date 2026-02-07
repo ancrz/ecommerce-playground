@@ -47,10 +47,10 @@ const getAuthToken = (): string | null => {
  * Wrapper de 'fetch' para peticiones JSON autenticadas.
  * REFACTORIZADO: Acepta un 'schema' de Zod para validar la respuesta.
  */
-const authFetch = async <T>(
+export const authFetch = async <T>(
   endpoint: string, 
   options: RequestInit = {},
-  schema: ZodType<T> // Argumento de esquema Zod
+  schema: ZodType<T, any, any> // Output, Def, Input (permite que Input sea opcional si hay defaults)
 ): Promise<T> => {
   const token = getAuthToken();
   
@@ -99,7 +99,6 @@ const authFetch = async <T>(
     // Intenta parsear los datos con el esquema.
     // Si falla, lanza un error que será capturado abajo.
     return schema.parse(data);
-    return schema.parse(data);
   } catch (validationError: unknown) {
     // El "contrato" está roto. El backend envió datos inesperados.
     console.error(`Error de Validación Zod para ${endpoint}:`, validationError);
@@ -108,13 +107,12 @@ const authFetch = async <T>(
 };
 
 /**
- * Wrapper de 'fetch' para subida de archivos (FormData)
- * REFACTORIZADO: Acepta un 'schema' de Zod.
+ * Wrapper para enviar FORM DATA (archivos).
  */
-const authFetchForm = async <T>(
+export const authFetchForm = async <T>(
   endpoint: string, 
   formData: FormData,
-  schema: ZodType<T> // Argumento de esquema Zod
+  schema: ZodType<T, any, any>
 ): Promise<T> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {};
@@ -363,17 +361,22 @@ export const getCurrencies = (active_only: boolean = true): Promise<Currency[]> 
   return authFetch<Currency[]>(`/finance/currencies?active_only=${active_only}`, { method: 'GET' }, z.array(CurrencySchema)); // <-- Validar
 };
 
-export const createCurrency = (data: { name: string, symbol: string, is_base: boolean, exchange_rate: number }): Promise<Currency> => {
+export const createCurrency = (data: { name: string, symbol: string, is_base: boolean, exchange_rate: number, tax_rate?: number }): Promise<Currency> => {
   const params = new URLSearchParams();
   params.append('name', data.name);
   params.append('symbol', data.symbol);
   params.append('is_base', String(data.is_base));
   params.append('exchange_rate', String(data.exchange_rate));
+  if (data.tax_rate !== undefined) params.append('tax_rate', String(data.tax_rate));
   return authFetch<Currency>(`/finance/currencies?${params.toString()}`, { method: 'POST' }, CurrencySchema); // <-- Validar
 };
 
 export const updateCurrencyRate = (id: string, new_rate: number): Promise<Currency> => {
   return authFetch<Currency>(`/finance/currencies/${id}/rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema); // <-- Validar
+};
+
+export const updateCurrencyTaxRate = (id: string, new_rate: number): Promise<Currency> => {
+  return authFetch<Currency>(`/finance/currencies/${id}/tax-rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema);
 };
 
 export const setBaseCurrency = (id: string): Promise<{ message: string }> => {

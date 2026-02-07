@@ -58,7 +58,7 @@ async def get_price_conversion(
     try:
         return await service.convert_price_to_currency(Decimal(str(amount_in_base)), to_currency_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # --- Endpoints de Admin (Escritura Protegida por RBAC) ---
@@ -71,21 +71,26 @@ async def create_currency(
     name: str = Query(...),
     symbol: str = Query(...),
     exchange_rate: float = Query(1.0),
+    tax_rate: float = Query(0.0),
     is_base: bool = Query(False),
     service: FinanceService = Depends(get_finance_service),
 ):
     """
     Crear una nueva moneda.
-    REFACTOR: 'tax_percentage' eliminado.
+    Incluye IGTF (tax_rate).
     (Protegido: 'admin', 'finance_manager')
     """
     try:
         currency = await service.create_currency(
-            name=name, symbol=symbol, is_base=is_base, exchange_rate=Decimal(str(exchange_rate))
+            name=name,
+            symbol=symbol,
+            is_base=is_base,
+            exchange_rate=Decimal(str(exchange_rate)),
+            tax_rate=Decimal(str(tax_rate)),
         )
         return currency
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put(
@@ -104,7 +109,24 @@ async def update_exchange_rate(
             raise HTTPException(status_code=404, detail="Moneda no encontrada")
         return currency
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.put("/currencies/{currency_id}/tax-rate", response_model=Currency, dependencies=[Depends(is_finance_manager)])
+async def update_tax_rate(
+    currency_id: str, new_rate: float = Query(..., ge=0), service: FinanceService = Depends(get_finance_service)
+):
+    """
+    Actualizar la tasa de impuesto (IGTF) de una moneda.
+    (Protegido: 'admin', 'finance_manager')
+    """
+    try:
+        currency = await service.update_tax_rate(currency_id, Decimal(str(new_rate)))
+        if not currency:
+            raise HTTPException(status_code=404, detail="Moneda no encontrada")
+        return currency
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.put(
@@ -120,7 +142,7 @@ async def set_base_currency(currency_id: str, service: FinanceService = Depends(
         result = await service.set_base_currency(currency_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.delete(
@@ -135,7 +157,7 @@ async def delete_currency(currency_id: str, service: FinanceService = Depends(ge
     try:
         return await service.delete_currency(currency_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # REFACTOR: Endpoint 'set_tax' eliminado.

@@ -124,8 +124,12 @@ _SCHEMAS_POSTGRES = {
             region_id VARCHAR(36),
             subtotal NUMERIC(10, 2) NOT NULL,
             tax_amount NUMERIC(10, 2) NOT NULL,
+            igtf_amount NUMERIC(10, 2) DEFAULT 0,
             total_with_tax NUMERIC(10, 2) NOT NULL
         );
+    """,
+        """
+        ALTER TABLE sales ADD COLUMN IF NOT EXISTS igtf_amount NUMERIC(10, 2) DEFAULT 0;
     """,
         """
         CREATE TABLE IF NOT EXISTS daily_closures (
@@ -147,12 +151,16 @@ _SCHEMAS_POSTGRES = {
             symbol VARCHAR(10) NOT NULL,
             is_base BOOLEAN DEFAULT false,
             exchange_rate NUMERIC(12, 6) NOT NULL DEFAULT 1.0,
+            tax_rate NUMERIC(5, 2) DEFAULT 0,
             base_currency_id VARCHAR(36),
             is_active BOOLEAN DEFAULT true,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL
         );
-    """
+    """,
+        """
+        ALTER TABLE currencies ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5, 2) DEFAULT 0;
+    """,
     ],
     "business": [
         """
@@ -278,7 +286,6 @@ _DBS_SQLITE = {
     "sales": "sales.db",
     "finance": "finance.db",
     "business": "business.db",
-    "customization": "customization.db",
     "customization": "customization.db",
     "roles": "roles.db",
     "users": "users.db",

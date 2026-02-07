@@ -9,7 +9,15 @@ import { Plus } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
-import type { Currency } from '../../types';
+import { Currency } from '../types';
+
+interface CurrencyFormData {
+  name: string;
+  symbol: string;
+  is_base: boolean;
+  exchange_rate: number;
+  tax_rate: number;
+}
 
 // Importar componentes reutilizables
 import { Modal } from '../components/Modal';
@@ -73,6 +81,18 @@ export default function FinanceModule() {
     }
   };
 
+  const handleUpdateTaxRate = async (id: string, name: string) => {
+    const newRate = prompt(`Nueva tasa de impuesto (IGTF) para ${name} (en decimal, ej. 0.03 para 3%):`);
+    if (newRate && !isNaN(parseFloat(newRate))) {
+      try {
+        await api.updateCurrencyTaxRate(id, parseFloat(newRate));
+        loadCurrencies();
+      } catch (error: any) {
+        alert('Error actualizando IGTF: ' + error.message);
+      }
+    }
+  };
+
   const handleSetBase = async (id: string, name: string) => {
     if (confirm(`¿Está seguro de establecer ${name} como la nueva moneda base?\n\n¡ADVERTENCIA! Esta acción recalculará TODAS las demás tasas de cambio en relación a esta.`)) {
       try {
@@ -126,12 +146,13 @@ export default function FinanceModule() {
             <tr>
               <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Nombre</th>
               <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Tasa (1 [Moneda] = X [Base])</th>
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">IGTF (%)</th>
               <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={3} className="text-center p-8 text-gray-500">Cargando monedas...</td></tr>
+              <tr><td colSpan={4} className="text-center p-8 text-gray-500">Cargando monedas...</td></tr>
             ) : (
               currencies.map(c => (
                 <tr key={c.id} className="hover:bg-gray-50" data-testid={`currency-row-${c.id}`}>
@@ -140,6 +161,7 @@ export default function FinanceModule() {
                     {c.is_base && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">BASE</span>}
                   </td>
                   <td className="p-3">{c.exchange_rate.toFixed(4)}</td>
+                  <td className="p-3">{(c.tax_rate * 100).toFixed(2)}%</td>
                   <td className="p-3 text-center space-x-2 whitespace-nowrap">
                     {/* REFACTOR FASE 4: Botones de Enlace */}
                     <button 
@@ -149,6 +171,13 @@ export default function FinanceModule() {
                       data-testid={`update-rate-btn-${c.id}`}
                     >
                       Tasa
+                    </button>
+                    <button 
+                      onClick={() => handleUpdateTaxRate(c.id, c.name)} 
+                      className="btn-link text-blue-600" 
+                      data-testid={`update-tax-btn-${c.id}`}
+                    >
+                      Tax
                     </button>
                     <button 
                       onClick={() => handleSetBase(c.id, c.name)} 
@@ -178,8 +207,8 @@ export default function FinanceModule() {
 }
 
 // --- Componente: Formulario de Moneda (Interno) ---
-function CurrencyForm({ onSave, onCancel, currencies }: { onSave: (data: any) => void, onCancel: () => void, currencies: Currency[] }) {
-  const [data, setData] = useState({ name: '', symbol: '', is_base: false, exchange_rate: 1.0 });
+function CurrencyForm({ onSave, onCancel, currencies }: { onSave: (data: CurrencyFormData) => void, onCancel: () => void, currencies: Currency[] }) {
+  const [data, setData] = useState<CurrencyFormData>({ name: '', symbol: '', is_base: false, exchange_rate: 1.0, tax_rate: 0.0 });
   const baseCurrency = currencies.find(c => c.is_base);
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -202,6 +231,16 @@ function CurrencyForm({ onSave, onCancel, currencies }: { onSave: (data: any) =>
         disabled={!!baseCurrency}
         data-testid="currency-isbase-check"
       />
+      
+      <Input 
+        label="IGTF (0.03 = 3%)" 
+        type="number" 
+        step="0.01" 
+        value={data.tax_rate} 
+        onChange={(e) => setData({...data, tax_rate: parseFloat(e.target.value) || 0})} 
+        data-testid="currency-tax-input"
+      />
+
       {!data.is_base && (
         <Input 
           label={`Tasa (1 ${baseCurrency?.symbol || 'BASE'} = X ${data.symbol || 'MONEDA'})`} 

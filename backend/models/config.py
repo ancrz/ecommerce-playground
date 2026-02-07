@@ -19,6 +19,8 @@ class BusinessInfo(BaseModel):
 
     name: str = "E-Commerce"
     rif: str | None = None
+    address: str | None = None  # Dirección Fiscal
+    phone: str | None = None  # Teléfono
     contact: str | None = None
     social_networks: list[SocialNetwork] = Field(default_factory=list)  # TIPADO FUERTE
     logo_url: str | None = None
@@ -45,6 +47,12 @@ class Customization(BaseModel):
     font_family: str = "Poppins"
     custom_css: str | None = None
     updated_at: datetime = Field(default_factory=datetime.now)
+    # Fiscal Data
+    name: str | None = None
+    rif: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    # Icons
     icon_products_url: str | None = None
     icon_business_url: str | None = None
     icon_customization_url: str | None = None
