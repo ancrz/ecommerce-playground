@@ -60,7 +60,6 @@ const PERM_LEVELS = [
 
 export default function RoleManagementModule() {
   const [roles, setRoles] = useState<Role[]>([]);
-  // const [loading, setLoading] = useState(true); // Unused for now
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
@@ -99,7 +98,7 @@ export default function RoleManagementModule() {
         }
       ]);
     } finally {
-      // setLoading(false);
+      // Done
     }
   };
 
