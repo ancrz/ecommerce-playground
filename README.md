@@ -65,8 +65,8 @@ python setup.py
 
 ```bash
 python start.local.py
-# Frontend: http://localhost:5173
-# API Docs: http://localhost:8042/docs
+# Frontend: http://localhost:5173 (or FRONTEND_PORT)
+# API Docs: http://localhost:8042/docs (or BACKEND_PORT)
 ```
 
 _El script detectará puertos ocupados y limpiará procesos "zombies" automáticamente._

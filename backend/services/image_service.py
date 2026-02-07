@@ -44,7 +44,7 @@ class ImageService:
         self.icons_path = self.upload_path / "icons"
         
         self.backend_host = os.getenv("BACKEND_HOST", "http://localhost")
-        self.backend_port = os.getenv("BACKEND_PORT", "8000")
+        self.backend_port = os.getenv("BACKEND_PORT", "8042")
 
         try:
             for path in [self.products_path, self.logos_path, self.icons_path]:

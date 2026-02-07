@@ -356,7 +356,7 @@ class UserService:
         SMTP_PORT = settings.SMTP_PORT
         SMTP_USER = settings.SMTP_USER
         SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SMTP_FROM_EMAIL = settings.SMTP_FROM_EMAIL or "no-reply@farmalux.com"
+        SMTP_FROM_EMAIL = settings.SMTP_FROM_EMAIL or settings.SUPPORT_EMAIL
 
         if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD]):
             logger.error("Error de configuración de Correo: Variables SMTP no definidas.")
@@ -452,7 +452,7 @@ class UserService:
         if not user.email:
             return {"message": "El usuario no tiene email configurado."}
 
-        subject = "Tu Código de Recuperación de Farmalux"
+        subject = f"Tu Código de Recuperación de {settings.APP_NAME}"
         await self._send_email(user.email, subject, plain_token)
 
         return {"message": "Si existe una cuenta con este email, se enviará un código."}

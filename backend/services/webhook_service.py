@@ -222,7 +222,7 @@ class WebhookService:
             "X-Webhook-Event": event_type,
             "X-Webhook-Signature": signature,
             "X-Webhook-Timestamp": datetime.now().isoformat(),
-            "User-Agent": "FarmaLux-Webhook/1.0"
+            "User-Agent": "Ecommerce-Playground-Webhook/1.0"
         }
         
         for attempt in range(retry_count):

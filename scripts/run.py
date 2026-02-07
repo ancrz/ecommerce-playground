@@ -104,7 +104,7 @@ def print_help():
     """Imprime ayuda de uso."""
     help_text = """
 ╔════════════════════════════════════════════════════════════════╗
-║          farmalux-ecommerce - Sistema de Gestión               ║
+║          ecommerce-playground - Sistema de Gestión             ║
 ╠════════════════════════════════════════════════════════════════╣
 ║                                                                ║
 ║  Comandos disponibles:                                         ║

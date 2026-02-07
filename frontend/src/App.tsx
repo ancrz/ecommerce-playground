@@ -339,7 +339,7 @@ function AppContent() {
       custom.font_family || "Poppins, sans-serif";
 
     // 3. Apply custom CSS
-    const styleTagId = "farmalux-custom-css";
+    const styleTagId = "ecommerce-playground-custom-css";
     let styleTag = document.getElementById(
       styleTagId
     ) as HTMLStyleElement | null;

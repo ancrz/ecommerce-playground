@@ -1,16 +1,18 @@
 import { defineConfig } from 'orval';
 
+const BACKEND_URL = process.env.VITE_BACKEND_URL || 'http://localhost:8042';
+
 export default defineConfig({
   'ecommerce-playground': {
     input: {
-      target: 'http://localhost:8000/openapi.json',
+      target: `${BACKEND_URL}/openapi.json`,
     },
     output: {
       mode: 'tags-split',
       target: 'src/api/generated',
       schemas: 'src/api/model',
       client: 'react-query',
-      baseUrl: 'http://localhost:8000', 
+      baseUrl: BACKEND_URL, 
       override: {
         mutator: {
           path: './src/axios-instance.ts',

@@ -10,7 +10,9 @@ from pathlib import Path
 
 # --- Configuración ---
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-BACKEND_LOG_URL = "http://127.0.0.1:8042/api/health"
+import os
+BACKEND_PORT = os.getenv("BACKEND_PORT", "8042")
+BACKEND_LOG_URL = f"http://127.0.0.1:{BACKEND_PORT}/api/health"
 OPENAPI_LOCAL_PATH = PROJECT_ROOT / "docs" / "openapi.json"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
@@ -122,7 +124,7 @@ def wait_for_backend_health(timeout=30):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Farmalux Dev Pipeline Automation")
+    parser = argparse.ArgumentParser(description="Ecommerce Playground Dev Pipeline Automation")
     parser.add_argument("--static", action="store_true", help="Generar OpenAPI estáticamente (sin server)")
     parser.add_argument("--regen", action="store_true", help="Solo regenerar cliente frontend")
     parser.add_argument("--restart", action="store_true", help="Reiniciar todo el stack (Stop + Start)")
@@ -130,7 +132,7 @@ def main():
     args = parser.parse_args()
 
     print("\n==========================================")
-    print(" 🛠️  FARMALUX DEV PIPELINE v2.0")
+    print(" 🛠️  ECOMMERCE PLAYGROUND DEV PIPELINE v2.0")
     print("==========================================\n")
 
     # 1. Generación de Schema (Static es más robusto)

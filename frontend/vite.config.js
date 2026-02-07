@@ -8,7 +8,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   // URL del backend desde variable de entorno o default
-  const backendUrl = env.VITE_BACKEND_URL || 'http://127.0.0.1:8042';
+  const backendUrl = env.VITE_BACKEND_URL || 'http://localhost:8042';
+  const frontendPort = parseInt(env.FRONTEND_PORT || '5173');
   
   return {
     plugins: [react()],
@@ -18,7 +19,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 5173, // Puerto para el servidor de desarrollo de Vite
+      port: frontendPort, // Puerto para el servidor de desarrollo de Vite
       proxy: {
         // Proxy para las llamadas a la API
         '/api': {

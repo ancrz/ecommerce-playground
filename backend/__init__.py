@@ -1,5 +1,5 @@
 """
-Backend Package - farmalux-ecommerce
+Backend Package - ecommerce-playground
 ====================================
 FastAPI backend for the e-commerce platform.
 

@@ -21,7 +21,9 @@ except ImportError:
     logger.error("La librería 'websockets' no está instalada. Ejecuta: pip install websockets")
     sys.exit(1)
 
-WS_URL = "ws://localhost:8042/api/ws/events"
+import os
+PORT = os.getenv("BACKEND_PORT", "8042")
+WS_URL = f"ws://localhost:{PORT}/api/ws/events"
 
 async def test_connection():
     logger.info(f"Conectando a {WS_URL}...")

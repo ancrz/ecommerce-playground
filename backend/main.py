@@ -1,5 +1,5 @@
 """
-Farmalux E-commerce - Servidor Principal (Orquestador)
+Ecommerce Playground - Servidor Principal (Orquestador)
 REFACTORIZADO (v2.1 RBAC + Impuestos):
 - Implementa la inicialización controlada (lifespan)[cite: 70].
 - Instancia e inyecta TODOS los servicios (DI).

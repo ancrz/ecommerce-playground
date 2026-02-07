@@ -7,35 +7,17 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from ..database.manager import DatabaseManager  # Import DatabaseManager
-
 # Importar Modelos DTO
 from ..models import DailyReport, PaymentDetails, Sale
-from ..services.cart_service import CartService
-from ..services.product_service import ProductService
 
 # Importar Servicios
 from ..services.sales_service import SalesService
 
 # Importar Seguridad y Dependencias
-from ..utils.auth import get_current_user
-from ..utils.dependencies import get_cart_service, get_db_manager, get_product_service
+from ..utils.auth import get_current_user, is_sales_manager
+from ..utils.dependencies import get_sales_service
 
 router = APIRouter()
-
-# --- Inyección de Dependencias ---
-
-
-def get_sales_service(
-    db_manager: DatabaseManager = Depends(get_db_manager),
-    cart_service: CartService = Depends(get_cart_service),
-    product_service: ProductService = Depends(get_product_service),
-):
-    """
-    Inyector de dependencias para SalesService.
-    Obtiene las instancias de servicio a través de FastAPI Depends.
-    """
-    return SalesService(db_manager=db_manager, cart_service=cart_service, product_service=product_service)
 
 
 # --- Endpoints de la API de Ventas (Protegidos) ---
@@ -75,7 +57,7 @@ async def cancel_sale(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/daily", response_model=DailyReport)
+@router.get("/daily", response_model=DailyReport, dependencies=[Depends(is_sales_manager)])
 async def get_daily_sales(
     current_user: dict = Depends(get_current_user), service: SalesService = Depends(get_sales_service)
 ):
@@ -83,7 +65,7 @@ async def get_daily_sales(
     return await service.get_daily_report()
 
 
-@router.post("/close-day", response_model=dict[str, Any])
+@router.post("/close-day", response_model=dict[str, Any], dependencies=[Depends(is_sales_manager)])
 async def close_day(current_user: dict = Depends(get_current_user), service: SalesService = Depends(get_sales_service)):
     """
     Cerrar el día y generar el resumen final de ventas.

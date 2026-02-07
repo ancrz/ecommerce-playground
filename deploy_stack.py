@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Deploy Stack Script - farmalux-ecommerce
+Deploy Stack Script - ecommerce-playground
 ========================================
 Homologación de deploy-stack.sh a Python.
 Funciona como el orquestador principal de inicio y configuración.
@@ -138,7 +138,7 @@ def generate_frontend_client():
 
     # Para ejecutar Orval necesitamos el backend corriendo para bajar el OpenAPI json...
     # O podemos usar el archivo openapi.json si está en disco.
-    # El script original usa http://backend:8000/api/v1/openapi.json
+    # El script original usa http://backend:8042/api/v1/openapi.json
     # Aquí, el backend NO está corriendo todavía.
     # ESTRATEGIA:
     # 1. Intentar generar usando un archivo local si existe (docs/openapi.json).
@@ -180,7 +180,7 @@ def main():
     args = parser.parse_args()
 
     print("\n========================================")
-    print(" EFIEMPRESA / FARMALUX - DEPLOY STACK")
+    print(" EFIEMPRESA / ECOMMERCE PLAYGROUND - DEPLOY STACK")
     print("========================================\n")
 
     # 1. Check Dependencies

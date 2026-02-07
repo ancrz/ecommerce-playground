@@ -1,6 +1,6 @@
 """
 Alembic Environment Configuration
-Handles database migrations for farmalux-ecommerce.
+Handles database migrations for ecommerce-playground.
 
 NOTE: Este proyecto actualmente usa un DatabaseManager custom que
 maneja múltiples archivos SQLite (chunks). Alembic aquí se configura

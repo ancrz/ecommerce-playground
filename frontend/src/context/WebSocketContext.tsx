@@ -38,10 +38,6 @@ const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
 // Función helper para determinar URL
 const getWsUrl = () => {
-  // DEBUG hardcoded para estabilidad local
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'ws://localhost:8042/api/ws/events';
-  }
   const baseUrl = config.backendUrl; 
   const wsProtocol = baseUrl.startsWith('https') ? 'wss:' : 'ws:';
   const host = baseUrl.replace(/^https?:\/\//, '');

@@ -1,5 +1,5 @@
 [project]
-name = "farmalux-ecommerce"
+name = "ecommerce-playground"
 version = "3.0.0"
 description = "E-Commerce Platform with FastAPI Backend and React Frontend"
 readme = "README.md"
