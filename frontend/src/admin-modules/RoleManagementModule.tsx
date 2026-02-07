@@ -1,11 +1,11 @@
 
 import { useState, useEffect } from 'react';
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
-import { Switch } from "../components/ui/switch";
-import { Label } from "../components/ui/label";
-import { Badge } from "../components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { 
   Shield, 
   Plus, 
@@ -21,14 +21,14 @@ import {
   DialogTitle, 
   DialogFooter,
   DialogDescription
-} from "../components/ui/dialog";
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../components/ui/tooltip";
-import { ScrollArea } from "../components/ui/scroll-area";
+} from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AXIOS_INSTANCE as api } from '../axios-instance';
 
 interface Role {
