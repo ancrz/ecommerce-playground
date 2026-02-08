@@ -28,7 +28,8 @@ import {
   CartSchema, SaleSchema, DailyReportSchema,
   BusinessInfoSchema, CustomizationSchema,
   UserPublicSchema, TokenResponseSchema,
-  MessageResponseSchema, ProductImageSchema // Un esquema genérico para { message: "..." }
+  MessageResponseSchema, ProductImageSchema, // Un esquema genérico para { message: "..." }
+  DashboardStatsSchema, type DashboardStats
 } from './schemas';
 
 // Importar configuración centralizada
@@ -565,4 +566,10 @@ export const setMainImage = (productId: string, imageId: string): Promise<{ mess
 /** Eliminar una imagen de la galería */
 export const deleteProductImage = (productId: string, imageId: string): Promise<{ message: string }> => {
     return authFetch<{message: string}>(`/products/${productId}/images/${imageId}`, { method: 'DELETE' }, MessageResponseSchema);
+};
+
+// ==================== DASHBOARD (Analytics) ====================
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+   return authFetch<DashboardStats>('/admin/dashboard/stats', { method: 'GET' }, DashboardStatsSchema);
 };

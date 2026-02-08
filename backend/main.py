@@ -19,6 +19,7 @@ from .api import business as business_router
 from .api import cart as cart_router
 from .api import client_logs as client_logs_router
 from .api import customization as customization_router
+from .api import dashboard as dashboard_router
 from .api import finance as finance_router
 from .api import images as images_router
 from .api import products as products_router
@@ -104,7 +105,9 @@ async def lifespan(app: FastAPI):
     app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
-    invoice_service = InvoiceService(business_service=business_service, email_service=email_service) # Nuevo (Depende de Business y Email)
+    invoice_service = InvoiceService(
+        business_service=business_service, email_service=email_service
+    )  # Nuevo (Depende de Business y Email)
     app.state.invoice_service = invoice_service
 
     app.state.cart_service = CartService(
@@ -117,7 +120,7 @@ async def lifespan(app: FastAPI):
         cart_service=app.state.cart_service,
         product_service=product_service,
         tax_service=tax_service,
-        invoice_service=invoice_service, # Inyección de dependencia
+        invoice_service=invoice_service,  # Inyección de dependencia
     )
     app.state.client_logs_service = None  # Placeholder if needed
 
@@ -181,6 +184,7 @@ app.include_router(customization_router.router, prefix="/api/admin/customization
 app.include_router(images_router.router, prefix="/api/images", tags=["Images"])
 app.include_router(client_logs_router.router, prefix="/api/client-logs", tags=["Client Logs"])
 app.include_router(websocket_router.router, prefix="/api/ws", tags=["WebSocket"])
+app.include_router(dashboard_router.router, prefix="/api/admin/dashboard", tags=["Admin Dashboard"])
 
 
 # Endpoints de "Ping"
