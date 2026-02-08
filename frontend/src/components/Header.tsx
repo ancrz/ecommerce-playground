@@ -27,11 +27,12 @@ export default function Header() {
     getCartItemCount,
     showCartModal,
     showLoginModal,
+    showSearchModal, // <--- DESIGN 5
   } = useApp();
 
   const location = useLocation();
-  const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = React.useState('');
+  const traverse = useNavigate(); // Unused but kept if needed, or remove.
+  // const [searchTerm, setSearchTerm] = React.useState(''); // Removed local state
 
   const cartItemCount = getCartItemCount();
   
@@ -55,12 +56,7 @@ export default function Header() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
-    }
-  };
+  // handleSearch removed in favor of showSearchModal
 
   return (
     <header style={{
@@ -109,21 +105,13 @@ export default function Header() {
         {/* Search Bar - Responsive - Hidden on Admin */}
         {!isAdminRoute && (
           <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-0">
-            <form onSubmit={handleSearch} className="relative group">
-              <input 
-                type="text" 
-                placeholder="Buscar productos..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/10 text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-5 pr-10 focus:outline-none focus:bg-white/20 focus:ring-2 focus:ring-white/50 transition-all text-sm md:text-base"
-              />
-              <button 
-                type="submit"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white transition"
-              >
-                <Search size={18} />
-              </button>
-            </form>
+            <button 
+              onClick={showSearchModal}
+              className="w-full bg-white/10 text-white text-left border border-white/20 rounded-full py-2 px-5 focus:outline-none hover:bg-white/20 hover:border-white/40 transition-all text-sm md:text-base flex items-center justify-between group"
+            >
+              <span className="opacity-70 group-hover:opacity-100 transition-opacity">Buscar productos...</span>
+              <Search size={18} className="opacity-70 group-hover:opacity-100" />
+            </button>
           </div>
         )}
 

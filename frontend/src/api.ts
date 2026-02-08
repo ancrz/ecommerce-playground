@@ -486,6 +486,10 @@ export const closeDay = (): Promise<DailyReport> => {
   return authFetch<DailyReport>('/sales/close-day', { method: 'POST' }, DailyReportSchema);
 };
 
+export const getMyOrders = (): Promise<Sale[]> => {
+  return authFetch<Sale[]>('/sales/me', { method: 'GET' }, z.array(SaleSchema));
+};
+
 export const getPendingCarts = (skip?: number, limit?: number): Promise<Cart[]> => {
   const params = new URLSearchParams();
   if (skip !== undefined) params.append('skip', String(skip));

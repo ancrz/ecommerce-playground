@@ -48,39 +48,8 @@ const UserManagementModule = lazy(() => import('../admin-modules/UserManagementM
 const POSModule = SalesModule;
 const OrdersModule = SalesModule;
 
-// Dashboard Placeholder (Local)
-const DashboardModule = () => (
-  <div className="p-8 bg-white rounded-xl shadow-sm border border-gray-100">
-    <div className="flex items-center gap-4 mb-8">
-      <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
-        <BarChart3 size={32} />
-      </div>
-      <div>
-        <h2 className="text-3xl font-bold text-gray-900">Dashboard de Control</h2>
-        <p className="text-gray-500">Resumen general del estado del ecosistema.</p>
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-60 grayscale">
-       <div className="p-6 border rounded-xl bg-gray-50">
-          <p className="text-sm font-medium text-gray-500">Ventas Hoy</p>
-          <p className="text-2xl font-bold">$0.00</p>
-       </div>
-       <div className="p-6 border rounded-xl bg-gray-50">
-          <p className="text-sm font-medium text-gray-500">Nuevos Pedidos</p>
-          <p className="text-2xl font-bold">0</p>
-       </div>
-       <div className="p-6 border rounded-xl bg-gray-50">
-          <p className="text-sm font-medium text-gray-500">Productos sin Stock</p>
-          <p className="text-2xl font-bold">0</p>
-       </div>
-    </div>
-    
-    <div className="mt-12 p-12 text-center border-2 border-dashed rounded-2xl bg-gray-50/50">
-       <p className="text-gray-400">Analítica avanzada y gráficas en desarrollo...</p>
-    </div>
-  </div>
-);
+// Dashboard Lazy Load
+const DashboardModule = lazy(() => import('../admin-modules/DashboardModule'));
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL

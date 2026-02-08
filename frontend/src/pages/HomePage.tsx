@@ -1,62 +1,45 @@
 /**
  * src/pages/HomePage.tsx
  * Página principal de la tienda (Storefront).
- * REFACTORIZADO: Carga sus propios datos (sliders, búsqueda) y
- * consume el AppContext (useApp) para precios y carrito.
+ * REFACTORIZADO (FASE 1):
+ * - DESIGN 1: Hero Section & Features
+ * - DESIGN 2: Uses ProductCard component
+ * - Removed local search (moved to Header/SearchOverlay)
  */
 import React, { useState } from "react";
 import {
-  Star,
-  Tag,
-  Search,
   ChevronLeft,
   ChevronRight,
-  Loader2,
+  TrendingUp,
+  ShieldCheck,
+  Truck,
+  Phone
 } from "lucide-react";
 
 // Importar API y Contexto
-import * as api from "../api";
 import * as hooks from "../hooks.generated";
 import { useApp } from "../App";
-import { useFeedback } from "../components/ui/FeedbackModal";
-import type { Product, ProductCard } from "../types";
+import type { Product, ProductCard as ProductCardType } from "../types";
 import ProductDetailModal from "../components/ProductDetailModal";
+import ProductCard from "../components/products/ProductCard";
 
-// URL base del servidor (relativa, para el proxy)
-const SERVER_URL = "";
+// SERVER_URL removed as it was unused
 
 // --- Componente Interno: Slider de Productos ---
 function ProductSlider({
   title,
   products,
-  customization,
   onProductClick,
 }: {
   title: string;
-  products: (Product | ProductCard)[];
-  customization: any;
-  onProductClick?: (product: Product | ProductCard) => void;
+  products: (Product | ProductCardType)[];
+  onProductClick: (product: Product | ProductCardType) => void;
 }) {
-  // REFACTOR: Consume el contexto para precio y carrito
-  const { addToCart, formatPrice } = useApp();
-  const { showToast } = useFeedback();
+  const { customization } = useApp();
   const [currentIndex, setCurrentIndex] = React.useState(0);
-  const [addingProductId, setAddingProductId] = React.useState<string | null>(null);
-  const itemsPerPage = 4; // Mostrar 4 productos a la vez
-
-  // Handler para agregar al carrito con feedback
-  const handleAddToCart = async (productId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setAddingProductId(productId);
-    try {
-      await addToCart(productId, 1);
-      showToast('¡Producto agregado al carrito!', 'success');
-    } catch (error: unknown) {
-      showToast((error as Error).message || 'Error al agregar', 'error');
-    } finally {
-      setAddingProductId(null);
-    }
-  };
+  
+  // Responsive items per page
+  const itemsPerPage = 4; // Mobile logic could be handled with CSS snap, but keeping simple for now
 
   const next = () => {
     if (currentIndex < products.length - itemsPerPage) {
@@ -70,35 +53,34 @@ function ProductSlider({
     }
   };
 
-  // Productos visibles según la paginación
   const visibleProducts = products.slice(
     currentIndex,
     currentIndex + itemsPerPage
   );
 
+  const primaryColor = customization?.primary_color || "#264192";
+
   return (
-    <div className="mb-12">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+    <div className="mb-16">
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <span className="w-1.5 h-8 rounded-full" style={{ backgroundColor: primaryColor }} />
+            {title}
+        </h2>
+        
         {products.length > itemsPerPage && (
           <div className="flex gap-2">
             <button
               onClick={prev}
               disabled={currentIndex === 0}
-              style={{
-                backgroundColor: customization?.primary_color || "#264192",
-              }}
-              className="p-2 rounded-full text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:opacity-90 transition"
+              className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-30 disabled:hover:border-gray-200 transition-all shadow-sm"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={next}
               disabled={currentIndex >= products.length - itemsPerPage}
-              style={{
-                backgroundColor: customization?.primary_color || "#264192",
-              }}
-              className="p-2 rounded-full text-white disabled:bg-gray-300 disabled:cursor-not-allowed hover:opacity-90 transition"
+              className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-30 disabled:hover:border-gray-200 transition-all shadow-sm"
             >
               <ChevronRight size={20} />
             </button>
@@ -106,87 +88,13 @@ function ProductSlider({
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {visibleProducts.map((product) => (
-          <div
+          <ProductCard
             key={product.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col cursor-pointer"
-            data-testid={`product-card-${product.id}`}
-            onClick={() => onProductClick?.(product)}
-          >
-            <div className="relative h-48 bg-gray-100 flex items-center justify-center">
-              {product.image_url ? (
-                <img
-                  // REFACTOR: URL corregida (proxy + cache bust)
-                  src={`${SERVER_URL}${product.image_url}?t=${
-                    (product as Product).updated_at || "1"
-                  }`}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="text-6xl opacity-30">💊</div>
-              )}
-              {product.is_featured && (
-                <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                  <Star size={12} /> Destacado
-                </div>
-              )}
-              {product.is_discount && (
-                <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                  <Tag size={12} /> -{product.discount_percentage}%
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 flex flex-col flex-grow">
-              <h3
-                className="font-bold text-gray-800 mb-2 h-12 line-clamp-2"
-                title={product.name}
-              >
-                {product.name}
-              </h3>
-              <p className="text-sm text-gray-600 mb-3 h-10 line-clamp-2">
-                {product.description}
-              </p>
-
-              <div className="mb-3 h-8 mt-auto">
-                {/* REFACTOR: Llama a formatPrice() del contexto */}
-                {product.is_discount ? (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-gray-400 line-through text-sm">
-                      {formatPrice(product.price)}
-                    </span>
-                    <span className="text-xl font-bold text-red-600">
-                      {formatPrice(product.final_price || 0)}
-                    </span>
-                  </div>
-                ) : (
-                  <span
-                    className="text-xl font-bold"
-                    style={{ color: customization?.primary_color || "#264192" }}
-                  >
-                    {formatPrice(product.price)}
-                  </span>
-                )}
-              </div>
-
-              <button
-                onClick={(e) => handleAddToCart(product.id, e)}
-                disabled={addingProductId === product.id}
-                style={{
-                  backgroundColor: customization?.primary_color || "#264192",
-                }}
-                className="w-full text-white py-2 rounded-lg hover:opacity-90 transition font-semibold disabled:opacity-70 flex items-center justify-center gap-2"
-                data-testid={`add-to-cart-${product.id}`}
-              >
-                {addingProductId === product.id ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : null}
-                {addingProductId === product.id ? 'Agregando...' : 'Agregar al Carrito'}
-              </button>
-            </div>
-          </div>
+            product={product}
+            onClick={onProductClick}
+          />
         ))}
       </div>
     </div>
@@ -195,139 +103,138 @@ function ProductSlider({
 
 // --- Componente Principal: HomePage ---
 export default function HomePage() {
-  // REFACTOR: Consume el contexto (solo para colores y la barra de búsqueda)
-  const { customization } = useApp();
+  const { customization, showSearchModal } = useApp();
 
-  // REFACTOR: Usar Hooks Autogenerados
-  // Alias de data -> nombre de variable semántica
-  const { data: mainData } =
-    hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("main");
-  const { data: featuredData } =
-    hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("featured");
-  const { data: discountData } =
-    hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("discount");
+  // Data Fetching
+  const { data: mainData } = hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("main");
+  const { data: featuredData } = hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("featured");
+  const { data: discountData } = hooks.useGetSliderProductsApiProductsSliderSliderTypeGet("discount");
 
-  const mainProducts = (mainData as ProductCard[]) || [];
-  const featuredProducts = (featuredData as ProductCard[]) || [];
-  const discountProducts = (discountData as ProductCard[]) || [];
+  const mainProducts = (mainData as ProductCardType[]) || [];
+  const featuredProducts = (featuredData as ProductCardType[]) || [];
+  const discountProducts = (discountData as ProductCardType[]) || [];
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<(Product | ProductCard)[]>(
-    []
-  );
-  const [loadingSearch, setLoadingSearch] = useState(false);
-  const [isSearchActive, setIsSearchActive] = useState(false);
-  
-  // Estado para el modal de detalle de producto
+  // Detail Modal State
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // Handler para abrir el modal de detalle
-  const handleProductClick = (product: Product | ProductCard) => {
-    // Convertir ProductCard a Product si es necesario (fetch completo)
+  const handleProductClick = (product: Product | ProductCardType) => {
     setSelectedProduct(product as Product);
     setIsDetailModalOpen(true);
   };
 
-  // REFACTOR: Lógica de búsqueda
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setIsSearchActive(false); // Desactivar modo búsqueda
-      return;
-    }
-    setLoadingSearch(true);
-    setIsSearchActive(true); // Activar modo búsqueda
-    try {
-      // Llama a la API (Módulo 16)
-      const results = await api.searchProducts(searchQuery);
-      setSearchResults(results);
-    } catch (error) {
-      console.error("Error searching:", error);
-    } finally {
-      setLoadingSearch(false);
-    }
-  };
+  const primaryColor = customization?.primary_color || "#264192";
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-12">
-      {/* Barra de Búsqueda Responsive */}
-      <div className="bg-white shadow-sm p-4 md:py-6 mb-8 rounded-xl border border-gray-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Buscar por nombre, SKU..."
-                className="w-full pl-11 pr-4 py-3 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all"
-                data-testid="search-input"
-              />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={loadingSearch}
-              style={{
-                backgroundColor: customization?.secondary_color || "#ffdd00",
-                color: "#000",
-              }}
-              className="px-8 py-3 rounded-xl hover:opacity-90 transition font-bold flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm active:scale-95"
-              data-testid="search-button"
-            >
-              {loadingSearch ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                "Buscar"
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Sliders de Productos */}
-
-      {/* Mostrar resultados de búsqueda si el modo búsqueda está activo */}
-      {isSearchActive ? (
-        <ProductSlider
-          title={`Resultados para "${searchQuery}"`}
-          products={searchResults}
-          customization={customization}
-          onProductClick={handleProductClick}
+    <div className="pb-24 overflow-x-hidden">
+      
+      {/* HERO SECTION (Design 1) */}
+      <section className="relative bg-gray-900 text-white py-20 md:py-32 px-4 overflow-hidden mb-12">
+        {/* Background Gradient/Image */}
+        <div 
+            className="absolute inset-0 z-0 opacity-40 mix-blend-overlay"
+            style={{ 
+                backgroundImage: 'url("https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&q=80")',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+            }} 
         />
-      ) : (
-        /* Ocultar sliders principales si hay búsqueda */
-        <>
-          {featuredProducts.length > 0 && (
+        <div className="absolute inset-0 bg-linear-to-r from-black/90 via-black/60 to-transparent z-0" />
+        
+        {/* Content */}
+        <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row items-center gap-12">
+            <div className="flex-1 space-y-6 animate-fade-in-up">
+                <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm font-bold backdrop-blur-md text-blue-300">
+                    🚀 Envíos a todo el país
+                </span>
+                <h1 className="text-4xl md:text-6xl font-black leading-tight tracking-tight">
+                    Tu salud <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-teal-400">al mejor precio</span>
+                </h1>
+                <p className="text-lg md:text-xl text-gray-300 max-w-xl leading-relaxed">
+                    Descubre nuestra amplia selección de medicamentos, productos de cuidado personal y bienestar. Calidad garantizada.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button 
+                        onClick={() => window.scrollTo({ top: 800, behavior: 'smooth' })}
+                        className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        Ver Ofertas <TrendingUp size={20} />
+                    </button>
+                    <button 
+                        onClick={showSearchModal}
+                        className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold backdrop-blur-md border border-white/20 transition-all flex items-center justify-center gap-2"
+                    >
+                        Buscar Producto
+                    </button>
+                </div>
+            </div>
+            
+            {/* Visual Element (3D Mockup or Image) */}
+            <div className="flex-1 hidden md:block relative animate-fade-in">
+                 {/* Abstract visual representation */}
+                 <div className="relative w-full aspect-square max-w-md mx-auto">
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-3xl" />
+                    <img 
+                        src="https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80" 
+                        alt="Pharmacy" 
+                        className="relative z-10 rounded-3xl shadow-2xl border-4 border-white/10 rotate-3 hover:rotate-0 transition-transform duration-700 object-cover w-full h-full"
+                    />
+                 </div>
+            </div>
+        </div>
+      </section>
+
+      {/* FEATURES STRIP */}
+      <section className="bg-white border-y border-gray-100 py-12 mb-16">
+           <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+               <Feature 
+                  icon={ShieldCheck} 
+                  title="Calidad Garantizada" 
+                  desc="Productos certificados y originales de laboratorio." 
+                  color="text-blue-600"
+               />
+               <Feature 
+                  icon={Truck} 
+                  title="Envío Express" 
+                  desc="Recibe tu pedido en menos de 24 horas." 
+                  color="text-green-600"
+               />
+               <Feature 
+                  icon={Phone} 
+                  title="Soporte 24/7" 
+                  desc="Atención farmacéutica personalizada." 
+                  color="text-purple-600"
+               />
+           </div>
+      </section>
+
+      {/* CONTENT AREA */}
+      <div className="max-w-7xl mx-auto px-4">
+        {featuredProducts.length > 0 && (
             <ProductSlider
-              title="⭐ Productos Destacados"
+              title="Productos Destacados"
               products={featuredProducts}
-              customization={customization}
               onProductClick={handleProductClick}
             />
-          )}
+        )}
 
-          {discountProducts.length > 0 && (
+        {discountProducts.length > 0 && (
             <ProductSlider
-              title="🔥 Productos en Descuento"
+              title="Ofertas Imperdibles"
               products={discountProducts}
-              customization={customization}
               onProductClick={handleProductClick}
             />
-          )}
+        )}
 
-          {mainProducts.length > 0 && (
+        {mainProducts.length > 0 && (
             <ProductSlider
-              title="💊 Todos los Productos"
+              title="Novedades"
               products={mainProducts}
-              customization={customization}
               onProductClick={handleProductClick}
             />
-          )}
-        </>
-      )}
+        )}
+      </div>
 
       {/* Modal de Detalle de Producto */}
       <ProductDetailModal
@@ -338,3 +245,23 @@ export default function HomePage() {
     </div>
   );
 }
+
+// Sub-component for features
+interface FeatureProps {
+  icon: React.ElementType;
+  title: string;
+  desc: string;
+  color: string;
+}
+
+const Feature = ({ icon: Icon, title, desc, color }: FeatureProps) => (
+    <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors">
+        <div className={`p-3 rounded-2xl bg-gray-50 ${color}`}>
+            <Icon size={28} />
+        </div>
+        <div>
+            <h3 className="font-bold text-gray-900 text-lg mb-1">{title}</h3>
+            <p className="text-gray-500 leading-relaxed">{desc}</p>
+        </div>
+    </div>
+);
