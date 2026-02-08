@@ -7,7 +7,7 @@
  * 3. Oculta barra de búsqueda en rutas de admin.
  */
 import React from 'react';
-import { ShoppingCart, User, Search } from 'lucide-react';
+import { ShoppingCart, User, Search, ChevronDown } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../App';
 import UserMenu from './UserMenu';
@@ -69,7 +69,7 @@ export default function Header() {
       boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
     }} className="py-4 px-6 md:px-8" data-testid="header-public">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center justify-between w-full md:w-auto">
+        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end order-2 md:order-0">
           <Link to="/" className="flex items-center gap-4">
             {/* Isotipo (Always visible) */}
             {businessInfo?.icon_url && (
@@ -108,7 +108,7 @@ export default function Header() {
         
         {/* Search Bar - Responsive - Hidden on Admin */}
         {!isAdminRoute && (
-          <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-none">
+          <div className="w-full max-w-xl mx-0 md:mx-8 order-3 md:order-0">
             <form onSubmit={handleSearch} className="relative group">
               <input 
                 type="text" 
@@ -128,21 +128,32 @@ export default function Header() {
         )}
 
         <div className="hidden md:flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedCurrency?.id || ''}
-              onChange={handleCurrencyChange}
-              className="px-3 py-2 rounded-lg text-gray-800 text-sm focus:ring-2 focus:ring-yellow-400 border-none appearance-none cursor-pointer hover:bg-white transition"
-              data-testid="currency-select"
-              disabled={!selectedCurrency}
-              style={{ paddingRight: '1rem', textAlign: 'center' }}
-            >
-              {currencies.map(currency => (
-                <option key={currency.id} value={currency.id}>
-                  {currency.symbol}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 relative group">
+            <div className="relative">
+                <select
+                value={selectedCurrency?.id || ''}
+                onChange={handleCurrencyChange}
+                className="pl-3 pr-8 py-2 rounded-lg bg-white/10 text-white text-sm focus:ring-2 focus:ring-white/50 border border-white/20 appearance-none cursor-pointer hover:bg-white/20 transition font-medium"
+                data-testid="currency-select"
+                disabled={!selectedCurrency}
+                >
+                {currencies.map(currency => (
+                    <option key={currency.id} value={currency.id} className="text-gray-900 bg-white">
+                    {currency.symbol}
+                    </option>
+                ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/70">
+                    <ChevronDown size={14} />
+                </div>
+            </div>
+            {/* Tooltip para descripción (si la hay) */}
+            {/* Tooltip para descripción (si la hay) */}
+            {selectedCurrency && (
+                 <span className="hidden lg:block text-xs text-white/80 font-medium">
+                     {/* Symbol is enough */}
+                 </span>
+            )}
           </div>
           
           <button

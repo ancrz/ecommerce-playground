@@ -43,13 +43,13 @@ export default function UserManagementModule() {
   return (
     <div className="space-y-6">
       {/* Navegación de Sub-Tabs */}
-      <div className="bg-white dark:bg-gray-800 p-1 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 inline-flex">
+      <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 inline-flex">
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'users'
-              ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shadow-sm ring-1 ring-blue-200 dark:ring-blue-700'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
           }`}
         >
           <UserIcon size={18} />
@@ -59,8 +59,8 @@ export default function UserManagementModule() {
           onClick={() => setActiveTab('roles')}
           className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'roles'
-              ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shadow-sm ring-1 ring-blue-200 dark:ring-blue-700'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
           }`}
         >
           <Shield size={18} />
@@ -237,31 +237,31 @@ function UsersListTab() {
         </TouchButton>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden hidden md:block">
+      <div className="bg-white rounded-lg shadow overflow-hidden hidden md:block">
         <table className="w-full">
-          <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+          <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">
                 Usuario
               </th>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">
                 Nombre Completo
               </th>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">
                 Email
               </th>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">
                 Roles
               </th>
-              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">
                 Estado
               </th>
-              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
+              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-700 text-gray-800 dark:text-gray-200">
+          <tbody className="divide-y divide-gray-200 text-gray-800">
             {isLoading ? (
               <tr>
                 <td colSpan={6} className="text-center p-8 text-gray-500">
@@ -274,7 +274,7 @@ function UsersListTab() {
               users.map((user) => (
                 <tr
                   key={user.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  className="hover:bg-gray-50 transition-colors"
                   data-testid={`user-row-${user.id}`}
                 >
                   <td className="p-3 font-semibold">{user.username}</td>
@@ -339,10 +339,10 @@ function UsersListTab() {
           <div className="text-center p-8"><Loader2 className="animate-spin inline" /> Cargando...</div>
         ) : (
           users.map((user) => (
-            <div key={user.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+            <div key={user.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <div className="font-bold text-gray-900 dark:text-white">{user.username}</div>
+                  <div className="font-bold text-gray-900">{user.username}</div>
                   <div className="text-sm text-gray-500">{user.full_name || "Sin nombre"}</div>
                   <div className="text-xs text-blue-500 mt-0.5">{user.email}</div>
                 </div>

@@ -12,10 +12,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 export const Input: React.FC<InputProps> = ({ label, className, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{label}</label>}
+    {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <input
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 ${className || ''}`}
     />
   </div>
 );
@@ -26,10 +26,10 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 export const TextArea: React.FC<TextAreaProps> = ({ label, className, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{label}</label>}
+    {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <textarea
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 ${className || ''}`}
     />
   </div>
 );
@@ -41,10 +41,10 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 export const Select: React.FC<SelectProps> = ({ label, children, className, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{label}</label>}
+    {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <select
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 ${className || ''}`}
     >
       {children}
     </select>
@@ -60,9 +60,9 @@ export const Checkbox: React.FC<CheckboxProps> = ({ label, className, ...props }
     <input
       type="checkbox"
       {...props}
-      className={`mr-2 w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 bg-white dark:bg-gray-700 ${className || ''}`}
+      className={`mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-white ${className || ''}`}
     />
-    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
+    <span className="text-sm font-semibold text-gray-700">{label}</span>
   </label>
 );
 
@@ -74,19 +74,19 @@ interface ColorPickerProps {
 }
 export const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => (
   <div>
-    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{label}</label>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
     <div className="flex gap-2">
       <input 
         type="color" 
         value={value || '#000000'}
         onChange={(e) => onChange(e.target.value)}
-        className="w-12 h-10 rounded border border-gray-300 dark:border-gray-600 p-1 bg-white dark:bg-gray-700"
+        className="w-12 h-10 rounded border border-gray-300 p-1 bg-white"
       />
       <input 
         type="text"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
       />
     </div>
   </div>

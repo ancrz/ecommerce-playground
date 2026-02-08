@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { User, LogOut, Globe, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { LogOut, Globe, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../App';
 
 export default function UserMenu() {
@@ -29,6 +30,8 @@ export default function UserMenu() {
 
   if (!user) return null;
 
+  const displayName = user.full_name || user.username;
+
   return (
     <div className="relative" ref={menuRef}>
       {/* Trigger Button */}
@@ -38,10 +41,10 @@ export default function UserMenu() {
         data-testid="user-menu-trigger"
       >
         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-semibold">
-          {user.name?.charAt(0).toUpperCase() || <User size={18} />}
+          {displayName.charAt(0).toUpperCase()}
         </div>
         <span className="hidden md:block text-sm font-medium text-white max-w-[100px] truncate">
-          {user.name?.split(' ')[0]}
+          {displayName.split(' ')[0]}
         </span>
         <ChevronDown 
           size={16} 
@@ -55,7 +58,7 @@ export default function UserMenu() {
           
           {/* User Header */}
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user.name}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
             <div className="mt-2 flex flex-wrap gap-1">
                {user.roles.map(role => (
@@ -89,6 +92,23 @@ export default function UserMenu() {
             </div>
 
             <div className="h-px bg-gray-100 my-1" />
+
+            {/* Admin Panel Link */}
+            {user.roles && user.roles.length > 0 && (
+              <>
+                <Link
+                  to="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+                >
+                  <div className="p-1 bg-blue-100 rounded text-blue-600">
+                    <LayoutDashboard size={14} />
+                  </div>
+                  Panel de Admin
+                </Link>
+                <div className="h-px bg-gray-100 my-1" />
+              </>
+            )}
 
             {/* Logout */}
             <button

@@ -124,7 +124,7 @@ export const ResponsiveModal: React.FC<ResponsiveModalProps> = ({
       <div
         ref={modalRef}
         className={`
-          bg-white dark:bg-slate-800 
+          bg-white 
           w-full ${SIZE_CLASSES[size]}
           h-[85vh] sm:h-auto sm:max-h-[85vh]
           rounded-t-2xl sm:rounded-xl
@@ -177,7 +177,7 @@ export const ResponsiveModal: React.FC<ResponsiveModalProps> = ({
 
         {/* Footer (opcional) */}
         {footer && (
-          <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+          <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
             {footer}
           </div>
         )}

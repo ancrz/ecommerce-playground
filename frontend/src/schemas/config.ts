@@ -37,7 +37,10 @@ export const CustomizationSchema = z.object({
   address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   // Icons
+  icon_dashboard_url: z.string().url().nullable().optional(),
+  icon_pos_url: z.string().url().nullable().optional(),
   icon_products_url: z.string().url().nullable(),
+  icon_orders_url: z.string().url().nullable().optional(),
   icon_business_url: z.string().url().nullable(),
   icon_customization_url: z.string().url().nullable(),
   icon_finance_url: z.string().url().nullable(),

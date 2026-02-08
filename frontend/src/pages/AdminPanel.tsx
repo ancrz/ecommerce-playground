@@ -22,11 +22,12 @@ import React, {
     Suspense, 
     useRef, 
     lazy, 
-    ElementType // REFACTOR: Añadido ElementType para tipado
+    ElementType 
 } from 'react';
 import { 
   Palette, Package, 
-  Users, Loader2 
+  Users, Loader2, LayoutDashboard, ShoppingCart, ClipboardList, Settings,
+  DollarSign, Percent, BarChart3, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // Importar el contexto
@@ -35,9 +36,51 @@ import { useApp } from '../App';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // --- Importación Dinámica (Lazy Loading) de "Chunks" ---
-// (REFACTOR: Módulos importados con React.lazy para code-splitting)
 const ProductsModule = lazy(() => import('../admin-modules/ProductsModule'));
+const SalesModule = lazy(() => import('../admin-modules/SalesModule'));
+const FinanceModule = lazy(() => import('../admin-modules/FinanceModule'));
+const TaxModule = lazy(() => import('../admin-modules/TaxModule'));
+const ContentModule = lazy(() => import('../admin-modules/ContentModule'));
+const ThemeModule = lazy(() => import('../admin-modules/ThemeModule'));
 const UserManagementModule = lazy(() => import('../admin-modules/UserManagementModule'));
+
+// Alias mapping for tabs
+const POSModule = SalesModule;
+const OrdersModule = SalesModule;
+
+// Dashboard Placeholder (Local)
+const DashboardModule = () => (
+  <div className="p-8 bg-white rounded-xl shadow-sm border border-gray-100">
+    <div className="flex items-center gap-4 mb-8">
+      <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
+        <BarChart3 size={32} />
+      </div>
+      <div>
+        <h2 className="text-3xl font-bold text-gray-900">Dashboard de Control</h2>
+        <p className="text-gray-500">Resumen general del estado del ecosistema.</p>
+      </div>
+    </div>
+    
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-60 grayscale">
+       <div className="p-6 border rounded-xl bg-gray-50">
+          <p className="text-sm font-medium text-gray-500">Ventas Hoy</p>
+          <p className="text-2xl font-bold">$0.00</p>
+       </div>
+       <div className="p-6 border rounded-xl bg-gray-50">
+          <p className="text-sm font-medium text-gray-500">Nuevos Pedidos</p>
+          <p className="text-2xl font-bold">0</p>
+       </div>
+       <div className="p-6 border rounded-xl bg-gray-50">
+          <p className="text-sm font-medium text-gray-500">Productos sin Stock</p>
+          <p className="text-2xl font-bold">0</p>
+       </div>
+    </div>
+    
+    <div className="mt-12 p-12 text-center border-2 border-dashed rounded-2xl bg-gray-50/50">
+       <p className="text-gray-400">Analítica avanzada y gráficas en desarrollo...</p>
+    </div>
+  </div>
+);
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL
@@ -99,10 +142,11 @@ export default function AdminPanel() {
       { id: 'pos', label: 'Punto de Venta', icon: ShoppingCart, iconUrl: customization?.icon_pos_url, roles: ['admin', 'sales_manager'], component: POSModule },
       { id: 'products', label: 'Productos', icon: Package, iconUrl: customization?.icon_products_url, roles: ['admin', 'products_manager'], component: ProductsModule },
       { id: 'orders', label: 'Pedidos', icon: ClipboardList, iconUrl: customization?.icon_orders_url, roles: ['admin', 'sales_manager'], component: OrdersModule },
-      { id: 'users', label: 'Gestión de Usuarios', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
-      // Roles tab removed - merged into UserManagementModule
-      { id: 'customization', label: 'Tema', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin'], component: CustomizationModule },
-      { id: 'settings', label: 'Configuración', icon: Settings, iconUrl: customization?.icon_settings_url, roles: ['admin'], component: SettingsModule },
+      { id: 'finance', label: 'Finanzas', icon: DollarSign, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: FinanceModule },
+      { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
+      { id: 'users', label: 'Usuarios (RBAC)', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
+      { id: 'theme', label: 'Personalización', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
+      { id: 'content', label: 'Contenido', icon: Settings, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },
     ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
   
   // Filtrar pestañas basado en los roles del usuario
@@ -129,6 +173,16 @@ export default function AdminPanel() {
 
   // --- Manejo de Teclado (Accesibilidad y E2E) ---
   const tabListRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabListRef.current) {
+      const scrollAmount = 200;
+      tabListRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     // REFACTOR (Punto 7): Usar el array de datos 'visibleTabs', no el DOM
@@ -180,54 +234,74 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900" data-testid="admin-panel">
+    <div className="min-h-screen bg-gray-100" data-testid="admin-panel">
       {/* Navegación por Pestañas (Filtrada por RBAC y A11y) */}
-      <div className="bg-white dark:bg-gray-800 shadow-md border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6">
-          <div 
-            className="flex gap-1 overflow-x-auto no-scrollbar" 
-            role="tablist" 
-            aria-label="Panel de Administración"
-            ref={tabListRef}
-          >
-            {visibleTabs.map(tab => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  id={`admin-tab-${tab.id}`} // A11y
-                  onClick={() => setActiveTab(tab.id)}
-                  onKeyDown={handleKeyDown} // A11y
-                  role="tab" // A11y
-                  aria-selected={isSelected} // A11y
-                  aria-controls={`admin-panel-${tab.id}`} // A11y (conecta con el panel)
-                  tabIndex={isSelected ? 0 : -1} // A11y (manejo de foco)
-                  data-testid={`admin-tab-${tab.id}`} // E2E
-                  
-                  // REFACTOR (Corregido): 'F' eliminada
-                  className={`px-6 py-4 font-semibold transition flex items-center gap-2 whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 ${
-                    isSelected
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-gray-600 hover:text-blue-600'
-                  }`}
-                >
-                  <ModuleIcon 
-                    url={tab.iconUrl} 
-                    IconComponent={tab.icon} 
-                    label={tab.label}
-                    // REFACTOR (Punto 3): Cache bust con fallback
-                    cacheKey={customization?.updated_at || 'static'}
-                  />
-                  {tab.label}
-                </button>
-              )
-            })}
+      <div className="bg-white shadow-md border-b border-gray-200 sticky top-0 z-10 w-full ml-0">
+        <div className="w-full max-w-[1920px] mx-auto px-4 md:px-6">
+          <div className="flex items-center gap-2 py-1">
+             <button 
+                onClick={() => scrollTabs('left')}
+                className="hidden md:flex p-2 rounded-full text-white hover:opacity-90 transition shrink-0 z-20 shadow-md"
+                style={{ backgroundColor: 'rgb(38, 65, 146)' }}
+                aria-label="Scroll left"
+            >
+                <ChevronLeft size={20} />
+            </button>
+
+            <div 
+                className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth flex-1 py-1" 
+                role="tablist" 
+                aria-label="Panel de Administración"
+                ref={tabListRef}
+            >
+                {visibleTabs.map(tab => {
+                const isSelected = activeTab === tab.id;
+                return (
+                    <button
+                        key={tab.id}
+                        id={`admin-tab-${tab.id}`} // A11y
+                        onClick={() => setActiveTab(tab.id)}
+                        onKeyDown={handleKeyDown} // A11y
+                        role="tab" // A11y
+                        aria-selected={isSelected} // A11y
+                        aria-controls={`admin-panel-${tab.id}`} // A11y (conecta con el panel)
+                        tabIndex={isSelected ? 0 : -1} // A11y (manejo de foco)
+                        data-testid={`admin-tab-${tab.id}`} // E2E
+                        
+                        // REFACTOR (Corregido): 'F' eliminada
+                        className={`px-6 py-4 font-semibold transition flex items-center gap-2 whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 border-b-2 ${
+                            isSelected
+                            ? 'text-blue-600 border-blue-600'
+                            : 'text-gray-600 border-transparent hover:text-blue-600'
+                        }`}
+                    >
+                    <ModuleIcon 
+                        url={tab.iconUrl} 
+                        IconComponent={tab.icon} 
+                        label={tab.label}
+                        // REFACTOR (Punto 3): Cache bust con fallback
+                        cacheKey={customization?.updated_at || 'static'}
+                    />
+                    {tab.label}
+                    </button>
+                    )
+                })}
+            </div>
+
+            <button 
+                onClick={() => scrollTabs('right')}
+                className="hidden md:flex p-2 rounded-full text-white hover:opacity-90 transition shrink-0 z-20 shadow-md"
+                style={{ backgroundColor: 'rgb(38, 65, 146)' }}
+                aria-label="Scroll right"
+            >
+                <ChevronRight size={20} />
+            </button>
           </div>
         </div>
       </div>
       
       {/* Contenido de la Pestaña Activa (Cargado con Lazy + Suspense) */}
-      <div className="max-w-7xl mx-auto p-0 md:p-6">
+      <div className="w-full max-w-[1920px] mx-auto p-0 md:p-6">
         {/* REFACTOR (Punto 1): Añadido ErrorBoundary */}
         <ErrorBoundary fallbackMessage="Error al cargar este módulo.">
           <Suspense fallback={<ModuleLoader />}>
