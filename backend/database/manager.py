@@ -132,6 +132,12 @@ _SCHEMAS_POSTGRES = {
         ALTER TABLE sales ADD COLUMN IF NOT EXISTS igtf_amount NUMERIC(10, 2) DEFAULT 0;
     """,
         """
+        ALTER TABLE sales ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(50) DEFAULT 'pending';
+    """,
+        """
+        ALTER TABLE sales ADD COLUMN IF NOT EXISTS invoice_retry_count INTEGER DEFAULT 0;
+    """,
+        """
         CREATE TABLE IF NOT EXISTS daily_closures (
             id SERIAL PRIMARY KEY,
             date DATE NOT NULL UNIQUE,
@@ -276,6 +282,24 @@ _SCHEMAS_POSTGRES = {
         );
     """,
     ],
+    "customers": [
+        """
+        CREATE TABLE IF NOT EXISTS customers (
+            id VARCHAR(36) PRIMARY KEY,
+            cedula VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(200) NOT NULL,
+            address TEXT,
+            phone VARCHAR(50),
+            email VARCHAR(255),
+            last_purchase TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
+        );
+    """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_customers_cedula ON customers(cedula);
+    """,
+    ],
 }
 
 # Define los "chunks" (archivos de base de datos separados)
@@ -291,6 +315,7 @@ _DBS_SQLITE = {
     "users": "users.db",
     "tax": "tax.db",
     "password_tokens": "password_reset_tokens.db",
+    "customers": "customers.db",
 }
 
 # Esquemas adaptados para SQLite (menos tipos de datos estrictos)
@@ -380,6 +405,15 @@ _SCHEMAS_SQLITE = {
         .replace("REFERENCES regions(id)", "REFERENCES regions (id)")  # Corrección de sintaxis
         for s in _SCHEMAS_POSTGRES["tax"]
     ],
+    "customers": [
+        s.replace("VARCHAR(36)", "TEXT")
+        .replace("VARCHAR(50)", "TEXT")
+        .replace("VARCHAR(200)", "TEXT")
+        .replace("VARCHAR(255)", "TEXT")
+        .replace("TIMESTAMPTZ", "TEXT")
+        .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX IF NOT EXISTS")
+        for s in _SCHEMAS_POSTGRES["customers"]
+    ],
 }
 
 
@@ -433,7 +467,7 @@ class DatabaseManager:
                     conn.row_factory = aiosqlite.Row
                     self._connections[chunk_name] = conn
                     await conn.execute("PRAGMA journal_mode=WAL;")  # Enable WAL for concurrency
-                    await conn.execute("PRAGMA synchronous=NORMAL;") # Faster writes
+                    await conn.execute("PRAGMA synchronous=NORMAL;")  # Faster writes
                     await conn.execute("PRAGMA foreign_keys = OFF;")
 
                     if chunk_name in _SCHEMAS_SQLITE:

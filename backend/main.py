@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 # --- 4. Importar Routers (APIs) ---
 from .api import auth as auth_router
+from .api import billing as billing_router  # Nuevo
 from .api import business as business_router
 from .api import cart as cart_router
 from .api import client_logs as client_logs_router
@@ -105,9 +106,7 @@ async def lifespan(app: FastAPI):
     app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
-    invoice_service = InvoiceService(
-        business_service=business_service, email_service=email_service
-    )  # Nuevo (Depende de Business y Email)
+    invoice_service = InvoiceService()
     app.state.invoice_service = invoice_service
 
     app.state.cart_service = CartService(
@@ -184,7 +183,12 @@ app.include_router(customization_router.router, prefix="/api/admin/customization
 app.include_router(images_router.router, prefix="/api/images", tags=["Images"])
 app.include_router(client_logs_router.router, prefix="/api/client-logs", tags=["Client Logs"])
 app.include_router(websocket_router.router, prefix="/api/ws", tags=["WebSocket"])
+
+# ... (imports) ...
+
+# ... (include routers) ...
 app.include_router(dashboard_router.router, prefix="/api/admin/dashboard", tags=["Admin Dashboard"])
+app.include_router(billing_router.router, prefix="/api/billing", tags=["Billing & Compliance"])
 
 
 # Endpoints de "Ping"
