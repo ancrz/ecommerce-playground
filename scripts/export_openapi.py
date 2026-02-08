@@ -7,7 +7,6 @@ This allows frontend client generation without running the backend server.
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -25,14 +24,14 @@ except ImportError as e:
 def export_openapi():
     """Generates and saves the OpenAPI JSON schema."""
     output_path = PROJECT_ROOT / "frontend" / "openapi.json"
-    
+
     print("⏳ Generating OpenAPI schema...")
     openapi_schema = app.openapi()
-    
+
     print(f"💾 Saving to {output_path}...")
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(openapi_schema, f, indent=2)
-    
+
     print("✓ Done.")
 
 if __name__ == "__main__":
