@@ -3698,6 +3698,127 @@
         }
       }
     },
+    "/api/admin/dashboard/stats": {
+      "get": {
+        "tags": [
+          "Admin Dashboard"
+        ],
+        "summary": "Get Dashboard Stats",
+        "description": "Get real-time dashboard statistics using DatabaseManager (Raw SQL).\nAggregates data for Revenue, Orders, Products, Users, and Categories.",
+        "operationId": "get_dashboard_stats_api_admin_dashboard_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/billing/preview": {
+      "get": {
+        "tags": [
+          "Billing & Compliance"
+        ],
+        "summary": "Get Invoice Preview",
+        "description": "Genera una vista previa del PDF de la factura.\nRetorna el archivo PDF directamente.",
+        "operationId": "get_invoice_preview_api_billing_preview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/billing/smtp/test": {
+      "post": {
+        "tags": [
+          "Billing & Compliance"
+        ],
+        "summary": "Test Smtp Connection",
+        "description": "Prueba la conexi\u00f3n SMTP (Circuit Breaker Check).",
+        "operationId": "test_smtp_connection_api_billing_smtp_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/billing/customers/cedula/{cedula}": {
+      "get": {
+        "tags": [
+          "Billing & Compliance"
+        ],
+        "summary": "Get Customer By Cedula",
+        "description": "Busca un cliente por su C\u00e9dula/RIF.\nUsado en Checkout para auto-completado.",
+        "operationId": "get_customer_by_cedula_api_billing_customers_cedula__cedula__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cedula",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cedula"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -5755,6 +5876,16 @@
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total With Tax"
+          },
+          "invoice_status": {
+            "type": "string",
+            "title": "Invoice Status",
+            "default": "pending"
+          },
+          "invoice_retry_count": {
+            "type": "integer",
+            "title": "Invoice Retry Count",
+            "default": 0
           }
         },
         "type": "object",

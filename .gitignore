@@ -60,6 +60,7 @@ data/database/*.db
 
 # ===== Logs & Temp =====
 logs/
+docs/
 *.log
 tmp/
 temp/

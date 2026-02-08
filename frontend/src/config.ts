@@ -50,7 +50,7 @@ const getEnv = (key: string, fallback: string): string => {
 export const config: AppConfig = {
   apiUrl: getEnv('VITE_API_URL', '/api'),
   backendUrl: getEnv('VITE_BACKEND_URL', 'http://localhost:8042'),
-  appName: getEnv('VITE_APP_NAME', 'E-Commerce Demo'),
+  appName: getEnv('VITE_APP_NAME', 'Nombre del Negocio'),
   debug: getEnv('VITE_DEBUG', 'false') === 'true',
 };
 
