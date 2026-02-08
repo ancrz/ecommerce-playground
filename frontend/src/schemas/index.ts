@@ -5,3 +5,5 @@ export * from './sales';
 export * from './config';
 export * from './users';
 export * from './dashboard';
+export * from './customers';
+export * from './billing';

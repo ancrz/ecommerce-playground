@@ -50,6 +50,8 @@ const OrdersModule = SalesModule;
 
 // Dashboard Lazy Load
 const DashboardModule = lazy(() => import('../admin-modules/DashboardModule'));
+const SMTPConfigModule = lazy(() => import('../admin-modules/SMTPConfigModule'));
+const BillingModule = lazy(() => import('../admin-modules/BillingModule'));
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL
@@ -113,6 +115,8 @@ export default function AdminPanel() {
       { id: 'orders', label: 'Pedidos', icon: ClipboardList, iconUrl: customization?.icon_orders_url, roles: ['admin', 'sales_manager'], component: OrdersModule },
       { id: 'finance', label: 'Finanzas', icon: DollarSign, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: FinanceModule },
       { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
+      { id: 'billing', label: 'Facturación', icon: BarChart3, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: BillingModule }, // Icono temporal
+      { id: 'smtp', label: 'SMTP Config', icon: Settings, iconUrl: customization?.icon_business_url, roles: ['admin'], component: SMTPConfigModule },
       { id: 'users', label: 'Usuarios (RBAC)', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
       { id: 'theme', label: 'Personalización', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
       { id: 'content', label: 'Contenido', icon: Settings, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },

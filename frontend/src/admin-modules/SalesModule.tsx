@@ -7,7 +7,7 @@
  * - Tabs: POS | Web Orders | Sales History
  * - Premium Tables & POS Interface
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ComponentType } from 'react';
 import { 
   RefreshCw, FileText, Calendar, CheckCircle, XCircle, 
   Plus, Search, Package,
@@ -270,7 +270,7 @@ export default function SalesModule() {
 
 // --- Sub-components ---
 
-const TabButton = ({ active, onClick, icon: Icon, label, count }: any) => (
+const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: ComponentType<any>, label: string, count?: number }) => (
     <button
         onClick={onClick}
         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
@@ -287,7 +287,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count }: any) => (
     </button>
 );
 
-const ActionButton = ({ icon: Icon, label, onClick }: any) => (
+const ActionButton = ({ icon: Icon, label, onClick }: { icon: ComponentType<any>, label: string, onClick: () => void }) => (
     <button onClick={onClick} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2 group-hover:bg-blue-100 group-hover:scale-110 transition-transform">
              <Icon size={20} />
@@ -363,6 +363,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
   const [regionId, setRegionId] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [recoverId, setRecoverId] = useState(""); // ID para recuperar carrito
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
   
   const { formatPrice, selectedCurrency } = useApp(); // Usar la moneda global seleccionada
 
@@ -434,7 +435,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       try {
         const json = JSON.parse(targetId);
         if (json.cart_id) targetId = json.cart_id;
-      } catch (e) { /* silent */ }
+      } catch { /* silent */ }
 
       const recoveredCart = await api.getCart(targetId);
       setCustomerName(recoveredCart.customer_name);
@@ -448,6 +449,21 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     }
   };
   
+  const handleCustomerLookup = async () => {
+    if (!customerId || customerId.length < 5) return;
+    setSearchingCustomer(true);
+    try {
+        const customer = await api.getCustomerByCedula(customerId);
+        if (customer) {
+            setCustomerName(customer.name);
+        }
+    } catch (e) {
+        console.log("Cliente no encontrado", e);
+    } finally {
+        setSearchingCustomer(false);
+    }
+  };
+
   return (
     <ResponsiveModal 
       title="Punto de Venta (POS)" 
@@ -469,7 +485,16 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
               <div className="space-y-4">
                   <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><User size={16} /> Cliente</h3>
                   <Input label="Nombre" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                  <Input label="ID / RIF" value={customerId} onChange={e => setCustomerId(e.target.value)} />
+                  <Input label="Nombre" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                  <div className="relative">
+                    <Input 
+                        label="ID / RIF" 
+                        value={customerId} 
+                        onChange={e => setCustomerId(e.target.value)} 
+                        onBlur={handleCustomerLookup}
+                    />
+                    {searchingCustomer && <div className="absolute right-3 top-9"><RefreshCw className="animate-spin text-blue-500" size={16}/></div>}
+                  </div>
               </div>
               <div className="space-y-4">
                   <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><Globe size={16} /> Fiscal</h3>

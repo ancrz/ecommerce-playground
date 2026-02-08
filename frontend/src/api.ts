@@ -29,7 +29,8 @@ import {
   BusinessInfoSchema, CustomizationSchema,
   UserPublicSchema, TokenResponseSchema,
   MessageResponseSchema, ProductImageSchema, // Un esquema genérico para { message: "..." }
-  DashboardStatsSchema, type DashboardStats
+  DashboardStatsSchema, type DashboardStats,
+  CustomerSchema, SMTPCheckResponseSchema // Nuevo
 } from './schemas';
 
 // Importar configuración centralizada
@@ -572,4 +573,51 @@ export const deleteProductImage = (productId: string, imageId: string): Promise<
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
    return authFetch<DashboardStats>('/admin/dashboard/stats', { method: 'GET' }, DashboardStatsSchema);
+};
+
+// ==================== BILLING & COMPLIANCE ====================
+
+/**
+ * Wrapper for fetching BLOB data (PDFs, Images)
+ */
+export const authFetchBlob = async (endpoint: string): Promise<Blob> => {
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+     let errorDetail = "Error desconocido al descargar archivo.";
+     try {
+       const errorJson = await response.json();
+       errorDetail = errorJson.detail || JSON.stringify(errorJson);
+     } catch {
+       errorDetail = response.statusText;
+     }
+     throw new Error(`Error ${response.status}: ${errorDetail}`);
+  }
+
+  return await response.blob();
+};
+
+export const checkSMTPConnection = async (): Promise<{ status: string; message: string }> => {
+  // Use /api/billing prefix as configured in main.py
+  return authFetch<{ status: string; message: string }>('/billing/smtp/test', { method: 'POST' }, SMTPCheckResponseSchema);
+};
+
+export const getInvoicePreview = async (): Promise<Blob> => {
+    return authFetchBlob('/billing/preview');
+};
+
+// Returns ANY because we trust the schema validation inside authFetch if we passed schema, 
+// but here I am creating a typed return.
+export const getCustomerByCedula = async (cedula: string): Promise<any> => {
+    return authFetch(`/billing/customers/cedula/${cedula}`, { method: 'GET' }, CustomerSchema);
 };
