@@ -65,8 +65,8 @@ python setup.py
 
 ```bash
 python start.local.py
-# Frontend: http://localhost:5173
-# API Docs: http://localhost:8042/docs
+# Frontend: http://localhost:5173 (or FRONTEND_PORT)
+# API Docs: http://localhost:8042/docs (or BACKEND_PORT)
 ```
 
 _El script detectará puertos ocupados y limpiará procesos "zombies" automáticamente._
@@ -84,7 +84,7 @@ Si cambias algo en el Backend (Modelos, API), ejecuta esto para actualizar el Fr
 
 ```bash
 python scripts/dev_pipeline.py
-# Regenera types.ts, hooks y validadores Zod
+# Opciones: --soft (default), --hard (reset DB), --front (solo cliente), --back (restart backend)
 ```
 
 ---
@@ -225,7 +225,7 @@ ecommerce-playground/
 
 ### 🏢 Core Modules (Admin Panel)
 
-- **Finance (SAP-like):** Multi-currency engine.
+- **Finance (Multi-currency):** Advanced engine.
 - **Tax Management:** Dynamic regional tax rules.
 - **User Management (RBAC):** Granular permissions.
 - **Product Catalogue:** Currency-aware pricing & inventory.

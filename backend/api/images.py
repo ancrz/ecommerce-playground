@@ -105,10 +105,10 @@ async def upload_product_image(
         return updated_product
 
     except ValueError as e:  # Error de validación de imagen (ImageService)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al subir imagen para producto {product_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error procesando imagen: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error procesando imagen: {str(e)}") from e
 
 
 @router.delete("/products/{product_id}/image", response_model=Product)
@@ -141,7 +141,7 @@ async def delete_product_image(
 
     except Exception as e:
         logger.error(f"Error al eliminar imagen de producto {product_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/business/logo", response_model=BusinessInfo)
@@ -176,10 +176,10 @@ async def upload_business_logo(
         return updated_info
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al subir logo: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/business/icon", response_model=BusinessInfo)
@@ -212,10 +212,10 @@ async def upload_business_icon(
         return updated_info
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al subir icono: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/business/banner", response_model=BusinessInfo)
@@ -248,10 +248,10 @@ async def upload_business_banner(
         return updated_info
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al subir banner: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # --- Endpoints de Galería de Imágenes de Producto ---
@@ -314,10 +314,10 @@ async def upload_to_product_gallery(
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al añadir imagen a galería de {product_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/products/{product_id}/gallery/{image_id}/set-main", response_model=dict[str, Any])
@@ -334,10 +334,10 @@ async def set_main_gallery_image(
         await product_service.set_main_image(product_id, image_id)
         return {"message": "Imagen establecida como principal", "image_id": image_id}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al establecer imagen principal: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/products/{product_id}/gallery/{image_id}", response_model=dict[str, Any])
@@ -368,13 +368,13 @@ async def delete_gallery_image(
         if target_image.get("thumbnail_url"):
             try:
                 image_service.delete_image(target_image["thumbnail_url"])
-            except:
+            except Exception:
                 pass  # El thumbnail puede no existir
 
         return {"message": "Imagen eliminada", "image_id": image_id}
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al eliminar imagen de galería: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

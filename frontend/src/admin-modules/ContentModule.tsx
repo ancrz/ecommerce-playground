@@ -14,6 +14,7 @@ import type { BusinessInfoUpdate } from '../types';
 
 // Importar componentes reutilizables
 import { Input } from '../components/FormControls'; // Select removed
+import { TouchButton } from '../components/common/TouchButton';
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = '';
@@ -32,7 +33,7 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
   // Cargar datos al montar
   useEffect(() => {
     api.getBusinessInfo().then(setInfo).catch(err => toast("Error cargando info: " + err.message, 'error'));
-  }, []);
+  }, [toast]);
   
   const handleSave = async () => {
     setSaving(true);
@@ -49,8 +50,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       toast('✓ Información actualizada', 'success');
       // 3. Forzar refresh global (actualiza Header/Footer)
       onUpdate();
-    } catch (error: any) {
-      toast('Error guardando: ' + error.message, 'error');
+    } catch (error: unknown) {
+      toast('Error guardando: ' + (error as Error).message, 'error');
     }
     setSaving(false);
   };
@@ -73,8 +74,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       
       // 3. Forzar refresh global
       onUpdate();
-    } catch (error: any) {
-      toast(`Error subiendo imagen: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      toast(`Error subiendo imagen: ${(error as Error).message}`, 'error');
     }
     setSaving(false);
   };
@@ -87,8 +88,8 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
       setInfo(updatedInfo);
       toast('✓ Icono de red social actualizado.', 'success');
       onUpdate();
-    } catch (error: any) {
-      toast(`Error subiendo icono: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      toast(`Error subiendo icono: ${(error as Error).message}`, 'error');
     }
     setSaving(false);
   };
@@ -165,24 +166,28 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
                   )}
                 </div>
                 <div className="col-span-1 text-right">
-                  <button 
+                  <TouchButton 
                     onClick={() => removeNetwork(index)} 
-                    className="btn-icon text-red-500"
+                    variant="ghost"
+                    className="text-red-500"
                     data-testid={`social-delete-${index}`}
+                    iconOnly
                   >
                     <Trash2 size={18} />
-                  </button>
+                  </TouchButton>
                 </div>
               </div>
             ))}
           </div>
-          <button 
+          <TouchButton 
             onClick={addNetwork} 
-            className="btn-link mt-4"
+            variant="ghost"
+            className="mt-4"
             data-testid="social-add-button"
+            icon={Plus}
           >
-            <Plus size={16} /> Agregar Red Social
-          </button>
+            Agregar Red Social
+          </TouchButton>
         </div>
       </div>
       
@@ -216,15 +221,16 @@ export default function ContentModule({ onUpdate }: ContentModuleProps) {
 
       <div className="md:col-span-3 text-right mt-6">
         {/* REFACTOR FASE 4: Botón Primario */}
-        <button 
+        <TouchButton 
           onClick={handleSave} 
           disabled={saving} 
           data-testid="content-save-button" 
-          className="btn-primary"
+          variant="primary"
+          icon={Save}
+          className="ml-auto"
         >
-          <Save size={18} />
           {saving ? 'Guardando...' : 'Guardar Cambios'}
-        </button>
+        </TouchButton>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ export const customInstance = <T>(
     cancelToken: source.token,
   }).then(({ data }) => data);
 
-  // @ts-ignore
+  // @ts-expect-error - Adding cancel method to promise for Orval
   promise.cancel = () => {
     source.cancel('Query was cancelled');
   };

@@ -213,7 +213,7 @@ def init_database(python_exe: str) -> None:
 
 def main():
     """Main setup function."""
-    parser = argparse.ArgumentParser(description="Setup farmalux-ecommerce")
+    parser = argparse.ArgumentParser(description="Setup ecommerce-playground")
     parser.add_argument("--clean", action="store_true", help="Clean install (remove existing venv and db)")
     args = parser.parse_args()
 

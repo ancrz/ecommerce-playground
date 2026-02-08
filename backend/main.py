@@ -1,5 +1,5 @@
 """
-Farmalux E-commerce - Servidor Principal (Orquestador)
+Ecommerce Playground - Servidor Principal (Orquestador)
 REFACTORIZADO (v2.1 RBAC + Impuestos):
 - Implementa la inicialización controlada (lifespan)[cite: 70].
 - Instancia e inyecta TODOS los servicios (DI).
@@ -15,10 +15,12 @@ from fastapi.staticfiles import StaticFiles
 
 # --- 4. Importar Routers (APIs) ---
 from .api import auth as auth_router
+from .api import billing as billing_router  # Nuevo
 from .api import business as business_router
 from .api import cart as cart_router
 from .api import client_logs as client_logs_router
 from .api import customization as customization_router
+from .api import dashboard as dashboard_router
 from .api import finance as finance_router
 from .api import images as images_router
 from .api import products as products_router
@@ -40,14 +42,14 @@ from .database.manager import DatabaseManager
 from .services.business_service import BusinessService
 from .services.cart_service import CartService
 from .services.customization_service import CustomizationService
+from .services.email_service import EmailService  # Nuevo
 from .services.finance_service import FinanceService
 from .services.image_service import ImageService
+from .services.invoice_service import InvoiceService  # Nuevo
 from .services.product_service import ProductService
 from .services.sales_service import SalesService
 from .services.tax_service import TaxService
 from .services.user_service import UserService
-from .services.email_service import EmailService  # Nuevo
-from .services.invoice_service import InvoiceService  # Nuevo
 
 # Configuración de Logging del Backend (Moved to avoid Import warnings)
 logging.basicConfig(
@@ -104,7 +106,7 @@ async def lifespan(app: FastAPI):
     app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
-    invoice_service = InvoiceService(business_service=business_service, email_service=email_service) # Nuevo (Depende de Business y Email)
+    invoice_service = InvoiceService()
     app.state.invoice_service = invoice_service
 
     app.state.cart_service = CartService(
@@ -117,7 +119,7 @@ async def lifespan(app: FastAPI):
         cart_service=app.state.cart_service,
         product_service=product_service,
         tax_service=tax_service,
-        invoice_service=invoice_service, # Inyección de dependencia
+        invoice_service=invoice_service,  # Inyección de dependencia
     )
     app.state.client_logs_service = None  # Placeholder if needed
 
@@ -181,6 +183,12 @@ app.include_router(customization_router.router, prefix="/api/admin/customization
 app.include_router(images_router.router, prefix="/api/images", tags=["Images"])
 app.include_router(client_logs_router.router, prefix="/api/client-logs", tags=["Client Logs"])
 app.include_router(websocket_router.router, prefix="/api/ws", tags=["WebSocket"])
+
+# ... (imports) ...
+
+# ... (include routers) ...
+app.include_router(dashboard_router.router, prefix="/api/admin/dashboard", tags=["Admin Dashboard"])
+app.include_router(billing_router.router, prefix="/api/billing", tags=["Billing & Compliance"])
 
 
 # Endpoints de "Ping"

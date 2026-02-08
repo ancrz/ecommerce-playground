@@ -66,7 +66,7 @@ class CartService:
                 """
                 INSERT INTO carts (
                     id, customer_name, customer_id, status,
-                    region_id, currency_id, 
+                    region_id, currency_id,
                     subtotal, tax_amount, total_with_tax,
                     created_at, updated_at
                 )
@@ -216,7 +216,7 @@ class CartService:
         await self.db_manager.execute(
             "cart",
             """
-            UPDATE carts 
+            UPDATE carts
             SET subtotal = ?, tax_amount = ?, total_with_tax = ?, updated_at = ?
             WHERE id = ?
             """,

@@ -10,7 +10,8 @@ from pathlib import Path
 
 # --- Configuración ---
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-BACKEND_LOG_URL = "http://127.0.0.1:8042/api/health"
+BACKEND_PORT = os.getenv("BACKEND_PORT", "8042")
+BACKEND_LOG_URL = f"http://127.0.0.1:{BACKEND_PORT}/api/health"
 OPENAPI_LOCAL_PATH = PROJECT_ROOT / "docs" / "openapi.json"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
@@ -28,15 +29,15 @@ def generate_static_schema():
 
     try:
         from backend.main import app
-        
+
         openapi_content = app.openapi()
-        
+
         # Asegurar directorio
         OPENAPI_LOCAL_PATH.parent.mkdir(exist_ok=True)
-        
+
         with open(OPENAPI_LOCAL_PATH, "w", encoding="utf-8") as f:
             json.dump(openapi_content, f, indent=2)
-            
+
         logger.info(f"✅ Esquema guardado en: {OPENAPI_LOCAL_PATH}")
         return True
     except ImportError as e:
@@ -60,7 +61,7 @@ def regenerate_frontend_client():
 
     # Comando npm
     npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
-    
+
     try:
         # Usamos encoding='utf-8' para evitar el crash de cp1252
         result = subprocess.run(
@@ -87,7 +88,7 @@ def regenerate_frontend_client():
 def restart_stack():
     """Reinicia el stack completo invocando stop y start."""
     logger.info("🔄 Reiniciando Stack Completo...")
-    
+
     python_exe = sys.executable
     stop_script = PROJECT_ROOT / "stop.local.py"
     start_script = PROJECT_ROOT / "start.local.py"
@@ -95,7 +96,7 @@ def restart_stack():
     try:
         logger.info("1. Deteniendo servicios...")
         subprocess.run([python_exe, str(stop_script)], check=True)
-        
+
         logger.info("2. Iniciando servicios...")
         # Start se lanza y libera, o bloquea? start.local.py actual bloquea si no tiene flag de daemon.
         # Asumimos que queremos lanzarlo en una ventana nueva o dejarlo corriendo.
@@ -115,22 +116,22 @@ def wait_for_backend_health(timeout=30):
                 if response.status == 200:
                     logger.info("✅ Backend Online.")
                     return True
-        except:
+        except Exception:
             time.sleep(1)
     logger.warning("⚠️ Timeout esperando backend (pero continuamos)...")
     return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Farmalux Dev Pipeline Automation")
+    parser = argparse.ArgumentParser(description="Ecommerce Playground Dev Pipeline Automation")
     parser.add_argument("--static", action="store_true", help="Generar OpenAPI estáticamente (sin server)")
     parser.add_argument("--regen", action="store_true", help="Solo regenerar cliente frontend")
     parser.add_argument("--restart", action="store_true", help="Reiniciar todo el stack (Stop + Start)")
-    
+
     args = parser.parse_args()
 
     print("\n==========================================")
-    print(" 🛠️  FARMALUX DEV PIPELINE v2.0")
+    print(" 🛠️  ECOMMERCE PLAYGROUND DEV PIPELINE v2.0")
     print("==========================================\n")
 
     # 1. Generación de Schema (Static es más robusto)

@@ -37,8 +37,7 @@ export default function Footer() {
       marginTop: '4rem' // Asegura espacio sobre el footer
     }} data-testid="footer-public">
       <div className="max-w-7xl mx-auto text-center">
-        <p className="font-semibold">&copy; {new Date().getFullYear()} {businessInfo?.name || 'Farmalux'}. Todos los derechos reservados.</p>
-        
+                  <p className="font-semibold">&copy; {new Date().getFullYear()} {businessInfo?.name || import.meta.env.VITE_APP_NAME}. Todos los derechos reservados.</p>        
         {businessInfo?.contact && (
           <p className="mt-2 flex items-center justify-center gap-2">
             <Phone size={16} />

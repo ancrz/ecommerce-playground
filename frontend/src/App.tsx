@@ -12,7 +12,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // Importar Layouts y Páginas (muchas de estas son NUEVAS)
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
-import SearchPage from "./pages/SearchPage"; // NEW
+// SearchPage removed in favor of SearchOverlay
 import AdminPanel from "./pages/AdminPanel";
 import UserAccountPage from "./pages/UserAccountPage"; // ¡NUEVO! (Para /account)
 import PasswordResetRequestPage from "./pages/PasswordResetRequestPage"; // ¡NUEVO! (Paso 1)
@@ -20,8 +20,11 @@ import PasswordResetValidatePage from "./pages/PasswordResetValidatePage"; // ¡
 
 // Importar Modales (ahora componentes separados)
 import LoginModal from "./components/LoginModal";
+import RegisterModal from "./components/RegisterModal"; // <--- NUEVO
 import CartModal from "./components/CartModal";
+import SearchOverlay from "./components/SearchOverlay"; // <--- DESIGN 5
 import { ToastProvider } from "./components/ui/Toast";
+import { UIProvider } from "./components/UIContext";
 
 // Importar API y Tipos
 import * as api from "./api";
@@ -56,10 +59,13 @@ interface AppContextType {
 
   // Autenticación
   showLoginModal: () => void;
+  showRegisterModal: () => void; // <--- NUEVO
   handleLogout: () => void;
 
   // Carrito
   showCartModal: () => void;
+  // Búsqueda
+  showSearchModal: () => void; // <--- DESIGN 5
 }
 
 // --- Creación del Contexto ---
@@ -126,7 +132,9 @@ function AppContent() {
 
   // Estado de UI
   const [showLogin, setShowLogin] = useState(false); // restored
+  const [showRegister, setShowRegister] = useState(false); // <--- NUEVO
   const [showCart, setShowCart] = useState(false);   // restored
+  const [showSearch, setShowSearch] = useState(false); // <--- DESIGN 5
   const [appKey, setAppKey] = useState(0); // Para forzar recarga
 
   useEffect(() => {
@@ -216,7 +224,7 @@ function AppContent() {
           "Error crítico: No se pudo crear un carrito nuevo.",
           error
         );
-        alert("Error crítico: No se pudo inicializar el carrito de compras.");
+        // await alert("Error crítico: No se pudo inicializar el carrito de compras.");
       }
     };
 
@@ -252,6 +260,7 @@ function AppContent() {
     // REFACTOR: Guardar el objeto User completo
     localStorage.setItem("user", JSON.stringify(tokenResponse.user));
     setShowLogin(false);
+    setShowRegister(false); // Close register if open
   };
 
   const handleLogout = async () => {
@@ -339,7 +348,7 @@ function AppContent() {
       custom.font_family || "Poppins, sans-serif";
 
     // 3. Apply custom CSS
-    const styleTagId = "farmalux-custom-css";
+    const styleTagId = "ecommerce-playground-custom-css";
     let styleTag = document.getElementById(
       styleTagId
     ) as HTMLStyleElement | null;
@@ -391,63 +400,81 @@ function AppContent() {
     formatPrice,
     forceAppUpdate: () => setAppKey((k) => k + 1),
     showLoginModal: () => setShowLogin(true),
+    showRegisterModal: () => setShowRegister(true), // <--- NUEVO
     handleLogout,
     showCartModal: () => setShowCart(true),
+    showSearchModal: () => setShowSearch(true), // <--- DESIGN 5
   };
 
   return (
     <AppContext.Provider value={contextValue}>
-      {/* Modales Globales */}
-      <LoginModal
-        isOpen={showLogin}
-        onClose={() => setShowLogin(false)}
-        onLogin={handleLogin}
-      />
-      <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
+      <UIProvider>
+        {/* Modales Globales */}
+        <LoginModal
+          isOpen={showLogin}
+          onClose={() => setShowLogin(false)}
+          onLogin={handleLogin}
+          onRegisterClick={() => {
+            setShowLogin(false);
+            setShowRegister(true);
+          }}
+        />
+        <RegisterModal
+          isOpen={showRegister}
+          onClose={() => setShowRegister(false)}
 
-      {/* Rutas de la aplicación (E2E Test) */}
-      <div data-testid="app-container">
-        <Routes>
-          {/* Rutas Públicas (Layout principal) */}
-          <Route path="/" element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="search" element={<SearchPage />} />
+          onLoginClick={() => {
+            setShowRegister(false);
+            setShowLogin(true);
+          }}
+        />
+        <CartModal isOpen={showCart} onClose={() => setShowCart(false)} />
+        <SearchOverlay isOpen={showSearch} onClose={() => setShowSearch(false)} />
 
-            {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
+        {/* Rutas de la aplicación (E2E Test) */}
+        <div data-testid="app-container">
+          <Routes>
+            {/* Rutas Públicas (Layout principal) */}
+            <Route path="/" element={<Layout />}>
+              <Route index element={<HomePage />} />
+              {/* SearchPage removed */}
+
+              {/* Ruta de Autogestión (Panel de Usuario Híbrido) */}
+              <Route
+                path="account"
+                element={
+                  <ProtectedUserRoute user={user}>
+                    <UserAccountPage />
+                  </ProtectedUserRoute>
+                }
+              />
+
+              {/* Ruta de Admin (RBAC) */}
+              <Route
+                path="admin/*"
+                element={
+                  <ProtectedAdminRoute user={user}>
+                    <AdminPanel />
+                  </ProtectedAdminRoute>
+                }
+              />
+            </Route>
+
+            {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
             <Route
-              path="account"
-              element={
-                <ProtectedUserRoute user={user}>
-                  <UserAccountPage />
-                </ProtectedUserRoute>
-              }
+              path="/password-reset"
+              element={<PasswordResetRequestPage />}
+            />
+            <Route
+              path="/password-reset/validate"
+              element={<PasswordResetValidatePage />}
             />
 
-            {/* Ruta de Admin (RBAC) */}
-            <Route
-              path="admin/*"
-              element={
-                <ProtectedAdminRoute user={user}>
-                  <AdminPanel />
-                </ProtectedAdminRoute>
-              }
-            />
-          </Route>
-
-          {/* Rutas Públicas (Sin Layout principal, ej. Recuperación) */}
-          <Route
-            path="/password-reset"
-            element={<PasswordResetRequestPage />}
-          />
-          <Route
-            path="/password-reset/validate"
-            element={<PasswordResetValidatePage />}
-          />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </UIProvider>
     </AppContext.Provider>
   );
 }

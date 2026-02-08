@@ -1,227 +1,357 @@
 /**
  * src/pages/admin-modules/SalesModule.tsx
- * "Chunk" para la pestaña de Ventas (POS y Cola de Pedidos).
+ * "Chunk" para la pestaña de Ventas (POS, Pedidos Web, Historial).
  *
- * REFACTORIZADO (FASE 4):
- * 1. Botones usan clases .btn-primary, .btn-danger, .btn-icon, .btn-link
- * 2. Botones de POS (Iniciar Venta, Completar) ahora usan .btn-primary (azul)
- * en lugar del verde codificado, para seguir el tema.
+ * REFACTORIZADO (FASE 4 - Design 15):
+ * - DESIGN 15: Admin Order List (High Density)
+ * - Tabs: POS | Web Orders | Sales History
+ * - Premium Tables & POS Interface
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, type ComponentType } from 'react';
 import { 
   RefreshCw, FileText, Calendar, CheckCircle, XCircle, 
-  Plus, Search, Package, ChevronLeft, ChevronRight,
-  User, Globe, Receipt, QrCode
+  Plus, Search, Package,
+  User, Globe, Receipt, QrCode, ShoppingBag, CreditCard
 } from 'lucide-react';
 
 // Importar API y Contexto
 import * as api from '../api';
 import { useApp } from '../App';
+import { useUI } from '../components/UIContext';
+import { useFeedback } from '../components/ui/FeedbackModal';
 import type { DailyReport, Cart, Region, Currency, Product } from '../types';
 
-// Importar componentes genéricos (asumimos que están en /components/)
 // Importar componentes genéricos
 import { ResponsiveModal } from '../components/common/ResponsiveModal'; 
 import { TouchButton } from '../components/common/TouchButton';
 import { Input, Select } from '../components/FormControls'; 
 
-
 // --- Componente Principal del Módulo ---
 export default function SalesModule() {
-  const [sales, setSales] = useState<DailyReport | null>(null);
-  const [carts, setCarts] = useState<Cart[]>([]);
-  const [showPOS, setShowPOS] = useState(false);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const ITEMS_PER_PAGE = 5; // Reduced for demo/testing vertical space
-
-  const loadDailySales = () => api.getDailySales().then(setSales).catch(err => console.error(err));
+  const { alert, confirm } = useUI();
+  const { showToast } = useFeedback();
+  const { formatPrice } = useApp();
   
-  const loadPendingCarts = () => {
-    // Fetch + 1 strategy to determine if there's a next page
-    api.getPendingCarts(page * ITEMS_PER_PAGE, ITEMS_PER_PAGE + 1)
-      .then(data => {
-        if (data.length > ITEMS_PER_PAGE) {
-          setHasMore(true);
-          setCarts(data.slice(0, ITEMS_PER_PAGE));
+  const [activeTab, setActiveTab] = useState<'pos' | 'web' | 'history'>('pos');
+  const [salesReport, setSalesReport] = useState<DailyReport | null>(null);
+  const [carts, setCarts] = useState<Cart[]>([]);
+  const [showPOSModal, setShowPOSModal] = useState(false);
+  
+  // Pagination for Carts
+  const [cartPage, setCartPage] = useState(0);
+  const [hasMoreCarts, setHasMoreCarts] = useState(false);
+  const CARTS_PER_PAGE = 5;
+
+  const loadDailySales = useCallback(async () => {
+    try {
+        const report = await api.getDailySales();
+        setSalesReport(report);
+    } catch (err) {
+        console.error(err);
+        showToast("Error cargando reporte diario", "error");
+    }
+  }, [showToast]);
+  
+  const loadPendingCarts = useCallback(async () => {
+    try {
+        const data = await api.getPendingCarts(cartPage * CARTS_PER_PAGE, CARTS_PER_PAGE + 1);
+        if (data.length > CARTS_PER_PAGE) {
+          setHasMoreCarts(true);
+          setCarts(data.slice(0, CARTS_PER_PAGE));
         } else {
-          setHasMore(false);
+          setHasMoreCarts(false);
           setCarts(data);
         }
-      })
-      .catch(err => console.error(err));
-  };
+    } catch (err) {
+        console.error(err);
+        showToast("Error cargando carritos", "error");
+    }
+  }, [cartPage, showToast]);
   
-  const refreshAll = () => {
-    loadDailySales();
-    loadPendingCarts();
-  };
+  const refreshAll = useCallback(() => {
+    void loadDailySales();
+    void loadPendingCarts();
+  }, [loadDailySales, loadPendingCarts]);
   
   useEffect(() => {
-    loadPendingCarts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]); // Reload when page changes
+    const fetchPending = async () => {
+        await loadPendingCarts();
+    };
+    void fetchPending();
+  }, [loadPendingCarts]);
 
   useEffect(() => {
-    loadDailySales();
-  }, []);
+    const fetchDaily = async () => {
+        await loadDailySales();
+    };
+    void fetchDaily();
+  }, [loadDailySales]);
   
   const handleCloseDay = async () => {
-    if (confirm('¿Estás seguro de cerrar el día? Esta acción genera el reporte final y no se puede revertir.')) {
+    if (await confirm('¿Estás seguro de cerrar el día? Esta acción genera el reporte final y no se puede revertir.')) {
       try {
         const report = await api.closeDay();
-        alert(`✓ Día cerrado con ${report.sales_count} ventas y un total de ${report.total.toFixed(2)}`); // (report.total es 'total_with_tax')
+        await alert(`✓ Día cerrado con ${report.sales_count} ventas y un total de ${formatPrice(report.total)}`);
         refreshAll();
-      } catch (error: unknown) { alert('Error cerrando el día: ' + (error as Error).message); }
+      } catch (error: unknown) { 
+          showToast('Error cerrando el día: ' + (error as Error).message, 'error'); 
+      }
     }
   };
 
-  const handleCompleteSale = async (cart: Cart) => {
-    // REFACTOR: 'amount' no es necesario, el backend usa el total del carrito.
-    // 'method' -> 'payment_method'
-    const paymentDetails = { payment_method: "Efectivo", reference: "CAJA-01" };
-    if (!confirm(`Cobrar (Total c/ Imp): ${cart.total_with_tax.toFixed(2)} a ${cart.customer_name}?`)) return;
-    try {
-      await api.completeSale(cart.id, paymentDetails);
-      alert('✓ Venta completada');
-      refreshAll();
-    } catch(error: unknown) { alert('Error completando venta: ' + (error as Error).message); }
-  };
-
-  const handleCancelSale = async (cart: Cart) => {
-    if (!confirm(`¿Anular pedido de ${cart.customer_name}?`)) return;
-    try {
-      await api.cancelSale(cart.id);
-      alert('Pedido anulado');
-      refreshAll();
-    } catch(error: unknown) { alert('Error anulando pedido: ' + (error as Error).message); }
-  };
-  
   return (
-    <>
-      {/* Modal de "Iniciar Venta" (POS) */}
-      {showPOS && (
-        <POSModal 
-          onClose={() => setShowPOS(false)}
-          onSaleComplete={() => {
-            setShowPOS(false);
-            refreshAll();
-          }} 
-        />
-      )}
-    
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-4">Ventas del Día</h2>
-            {sales ? (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
-                  <span className="text-lg font-semibold text-blue-800">Total de Ventas (Imp. Incl.):</span>
-                  <span className="text-2xl font-bold text-blue-900">Bs. {sales.total.toFixed(2)}</span>
-                </div>
-                <div className="text-sm text-gray-600">Número de ventas: {sales.sales_count}</div>
-                {/* REFACTOR FASE 4: Botón de Peligro */}
-                <TouchButton 
-                  onClick={handleCloseDay} 
-                  variant="primary" 
-                  className="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white shadow-sm"
-                  icon={Calendar}
-                >
-                  Cerrar Día y Generar Reporte
-                </TouchButton>
-              </div>
-            ) : <p>Cargando ventas...</p>}
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Cola de Pedidos (Web)</h2>
-              {/* REFACTOR FASE 4: Botón de Icono */}
-              <TouchButton 
-                onClick={loadPendingCarts} 
-                variant="ghost" 
-                icon={RefreshCw}
-              />
+    <div className="space-y-6 animate-fade-in">
+       {/* Header & Tabs */}
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 pb-4">
+            <div>
+                <h2 className="text-2xl font-bold text-gray-900">Gestión de Ventas</h2>
+                <p className="text-gray-500 text-sm">Punto de venta y seguimiento de pedidos</p>
             </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {carts.length > 0 ? carts.map(cart => (
-                <div key={cart.id} className="p-4 border rounded-lg flex justify-between items-center" data-testid={`pending-cart-${cart.id}`}>
-                  <div>
-                    <div className="font-semibold">{cart.customer_name} <span className="text-gray-500 font-normal">({cart.customer_id})</span></div>
-                    <div className="text-sm text-gray-500">Items: {cart.item_count} | Total: <span className="font-bold text-gray-800">Bs. {cart.total_with_tax.toFixed(2)}</span></div>
-                  </div>
-                  <div className="flex gap-2">
-                    {/* REFACTOR FASE 4: Botones de Icono (con color) */}
-                    <div className="flex gap-2">
-                       <TouchButton 
-                        onClick={() => handleCompleteSale(cart)} 
-                        variant="ghost"
-                        className="text-green-600 hover:bg-green-50 hover:text-green-700" 
-                        icon={CheckCircle}
-                       />
-                       <TouchButton 
-                        onClick={() => handleCancelSale(cart)} 
-                        variant="ghost"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700" 
-                        icon={XCircle}
-                       />
-                    </div>
-                  </div>
-                </div>
-              )) : <p className="text-gray-500 text-center py-4">No hay carritos pendientes de la web.</p>}
+            
+            <div className="flex p-1 bg-gray-100 rounded-lg">
+                <TabButton active={activeTab === 'pos'} onClick={() => setActiveTab('pos')} icon={Receipt} label="Punto de Venta" />
+                <TabButton active={activeTab === 'web'} onClick={() => setActiveTab('web')} icon={Globe} label="Pedidos Web" count={carts.length} />
+                <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={FileText} label="Historial" />
             </div>
+       </div>
 
-            {/* Pagination Controls */}
-            <div className="flex justify-between items-center mt-4 pt-4 border-t">
-              <TouchButton 
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                variant="secondary"
-                icon={ChevronLeft}
-              >
-                Anterior
-              </TouchButton>
-              <span className="text-sm text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
-                Página {page + 1}
-              </span>
-              <TouchButton 
-                onClick={() => setPage(p => p + 1)}
-                disabled={!hasMore}
-                variant="secondary"
-              >
-                Siguiente <ChevronRight size={16} className="ml-1 inline" />
-              </TouchButton>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">Punto de Venta (POS)</h2>
-          {/* REFACTOR FASE 4: Botón Primario */}
-          <TouchButton
-            onClick={() => setShowPOS(true)}
-            variant="primary"
-            className="w-full text-lg h-16"
-            icon={Plus}
-          >
-            Iniciar Venta en Tienda
-          </TouchButton>
-          
-          <h3 className="text-xl font-bold mt-8 mb-4">Reportes</h3>
-          <ul className="space-y-2">
-            {/* REFACTOR FASE 4: Botones de Enlace */}
-            <li><TouchButton variant="ghost" className="w-full justify-start text-left" icon={FileText}>Reporte de Ventas Mensual</TouchButton></li>
-            <li><TouchButton variant="ghost" className="w-full justify-start text-left" icon={Package}>Reporte de Inventario</TouchButton></li>
-            <li><TouchButton variant="ghost" className="w-full justify-start text-left" icon={Calendar}>Reporte de Cierre de Día</TouchButton></li>
-          </ul>
-        </div>
-      </div>
-    </>
+       {/* Content Area */}
+       <div className="min-h-[400px]">
+            {activeTab === 'pos' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                    <div className="bg-linear-to-br from-blue-600 to-blue-800 rounded-2xl p-8 text-white shadow-xl flex flex-col justify-between relative overflow-hidden">
+                        <div className="relative z-10">
+                            <h3 className="text-blue-100 font-medium mb-1">Ventas Totales (Hoy)</h3>
+                            <div className="text-4xl font-bold mb-4">{salesReport ? formatPrice(salesReport.total) : '...'}</div>
+                            <div className="inline-flex items-center gap-2 bg-blue-500/30 px-3 py-1 rounded-full text-sm backdrop-blur-sm">
+                                <ShoppingBag size={14} /> {salesReport?.sales_count || 0} transacciones
+                            </div>
+                        </div>
+                        <div className="mt-8 relative z-10">
+                            <TouchButton
+                                onClick={() => setShowPOSModal(true)}
+                                variant="primary"
+                                className="w-full bg-white text-blue-700 hover:bg-blue-50 border-none shadow-lg h-14 text-lg font-bold"
+                                icon={Plus}
+                            >
+                                Nueva Venta (POS)
+                            </TouchButton>
+                        </div>
+                        {/* Decorative Circles */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-xl pointer-events-none" />
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                            <Calendar size={18} className="text-gray-400" /> Acciones de Caja
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                             <ActionButton icon={FileText} label="Reporte Z" onClick={() => {}} />
+                             <ActionButton icon={Package} label="Inventario" onClick={() => {}} />
+                        </div>
+                         <TouchButton 
+                            onClick={handleCloseDay} 
+                            variant="secondary" 
+                            className="w-full mt-4 border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200"
+                            icon={XCircle}
+                          >
+                            Cerrar Operaciones del Día
+                          </TouchButton>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'web' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in">
+                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 className="font-bold text-gray-800">Cola de Pedidos Pendientes</h3>
+                        <button onClick={loadPendingCarts} className="text-blue-600 hover:bg-blue-50 p-2 rounded-full transition-colors"><RefreshCw size={18} /></button>
+                    </div>
+                    {carts.length === 0 ? (
+                        <div className="p-12 text-center text-gray-400">
+                            <ShoppingBag size={48} className="mx-auto mb-3 opacity-20" />
+                            <p>No hay pedidos web pendientes</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-100">
+                             {carts.map(cart => (
+                                 <WebOrderRow 
+                                    key={cart.id} 
+                                    cart={cart} 
+                                    onComplete={() => {
+                                        refreshAll();
+                                        showToast("Pedido completado", "success");
+                                    }}
+                                    onCancel={() => {
+                                        refreshAll();
+                                        showToast("Pedido anulado", "info");
+                                    }}
+                                 />
+                             ))}
+                        </div>
+                    )}
+                     <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-center">
+                        {/* Simple Pagination */}
+                        <div className="flex gap-2">
+                            <button disabled={cartPage === 0} onClick={() => setCartPage(p => p - 1)} className="px-3 py-1 rounded border bg-white disabled:opacity-50">Prev</button>
+                            <button disabled={!hasMoreCarts} onClick={() => setCartPage(p => p + 1)} className="px-3 py-1 rounded border bg-white disabled:opacity-50">Next</button>
+                        </div>
+                     </div>
+                </div>
+            )}
+
+            {activeTab === 'history' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                        <h3 className="font-bold text-gray-800">Transacciones de Hoy</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
+                                <tr>
+                                    <th className="px-6 py-3">ID Venta</th>
+                                    <th className="px-6 py-3">Hora</th>
+                                    <th className="px-6 py-3">Cliente</th>
+                                    <th className="px-6 py-3">Método</th>
+                                    <th className="px-6 py-3 text-right">Total</th>
+                                    <th className="px-6 py-3 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {salesReport?.sales?.map((sale) => (
+                                    <tr key={sale.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="px-6 py-3 font-mono text-xs text-gray-400">#{sale.id.slice(0, 8)}</td>
+                                        <td className="px-6 py-3 text-gray-600">
+                                            {new Date(sale.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </td>
+                                        <td className="px-6 py-3 font-medium text-gray-900">{sale.customer_name}</td>
+                                        <td className="px-6 py-3 text-gray-600 flex items-center gap-2">
+                                            <CreditCard size={14} />
+                                            {sale.payment_details?.payment_method || 'N/A'}
+                                        </td>
+                                        <td className="px-6 py-3 text-right font-bold text-green-600">
+                                            {formatPrice(sale.total_with_tax)}
+                                        </td>
+                                        <td className="px-6 py-3 text-center">
+                                            <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                                                Completado
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(!salesReport?.sales || salesReport.sales.length === 0) && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                                            No hay ventas registradas hoy
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+       </div>
+
+       {/* POS MODAL */}
+       {showPOSModal && (
+         <POSModal 
+           onClose={() => setShowPOSModal(false)}
+           onSaleComplete={() => {
+             setShowPOSModal(false);
+             refreshAll();
+           }} 
+         />
+       )}
+    </div>
   );
 }
 
+// --- Sub-components ---
+
+const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: ComponentType<any>, label: string, count?: number }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            active ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+        }`}
+    >
+        <Icon size={16} />
+        {label}
+        {count !== undefined && count > 0 && (
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'}`}>
+                {count}
+            </span>
+        )}
+    </button>
+);
+
+const ActionButton = ({ icon: Icon, label, onClick }: { icon: ComponentType<any>, label: string, onClick: () => void }) => (
+    <button onClick={onClick} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
+         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2 group-hover:bg-blue-100 group-hover:scale-110 transition-transform">
+             <Icon size={20} />
+         </div>
+         <span className="text-xs font-bold text-gray-700">{label}</span>
+    </button>
+);
+
+const WebOrderRow = ({ cart, onComplete, onCancel }: { cart: Cart, onComplete: () => void, onCancel: () => void }) => {
+    const { formatPrice } = useApp();
+    const { confirm } = useUI();
+
+    const handleComplete = async () => {
+        if (await confirm(`¿Cobrar ${formatPrice(cart.total_with_tax)} a ${cart.customer_name}?`, "Confirmar Venta Web")) {
+            try {
+                await api.completeSale(cart.id, { payment_method: "Efectivo", reference: "WEB" });
+                onComplete();
+            } catch (e) { console.error(e); }
+        }
+    }
+
+    const handleCancel = async () => {
+        if (await confirm(`¿Anular pedido de ${cart.customer_name}?`, "Anular Pedido")) {
+            try {
+                await api.cancelSale(cart.id);
+                onCancel();
+            } catch (e) { console.error(e); }
+        }
+    }
+
+    return (
+        <div className="p-4 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row justify-between items-center gap-4 group">
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold">
+                    {cart.customer_name.charAt(0)}
+                </div>
+                <div>
+                     <div className="font-bold text-gray-900">{cart.customer_name}</div>
+                     <div className="text-xs text-gray-500 font-mono">ID: {cart.id.slice(0, 8)} • {cart.item_count} items</div>
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                <div className="text-right">
+                    <div className="font-bold text-lg text-gray-900 leading-none">{formatPrice(cart.total_with_tax)}</div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide">Total</div>
+                </div>
+                
+                <div className="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button onClick={handleComplete} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Completar">
+                        <CheckCircle size={20} />
+                    </button>
+                    <button onClick={handleCancel} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors" title="Anular">
+                        <XCircle size={20} />
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 // --- Componente: Modal de "Iniciar Venta" (POS) ---
 function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComplete: () => void }) {
+  const { alert } = useUI();
   const [regions, setRegions] = useState<Region[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [cart, setCart] = useState<Cart | null>(null); // El carrito activo del POS
@@ -233,6 +363,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
   const [regionId, setRegionId] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [recoverId, setRecoverId] = useState(""); // ID para recuperar carrito
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
   
   const { formatPrice, selectedCurrency } = useApp(); // Usar la moneda global seleccionada
 
@@ -247,10 +378,8 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
         ]);
         setRegions(regs);
         setCurrencies(currs);
-        // Setear por defecto si es posible
         if (regs.length > 0) setRegionId(regs[0].id);
         
-        // Usar la moneda global si existe, si no, la base
         if (selectedCurrency) {
           setCurrencyId(selectedCurrency.id);
         } else {
@@ -258,22 +387,22 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
           if (baseCurr) setCurrencyId(baseCurr.id);
           else if (currs.length > 0) setCurrencyId(currs[0].id);
         }
-      } catch (e: unknown) { alert("Error cargando datos: " + (e as Error).message); }
+      } catch (e: unknown) { await alert("Error cargando datos: " + (e as Error).message); }
       setLoading(false);
     };
     loadData();
-  }, [selectedCurrency]); // Depende de la moneda global
+  }, [selectedCurrency, alert]); 
 
   const handleCreateCart = async () => {
     if (!regionId || !currencyId) {
-      alert("Debe seleccionar una región fiscal y una moneda.");
+      await alert("Debe seleccionar una región fiscal y una moneda.");
       return;
     }
     setLoading(true);
     try {
       const newCart = await api.createCart(customerName, customerId, regionId, currencyId);
       setCart(newCart);
-    } catch (e: unknown) { alert("Error creando carrito: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error creando carrito: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -283,7 +412,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     try {
       const updatedCart = await api.addItem(cart.id, productId, quantity);
       setCart(updatedCart); 
-    } catch (e: unknown) { alert("Error añadiendo item: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error añadiendo item: " + (e as Error).message); }
     setLoading(false);
   };
   
@@ -292,44 +421,49 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
     setLoading(true);
     try {
       await api.completeSale(cart.id, { payment_method: "Efectivo (POS)", reference: "CAJA-01" });
-      alert("✓ Venta de POS completada!");
+      await alert("✓ Venta de POS completada!");
       onSaleComplete(); 
-    } catch (e: unknown) { alert("Error completando venta: " + (e as Error).message); }
+    } catch (e: unknown) { await alert("Error completando venta: " + (e as Error).message); }
     setLoading(false);
   };
   
-
-
   const handleRecoverCart = async () => {
     if (!recoverId.trim()) return;
     setLoading(true);
     try {
-      // Limpiar prefijos si se escanea una URL completa (aunque el QR actual es JSON)
-      // Si el input es JSON (del QR), parsearlo
       let targetId = recoverId.trim();
-      
       try {
         const json = JSON.parse(targetId);
         if (json.cart_id) targetId = json.cart_id;
-      } catch (e) {
-        // No es JSON, usar como string directo
-      }
+      } catch { /* silent */ }
 
       const recoveredCart = await api.getCart(targetId);
-      
-      // Sincronizar estado local (opcional, pero útil si se expande la edición)
       setCustomerName(recoveredCart.customer_name);
       setCustomerId(recoveredCart.customer_id);
-      
       setCart(recoveredCart);
-      alert("✓ Carrito recuperado exitosamente.");
-    } catch (e: any) {
-      alert("Error recuperando carrito: " + (e.message || "ID Inválido"));
+      await alert("✓ Carrito recuperado exitosamente.");
+    } catch (e: unknown) {
+      await alert("Error recuperando carrito: " + ((e as Error).message || "ID Inválido"));
     } finally {
         setLoading(false);
     }
   };
   
+  const handleCustomerLookup = async () => {
+    if (!customerId || customerId.length < 5) return;
+    setSearchingCustomer(true);
+    try {
+        const customer = await api.getCustomerByCedula(customerId);
+        if (customer) {
+            setCustomerName(customer.name);
+        }
+    } catch (e) {
+        console.log("Cliente no encontrado", e);
+    } finally {
+        setSearchingCustomer(false);
+    }
+  };
+
   return (
     <ResponsiveModal 
       title="Punto de Venta (POS)" 
@@ -339,132 +473,120 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
       icon={<Receipt className="w-6 h-6" />}
     >
       {loading && !cart && (
-        <div className="flex justify-center p-8">
-            <RefreshCw className="animate-spin text-blue-600" />
+        <div className="flex justify-center p-12">
+            <RefreshCw className="animate-spin text-blue-600" size={32} />
         </div>
       )}
       
       {!cart ? (
-        // --- VISTA 1: Crear Carrito (Configuración) ---
-        <div className="space-y-6" data-testid="pos-setup-view">
+        <div className="space-y-6 animate-fade-in" data-testid="pos-setup-view">
+          {/* Setup Form */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><User size={16} /> Cliente</h3>
+                  <Input label="Nombre" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                  <Input label="Nombre" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                  <div className="relative">
+                    <Input 
+                        label="ID / RIF" 
+                        value={customerId} 
+                        onChange={e => setCustomerId(e.target.value)} 
+                        onBlur={handleCustomerLookup}
+                    />
+                    {searchingCustomer && <div className="absolute right-3 top-9"><RefreshCw className="animate-spin text-blue-500" size={16}/></div>}
+                  </div>
+              </div>
+              <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2"><Globe size={16} /> Fiscal</h3>
+                  <Select label="Región" value={regionId} onChange={e => setRegionId(e.target.value)} required>
+                      <option value="">Seleccione...</option>
+                      {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </Select>
+                  <Select label="Moneda" value={currencyId} onChange={e => setCurrencyId(e.target.value)} required>
+                      <option value="">Seleccione...</option>
+                      {currencies.map(c => <option key={c.id} value={c.id}>{c.name} ({c.symbol})</option>)}
+                  </Select>
+              </div>
+          </div>
           
-          {/* 1. Datos del Cliente */}
-          <div className="space-y-4">
-             <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2">
-               <User size={16} /> 1. Datos del Cliente
-             </h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Nombre del Cliente" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                <Input label="Cédula/RIF" value={customerId} onChange={e => setCustomerId(e.target.value)} />
-             </div>
-          </div>
+          <TouchButton 
+              onClick={handleCreateCart}
+              disabled={loading || !regionId || !currencyId || !customerName || !customerId}
+              variant="primary"
+              className="w-full h-12 text-lg font-bold shadow-lg shadow-blue-500/20"
+              icon={Plus}
+              loading={loading}
+          >
+              Iniciar Venta
+          </TouchButton>
 
-          {/* 2. Configuración Fiscal */}
-          <div className="space-y-4">
-             <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2">
-               <Globe size={16} /> 2. Configuración de Venta
-             </h3>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select label="Región Fiscal" value={regionId} onChange={e => setRegionId(e.target.value)} required>
-                    <option value="">Seleccione...</option>
-                    {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </Select>
-                <Select label="Moneda de Pago" value={currencyId} onChange={e => setCurrencyId(e.target.value)} required>
-                    <option value="">Seleccione...</option>
-                    {currencies.map(c => <option key={c.id} value={c.id}>{c.name} ({c.symbol})</option>)}
-                </Select>
-             </div>
-          </div>
-
-          <div className="pt-4 border-t flex flex-col gap-4">
-            <TouchButton 
-                onClick={handleCreateCart}
-                disabled={loading || !regionId || !currencyId || !customerName || !customerId}
-                variant="primary"
-                className="w-full"
-                icon={Plus}
-                loading={loading}
-            >
-                Iniciar Nuevo Carrito
-            </TouchButton>
-
-             {/* 3. Recuperar Pedido (QR) */}
-             <div className="bg-gray-50 p-4 rounded-lg border border-dashed border-gray-300">
-                <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                    <QrCode size={16} /> Recuperar Pedido Web / Escanear QR
-                </h3>
-                <div className="flex gap-2">
-                    <div className="flex-1">
-                        <Input 
-                            placeholder="Escanee QR o ingrese ID de Carrito" 
-                            value={recoverId} 
-                            onChange={e => setRecoverId(e.target.value)}
-                        />
-                    </div>
-                    <TouchButton 
-                        onClick={handleRecoverCart}
-                        disabled={loading || !recoverId}
-                        variant="secondary"
-                        icon={Search}
-                        loading={loading}
-                    >
-                        Cargar
+          <div className="relative border-t border-gray-200 pt-6">
+               <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-gray-400 font-bold uppercase tracking-widest">O recuperar</span>
+               <div className="flex gap-2">
+                    <Input 
+                        placeholder="ID de Pedido o QR JSON..." 
+                        value={recoverId} 
+                        onChange={e => setRecoverId(e.target.value)}
+                        className="flex-1"
+                    />
+                    <TouchButton onClick={handleRecoverCart} disabled={loading || !recoverId} variant="secondary" icon={QrCode}>
+                       Cargar
                     </TouchButton>
-                </div>
-             </div>
+               </div>
           </div>
         </div>
       ) : (
-        // --- VISTA 2: Carrito Activo (Añadir Items) ---
-        <div data-testid="pos-active-cart-view" className="flex flex-col h-full">
+        <div data-testid="pos-active-cart-view" className="flex flex-col h-full animate-fade-in">
           <ProductSearch onProductSelect={handleAddItem} />
           
-          {/* Lista de Items */}
-          <div className="mt-6 flex-1 min-h-[150px] border rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-gray-50 p-2 font-medium border-b flex justify-between text-xs uppercase text-gray-500">
+          <div className="mt-4 flex-1 min-h-[200px] border border-gray-200 rounded-xl overflow-hidden flex flex-col bg-gray-50/30">
+            <div className="bg-gray-100/50 p-3 text-xs font-bold text-gray-500 uppercase flex justify-between tracking-wider">
                 <span>Producto</span>
                 <span>Subtotal</span>
             </div>
-            <div className="overflow-y-auto p-2 space-y-2">
-                {cart.items.map(item => (
-                <div key={item.product_id} className="flex justify-between items-center bg-white p-2 rounded shadow-sm border">
-                    <div>
-                        <div className="font-medium text-sm">{item.product_name}</div>
-                        <div className="text-xs text-gray-500">Cant: {item.quantity}</div>
+            <div className="overflow-y-auto p-2 space-y-2 flex-1">
+                {cart.items.length === 0 && (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                        <ShoppingBag size={32} className="mb-2 opacity-20" />
+                        <p>Carrito vacío</p>
                     </div>
-                    <span className="font-bold text-gray-700">{formatPrice(item.subtotal)}</span>
+                )}
+                {cart.items.map(item => (
+                <div key={item.product_id} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                    <div>
+                        <div className="font-bold text-gray-800">{item.product_name}</div>
+                        <div className="text-xs text-gray-500">Qty: {item.quantity}</div>
+                    </div>
+                    <span className="font-mono font-bold text-gray-900">{formatPrice(item.subtotal)}</span>
                 </div>
                 ))}
-                {cart.items.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">Carrito vacío</p>}
+            </div>
+            
+            <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+                <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span className="font-medium">{formatPrice(cart.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm mb-3">
+                    <span className="text-gray-500">Impuestos</span>
+                    <span className="font-medium text-red-500">+{formatPrice(cart.tax_amount)}</span>
+                </div>
+                <div className="flex justify-between text-2xl font-black text-gray-900 mb-4">
+                    <span>Total</span>
+                    <span>{formatPrice(cart.total_with_tax)}</span>
+                </div>
+                <TouchButton
+                    onClick={handleCompleteSale}
+                    disabled={loading || cart.items.length === 0}
+                    variant="primary"
+                    className="w-full h-14 text-xl font-bold shadow-xl shadow-blue-600/20"
+                    icon={CheckCircle}
+                    loading={loading}
+                >
+                    Cobrar
+                </TouchButton>
             </div>
           </div>
-          
-          {/* Totales */}
-          <div className="mt-4 pt-4 border-t space-y-1 bg-gray-50 p-4 rounded-lg">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal:</span>
-              <span>{formatPrice(cart.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Impuestos ({cart.tax_amount > 0 ? 'Incl.' : '0%'}):</span>
-              <span>{formatPrice(cart.tax_amount)}</span>
-            </div>
-            <div className="flex justify-between text-xl font-bold text-blue-700 pt-2 border-t border-gray-200 mt-1">
-              <span>Total a Pagar:</span>
-              <span>{formatPrice(cart.total_with_tax)}</span>
-            </div>
-          </div>
-          
-          <TouchButton
-            onClick={handleCompleteSale}
-            disabled={loading || cart.items.length === 0}
-            variant="primary"
-            className="w-full mt-4 h-14 text-lg" // Added h-14 to simulate large button
-            icon={CheckCircle}
-            loading={loading}
-          >
-            {`Cobrar ${formatPrice(cart.total_with_tax)}`}
-          </TouchButton>
         </div>
       )}
     </ResponsiveModal>
@@ -473,6 +595,7 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
 
 // --- Componente: Buscador de Productos (para POS) ---
 function ProductSearch({ onProductSelect }: { onProductSelect: (productId: string, quantity: number) => void }) {
+  const { alert } = useUI();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -485,47 +608,41 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (productId: strin
     setLoading(true);
     try {
       setResults(await api.searchProducts(query));
-    } catch (e: unknown) { alert("Error buscando: " + (e as Error).message); }
+    } catch (_e: unknown) { await alert("Error buscando: " + (_e as Error).message); }
     setLoading(false);
   };
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 relative">
       <div className="flex gap-2">
-        <div className="flex-1">
-            <Input 
-            value={query} 
-            onChange={e => setQuery(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && handleSearch()}
-            placeholder="Buscar por SKU, Nombre..."
-            data-testid="pos-product-search-input"
+        <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input 
+                value={query} 
+                onChange={e => setQuery(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && handleSearch()}
+                placeholder="Buscar producto..."
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm"
             />
         </div>
-        <TouchButton onClick={handleSearch} disabled={loading} variant="secondary" icon={Search}>
-          Buscar
-        </TouchButton>
+        <TouchButton onClick={handleSearch} disabled={loading} variant="secondary" icon={Search} iconOnly className="aspect-square" />
       </div>
-      <div className="max-h-48 overflow-y-auto border rounded-lg bg-gray-50 border-gray-200">
-        {loading && <p className="p-3 text-gray-500">Buscando...</p>}
-        {!loading && results.length === 0 && query.length > 1 && <p className="p-3 text-gray-500">No se encontraron productos.</p>}
-        {results.map(prod => (
-          <div key={prod.id} className="flex justify-between items-center p-3 hover:bg-gray-50 border-b">
-            <div>
-              <div className="font-semibold">{prod.name}</div>
-              <div className="text-sm text-gray-600">Stock: {prod.stock} | Precio: Bs. {prod.price.toFixed(2)}</div>
+      
+      {results.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-2 max-h-60 overflow-y-auto bg-white rounded-xl shadow-xl border border-gray-100 z-50 divide-y divide-gray-50">
+            {results.map(prod => (
+            <div key={prod.id} className="flex justify-between items-center p-3 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => prod.stock > 0 && onProductSelect(prod.id, 1)}>
+                <div>
+                <div className="font-bold text-sm text-gray-800">{prod.name}</div>
+                <div className="text-xs text-gray-500">Stock: {prod.stock} • Bs. {prod.price.toFixed(2)}</div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Plus size={16} />
+                </div>
             </div>
-            {/* REFACTOR FASE 4: Botón Primario (pequeño) */}
-            <TouchButton
-              onClick={() => onProductSelect(prod.id, 1)}
-              disabled={prod.stock === 0}
-              variant="primary"
-              icon={Plus}
-            >
-              Añadir
-            </TouchButton>
+            ))}
           </div>
-        ))}
-      </div>
+      )}
     </div>
   );
 }

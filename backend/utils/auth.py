@@ -4,10 +4,11 @@ REFACTORIZADO: Implementa la lógica de RBAC (Control de Acceso Basado en Roles)
 usando un decorador/dependencia (RoleChecker).
 """
 
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Dict, Any, List
 import logging
+from typing import Any
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Importar el Servicio de Usuario para la verificación del token
 from ..services.user_service import UserService
@@ -28,27 +29,27 @@ def get_user_service(request: Request) -> UserService:
 def verify_token_dependency(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     service: UserService = Depends(get_user_service)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Dependencia de FastAPI que verifica el token.
     Llamada por get_current_user.
     """
     logger.debug(f"verify_token_dependency: Received credentials: {credentials.credentials[:10]}...") # Log first 10 chars of token
     token = credentials.credentials
-    user_data = service.verify_token(token) 
-    
+    user_data = service.verify_token(token)
+
     if not user_data:
         logger.warning("verify_token_dependency: Token inválido o expirado.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido o expirado")
-    
+
     logger.debug(f"verify_token_dependency: Token verified, user_data: {user_data}")
     return user_data
 
 # --- Dependencia de Usuario Básico ---
 
 async def get_current_user(
-    user_data: Dict[str, Any] = Depends(verify_token_dependency)
-) -> Dict[str, Any]:
+    user_data: dict[str, Any] = Depends(verify_token_dependency)
+) -> dict[str, Any]:
     """
     Obtiene los datos del usuario actual (username, roles, etc.)
     desde el token verificado.
@@ -63,13 +64,13 @@ class RoleChecker:
     Clase decoradora (Dependencia de FastAPI) que verifica si el usuario
     actual tiene *alguno* de los roles permitidos.
     """
-    def __init__(self, allowed_roles: List[str]):
+    def __init__(self, allowed_roles: list[str]):
         if "admin" not in allowed_roles:
             allowed_roles.append("admin")
         self.allowed_roles = set(allowed_roles)
         logger.debug(f"RoleChecker initialized with allowed_roles: {self.allowed_roles}")
 
-    def __call__(self, user_data: Dict[str, Any] = Depends(get_current_user)) -> bool:
+    def __call__(self, user_data: dict[str, Any] = Depends(get_current_user)) -> bool:
         """
         Se ejecuta cuando se llama a la dependencia.
         """
@@ -78,7 +79,7 @@ class RoleChecker:
         logger.debug(f"RoleChecker: user_data.get('roles'): {user_data.get('roles')}")
         logger.debug(f"RoleChecker: user_roles: {user_roles}")
         logger.debug(f"RoleChecker: allowed_roles: {self.allowed_roles}")
-        
+
         if not self.allowed_roles.intersection(user_roles):
             logger.warning(f"Acceso denegado para {user_data.get('username')}. "
                            f"Requiere: {self.allowed_roles}, Tiene: {user_roles}")
@@ -95,7 +96,7 @@ class RoleChecker:
         """
         if not isinstance(other, RoleChecker):
             return NotImplemented
-        
+
         combined_roles = self.allowed_roles.union(other.allowed_roles)
         return RoleChecker(list(combined_roles))
 

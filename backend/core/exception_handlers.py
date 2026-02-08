@@ -14,7 +14,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-# Ontological Adaptation: Relative import for farmalux structure (same directory)
+from .config import settings
+
+# Ontological Adaptation: Relative import for ecommerce-playground structure (same directory)
 from .i18n import detect_language, translate
 
 
@@ -24,7 +26,7 @@ class ProblemDetail:
 
     Formato estándar:
     {
-        "type": "https://api.farmalux.com/errors/validation-error",
+        "type": f"https://{settings.API_DOMAIN}/errors/validation-error",
         "title": "Validation Error",
         "status": 400,
         "detail": "Los datos enviados no son válidos",
@@ -79,7 +81,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     title = translate(type_key, lang)
 
     problem = ProblemDetail(
-        type=f"https://api.farmalux.com/errors/{type_key.replace('_', '-')}",
+        type=f"https://{settings.API_DOMAIN}/errors/{type_key.replace('_', '-')}",
         title=title,
         status=exc.status_code,
         detail=str(exc.detail),  # El detail ya viene custom del endpoint
@@ -110,7 +112,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         errors[field] = {"message": error["msg"], "type": error["type"], "input": str(error.get("input", ""))}
 
     problem = ProblemDetail(
-        type="https://api.farmalux.com/errors/validation-error",
+        type=f"https://{settings.API_DOMAIN}/errors/validation-error",
         title=translate("validation_error", lang),
         status=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail=translate("validation_detail", lang),
@@ -150,7 +152,7 @@ async def integrity_exception_handler(request: Request, exc: IntegrityError) -> 
         detail = translate("generic_integrity_error", lang)
 
     problem = ProblemDetail(
-        type="https://api.farmalux.com/errors/database-constraint",
+        type=f"https://{settings.API_DOMAIN}/errors/database-constraint",
         title=translate("database_constraint", lang),
         status=status.HTTP_409_CONFLICT,
         detail=detail,
@@ -185,7 +187,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         errors = {}
 
     problem = ProblemDetail(
-        type="https://api.farmalux.com/errors/internal-error",
+        type=f"https://{settings.API_DOMAIN}/errors/internal-error",
         title=translate("internal_error", lang),
         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail=detail,

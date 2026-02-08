@@ -21,11 +21,12 @@
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.1.18",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^5.1.3",
     "autoprefixer": "^10.4.22",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",
@@ -37,6 +38,6 @@
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0",
-    "vite": "^4.3.9"
+    "vite": "^7.3.1"
   }
 }

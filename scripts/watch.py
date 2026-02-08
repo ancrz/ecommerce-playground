@@ -15,13 +15,14 @@ Uso:
     python -m scripts.watch
 """
 
+import logging
+import subprocess
 import sys
 import time
-import subprocess
-import logging
 from pathlib import Path
-from watchdog.observers import Observer
+
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 # Configuración
 logging.basicConfig(
@@ -46,12 +47,12 @@ class ChangeHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.is_directory:
             return
-        
+
         # Filtrar solo archivos relevantes
         filename = getattr(event, 'src_path', '')
         if not filename.endswith('.py'):
             return
-        
+
         if '__pycache__' in filename or '.pytest_cache' in filename:
             return
 
@@ -73,15 +74,15 @@ class ChangeHandler(FileSystemEventHandler):
 
     def run_regenerate(self):
         logger.info("⏳ Detectando reinicio del backend...")
-        
+
         # Ejecutar script de regeneración con migraciones
         python = sys.executable
         cmd = [python, "-m", "scripts.regenerate", "--no-start", "--migrate"]
-        
+
         try:
             logger.info("🔄 Regenerando tipos, hooks y BD...")
             result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
-            
+
             if result.returncode == 0:
                 logger.info("✅ Sincronización Backend -> Frontend completada")
             else:
@@ -89,7 +90,7 @@ class ChangeHandler(FileSystemEventHandler):
                 # Mostrar solo las últimas líneas del error para no saturar
                 print("\n".join(result.stdout.splitlines()[-5:]))
                 print("\n".join(result.stderr.splitlines()[-5:]))
-                
+
         except Exception as e:
             logger.error(f"❌ Fallo al ejecutar script: {e}")
 
@@ -102,11 +103,11 @@ def main():
     event_handler = ChangeHandler()
     observer = Observer()
     observer.schedule(event_handler, str(BACKEND_DIR), recursive=True)
-    
+
     observer.start()
     logger.info(f"👀 Observando cambios en {BACKEND_DIR}...")
     logger.info(f"⚡ Regeneración automática activa (debounce: {DEBOUNCE_SECONDS}s)")
-    
+
     try:
         while True:
             time.sleep(1)
@@ -114,7 +115,7 @@ def main():
     except KeyboardInterrupt:
         observer.stop()
         logger.info("\n🛑 Watcher detenido")
-    
+
     observer.join()
     return 0
 

@@ -15,13 +15,13 @@ Nota: Este proyecto usa SQLite con chunks separados, por lo que
 Alembic puede no ser necesario para todas las tablas.
 """
 
-import sys
+import argparse
+import logging
 import os
 import subprocess
-import logging
-import argparse
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # --- Configuración ---
 logging.basicConfig(
@@ -36,18 +36,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 def load_env():
     """Carga variables de entorno desde .env."""
     env_file = PROJECT_ROOT / ".env"
-    
+
     if not env_file.exists():
         return
-    
-    with open(env_file, 'r', encoding='utf-8') as f:
+
+    with open(env_file, encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 key, _, value = line.partition('=')
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
+                if key:
                     os.environ[key] = value
 
 
@@ -63,16 +63,16 @@ def run_alembic(*args) -> int:
     """Ejecuta un comando de Alembic."""
     python = get_python_executable()
     alembic_ini = PROJECT_ROOT / "alembic.ini"
-    
+
     if not alembic_ini.exists():
         logger.error("❌ alembic.ini no encontrado")
         logger.error("   Este proyecto usa DatabaseManager con chunks SQLite")
         logger.error("   Las tablas se crean automáticamente en el startup")
         return 1
-    
+
     cmd = [python, "-m", "alembic"] + list(args)
     logger.info(f"Ejecutando: {' '.join(cmd)}")
-    
+
     result = subprocess.run(cmd, cwd=PROJECT_ROOT)
     return result.returncode
 
@@ -87,7 +87,7 @@ def cmd_generate(message: str = None) -> int:
     """Genera una nueva migración con autogenerate."""
     if not message:
         message = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
+
     logger.info(f"📦 Generando migración: {message}")
     return run_alembic("revision", "--autogenerate", "-m", message)
 
@@ -124,15 +124,15 @@ def main():
     parser.add_argument("--history", action="store_true",
                        help="Ver historial de migraciones")
     args = parser.parse_args()
-    
+
     print("\n>>> Gestión de Migraciones <<<\n")
-    
+
     # Cargar configuración
     load_env()
-    
+
     # Verificar si alembic está configurado
     alembic_ini = PROJECT_ROOT / "alembic.ini"
-    
+
     if not alembic_ini.exists():
         logger.warning("=" * 60)
         logger.warning("ℹ️ Este proyecto NO usa Alembic para migraciones")
@@ -146,7 +146,7 @@ def main():
         logger.warning("3. Reinicia el backend")
         logger.warning("=" * 60)
         return 0
-    
+
     # Ejecutar comando
     if args.generate:
         return cmd_generate(args.message)

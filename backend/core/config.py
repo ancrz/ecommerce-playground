@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -8,7 +9,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Ecommerce Playground API"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
-    PORT: int = 8042
+    PORT: int = Field(8042, validation_alias="BACKEND_PORT")
+    API_DOMAIN: str = Field("localhost:8042", validation_alias="API_DOMAIN")
+    SUPPORT_EMAIL: str = Field("no-reply@ecommerce-playground.local", validation_alias="SUPPORT_EMAIL")
 
     # Paths
     UPLOAD_PATH: str = "./data/uploads"
@@ -16,11 +19,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/ecommerce.db"
 
     # Security (Defaults for dev, override in prod)
-    SECRET_KEY: str = "supersecretkey"
-    ALGORITHM: str = "HS256"
+    # Security (Defaults for dev, override in prod)
+    SECRET_KEY: str = Field("supersecretkey", validation_alias="JWT_SECRET_KEY")
+    ALGORITHM: str = Field("HS256", validation_alias="JWT_ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Session Management
+    JWT_EXPIRATION_HOURS: int = Field(24, validation_alias="JWT_EXPIRATION_HOURS")
     SESSION_EXPIRE_MINUTES: int = 60
     GUEST_SESSION_EXPIRE_MINUTES: int = 43200  # 30 days
 
@@ -39,7 +44,29 @@ class Settings(BaseSettings):
     PERM_EXECUTE: int = 1
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    FRONTEND_PORT: int = Field(5173, validation_alias="FRONTEND_PORT")
+    BACKEND_URL: str = Field("http://localhost:8042", validation_alias="BACKEND_URL")
+    CORS_ORIGINS: list[str] = []
+
+    def model_post_init(self, __context):
+        # Calcular minutos desde horas
+        if self.JWT_EXPIRATION_HOURS:
+            self.SESSION_EXPIRE_MINUTES = self.JWT_EXPIRATION_HOURS * 60
+
+        # Asegurar que CORS_ORIGINS use el puerto correcto cargado de env
+        if not self.CORS_ORIGINS:
+            self.CORS_ORIGINS = [
+                f"http://localhost:{self.FRONTEND_PORT}",
+                f"http://127.0.0.1:{self.FRONTEND_PORT}",
+                "http://localhost:5173", # Fallback común
+            ]
+        # Sincronizar BACKEND_URL si el puerto cambió pero la URL no
+        if f":{self.PORT}" not in self.BACKEND_URL and "localhost" in self.BACKEND_URL:
+             self.BACKEND_URL = f"http://localhost:{self.PORT}"
+
+        # Sincronizar API_DOMAIN
+        if "localhost" in self.API_DOMAIN and f":{self.PORT}" not in self.API_DOMAIN:
+            self.API_DOMAIN = f"localhost:{self.PORT}"
 
     model_config = {
         "env_file": ".env",

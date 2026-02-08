@@ -2,25 +2,25 @@
  * src/pages/admin-modules/ProductsModule.tsx
  * "Chunk" para la pestaña de Gestión de Productos.
  *
- * REFACTORIZADO (FASE 3):
- * 1. Consume 'selectedCurrency' del contexto.
- * 2. El formulario de "Precio" ahora es "currency-aware".
- * 3. Muestra el precio convertido a la moneda seleccionada (ej. $).
- * 4. Guarda el precio convirtiéndolo de vuelta a la moneda base (ej. Bs.).
+ * REFACTORIZADO (FASE 4 - Design 15):
+ * - DESIGN 15: Product Form Premium
+ * - Drag & Drop Image Upload
+ * - Floating Label Inputs
+ * - Clean Tabs & Micro-interactions
  */
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Upload, X, Save, Plus, Trash2, Image, Edit2, Star, Loader2, Package, Tag, CreditCard } from "lucide-react";
+import { Upload, Save, Plus, Trash2, Image, Edit2, Star, Loader2, Package, Tag, CreditCard, Check } from "lucide-react";
 
 // Importar API y Contexto
 import * as api from "../api";
 import { useApp } from "../App";
 import { useFeedback } from "../components/ui/FeedbackModal";
-import type { Product, Currency } from "../types";
-// Importar los DTOs de Intención (deben estar en types.ts)
-import type { ProductCreate, ProductUpdate, ProductImage } from "../types";
+import { useUI } from "../components/UIContext";
+import type { Product, Currency, ProductCreate, ProductUpdate, ProductImage } from "../types";
 import { getProductImages, addProductImage, deleteProductImage, setMainImage } from "../api";
 import { ResponsiveModal } from "../components/common/ResponsiveModal";
 import { TouchButton } from "../components/common/TouchButton";
+import { Pagination } from "../components/ui/Pagination";
 
 // URL base del servidor (relativa, para el proxy)
 const SERVER_URL = "";
@@ -105,22 +105,26 @@ export default function ProductsModule() {
   return (
     <>
       {/* Lista de Productos - Siempre visible */}
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">
-          Lista de Productos
-        </h2>
+      <div className="mb-8 flex justify-between items-center animate-fade-in">
+        <div>
+            <h2 className="text-2xl font-bold text-gray-900">Inventario</h2>
+            <p className="text-gray-500 text-sm">Gestiona tu catálogo de productos</p>
+        </div>
         <TouchButton
           onClick={handleNewProduct}
           data-testid="add-product-button"
           icon={Plus}
           variant="primary"
+          className="shadow-lg shadow-blue-500/20"
         >
           Nuevo Producto
         </TouchButton>
       </div>
+      
       <ProductList
         onEdit={handleEdit}
         refreshKey={refreshKey}
+        onRefresh={() => setRefreshKey((k) => k + 1)}
       />
 
       {/* Modal Estándar */}
@@ -141,7 +145,7 @@ export default function ProductsModule() {
             onSave={async (data, file) => {
               try {
                 await handleSaveProduct(data, file);
-                showToast(editingProduct ? 'Producto actualizado' : 'Producto creado');
+                showToast(editingProduct ? 'Producto actualizado' : 'Producto creado', 'success');
               } catch (err) {
                 const message = err instanceof Error ? err.message : 'Error al guardar';
                 showToast(message, 'error');
@@ -167,9 +171,11 @@ export default function ProductsModule() {
 function ProductList({
   onEdit,
   refreshKey,
+  onRefresh,
 }: {
   onEdit: (product: Product) => void;
   refreshKey: number;
+  onRefresh: () => void;
 }) {
   // State for products list
   const [products, setProducts] = useState<Product[]>([]);
@@ -182,52 +188,43 @@ function ProductList({
 
   // REFACTOR FASE 3: Consumir el formateador de precios
   const { formatPrice } = useApp();
-  const { showToast, confirm } = useFeedback();
-
-  // Wrap loadProducts in useCallback to fix dependency warnings
-  const loadProducts = useCallback(async () => {
-    try {
-      const skip = (currentPage - 1) * itemsPerPage;
-      // Fetch + 1 to check if there is a next page
-      const data = await api.getAllProducts(skip, itemsPerPage + 1);
-       
-      if (data.length > itemsPerPage) {
-          setHasMore(true);
-          setProducts(data.slice(0, itemsPerPage)); // Remove the extra item check
-      } else {
-          setHasMore(false);
-          setProducts(data);
-      }
-    } catch (error) {
-      console.error("Error loading products:", error);
-      showToast("Error cargando productos", "error");
-    }
-  }, [currentPage, itemsPerPage, showToast]);
+  const { showToast } = useFeedback();
+  const { confirm } = useUI();
 
   useEffect(() => {
-    // eslint-disable-next-line
-    setLoading(true);
-    loadProducts().finally(() => setLoading(false));
-  }, [loadProducts, refreshKey]); // Reload on page change
+    const fetchProducts = async () => {
+        try {
+            setLoading(true);
+            const skip = (currentPage - 1) * itemsPerPage;
+            // Fetch + 1 to check if there is a next page
+            const data = await api.getAllProducts(skip, itemsPerPage + 1);
+            
+            if (data.length > itemsPerPage) {
+                setHasMore(true);
+                setProducts(data.slice(0, itemsPerPage));
+            } else {
+                setHasMore(false);
+                setProducts(data);
+            }
+        } catch (error) {
+            console.error("Error loading products:", error);
+            showToast("Error cargando productos", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+    void fetchProducts();
+  }, [currentPage, itemsPerPage, showToast, refreshKey]); // Reload on page change or refreshKey
 
   const handleDelete = async (productId: string, productName: string) => {
-     // ... (mismo handler)
-      const confirmed = await confirm({
-      title: 'Eliminar Producto',
-      message: `¿Eliminar "${productName}"? Esta acción no se puede deshacer.`,
-      confirmText: 'Eliminar',
-      cancelText: 'Cancelar',
-      type: 'danger',
-      
-    });
+      const confirmed = await confirm(`¿Eliminar "${productName}"? Esta acción no se puede deshacer.`, 'Eliminar Producto');
     
     if (!confirmed) return;
     
     try {
       await api.deleteProduct(productId);
       showToast('Producto eliminado', 'success');
-      setLoading(true);
-      loadProducts().finally(() => setLoading(false));
+      onRefresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error desconocido";
       showToast('Error: ' + message, 'error');
@@ -241,63 +238,68 @@ function ProductList({
 
   if (loading)
     return (
-      <div className="text-center py-12 text-gray-500 flex flex-col items-center">
-        <Loader2 className="animate-spin mb-2" size={32} />
-        Cargando productos...
+      <div className="text-center py-20 flex flex-col items-center animate-pulse">
+        <Loader2 className="animate-spin mb-4 text-blue-600" size={32} />
+        <span className="text-gray-500 font-medium">Sincronizando inventario...</span>
       </div>
     );
 
   if (products.length === 0) {
     return (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow">
-          No hay productos registrados
+        <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-dashed border-gray-200 animate-fade-in">
+          <Package size={48} className="mx-auto text-gray-300 mb-4" />
+          <h3 className="text-lg font-bold text-gray-900">Catálogo vacío</h3>
+          <p className="text-gray-500">Agrega tu primer producto para comenzar a vender.</p>
         </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* VISTA DESKTOP (TABLA) - Hidden on Mobile */}
-      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+    <div className="space-y-6 animate-fade-in">
+      {/* VISTA DESKTOP (TABLA) - Premium Table */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50/50 border-b border-gray-100">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Imagen</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Producto</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">SKU</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Precio</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Stock</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Producto</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Categoría</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Precio</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-50">
               {products.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    {product.image_url ? (
-                      <img
-                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
-                        alt={product.name}
-                        className="w-12 h-12 object-cover rounded border"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center border text-gray-400">
-                        <Image size={20} />
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-800">{product.name}</div>
-                    <div className="text-xs text-gray-500">{product.category || "Sin categoría"}</div>
-                    <div className="flex gap-1 mt-1">
-                        {product.is_featured && <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] rounded">Star</span>}
-                        {product.is_discount && <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[10px] rounded">%</span>}
+                <tr key={product.id} className="hover:bg-blue-50/30 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
+                        <div className="relative w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
+                            {product.image_url ? (
+                            <img
+                                src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                            />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                    <Image size={18} />
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <div className="font-bold text-gray-900">{product.name}</div>
+                            <div className="text-xs text-gray-400 font-mono mt-0.5">{product.sku || "SIN SKU"}</div>
+                        </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{product.sku || "-"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
+                        {product.category || "General"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="font-bold text-gray-900">{formatPrice(product.price)}</div>
                     {product.is_discount && (
                          <div className="text-xs text-red-500 line-through opacity-75">
@@ -305,19 +307,22 @@ function ProductList({
                          </div>
                     )}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        product.stock > 10 ? "bg-green-100 text-green-800" :
-                        product.stock > 0 ? "bg-yellow-100 text-yellow-800" :
-                        "bg-red-100 text-red-800"
-                    }`}>
-                        {product.stock} un.
-                    </span>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${product.stock > 10 ? 'bg-green-500' : product.stock > 0 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                        <span className={`text-sm font-medium ${product.stock === 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                            {product.stock} un.
+                        </span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <TouchButton onClick={() => onEdit(product)} variant="ghost" icon={Edit2} iconOnly className="text-blue-600" />
-                      <TouchButton onClick={() => handleDelete(product.id, product.name)} variant="ghost" icon={Trash2} iconOnly className="text-red-600" />
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => onEdit(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Editar">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => handleDelete(product.id, product.name)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Eliminar">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -327,100 +332,52 @@ function ProductList({
         </div>
       </div>
 
-      {/* VISTA MÓVIL (CARDS) - Premium Style with Hover/Shadows */}
+      {/* VISTA MÓVIL (CARDS) */}
       <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
         {products.map((product) => (
-            <div 
+             <div 
                 key={product.id} 
-                className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 relative animate-in fade-in zoom-in-95 duration-300 hover:shadow-xl hover:-translate-y-1 transition-all"
+                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group active:scale-[0.98] transition-transform"
+                onClick={() => onEdit(product)}
             >
-                {/* Imagen (Aspect Ratio Moderno) */}
-                <div className="shrink-0 relative group cursor-pointer" onClick={() => onEdit(product)}>
-                    {product.image_url ? (
-                      <img
-                        src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
-                        alt={product.name}
-                        className="w-24 h-24 object-cover rounded-xl shadow-sm"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center border border-dashed text-gray-300">
-                        <Image size={24} />
-                      </div>
-                    )}
-                </div>
-                
-                {/* Info */}
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
-                    <div>
-                        <h3 className="font-bold text-gray-900 truncate pr-6 leading-tight">{product.name}</h3>
-                        <p className="text-xs text-gray-400 mt-1">{product.sku}</p>
+                <div className="flex gap-4">
+                    <div className="w-20 h-20 rounded-lg bg-gray-50 shrink-0 overflow-hidden border border-gray-100">
+                         {product.image_url ? (
+                            <img
+                                src={`${SERVER_URL}${product.image_url.replace('.jpg', '_thumb.jpg')}?t=${product.updated_at}`}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                            />
+                         ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-300"><Image size={24} /></div>
+                         )}
                     </div>
-                    
-                    <div className="flex justify-between items-end mt-3">
-                        <div className="flex flex-col">
-                             {product.is_discount && (
-                                <span className="text-[10px] text-red-500 line-through">
-                                    {formatPrice(product.price / ((100 - product.discount_percentage)/100))}
-                                </span>
-                             )}
-                             <span className="font-bold text-blue-700 text-lg leading-none">{formatPrice(product.price)}</span>
-                        </div>
-                        
-                        {/* FAB Actions (Edit/Delete) - Absolute or Inline? Inline is safer for touch targets */}
-                        <div className="flex gap-2">
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); onEdit(product); }} 
-                                className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 active:scale-95 transition"
-                             >
-                                <Edit2 size={16} />
-                             </button>
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); handleDelete(product.id, product.name); }} 
-                                className="p-2 bg-red-50 text-red-600 rounded-full hover:bg-red-100 active:scale-95 transition"
-                             >
-                                <Trash2 size={16} />
-                             </button>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">{product.category}</p>
+                        <div className="mt-2 flex items-end justify-between">
+                             <span className="font-bold text-blue-600">{formatPrice(product.price)}</span>
+                             <span className={`text-xs px-2 py-0.5 rounded ${product.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {product.stock > 0 ? `${product.stock} un.` : 'Agotado'}
+                             </span>
                         </div>
                     </div>
-                </div>
-
-                {/* Badges Overlay */}
-                <div className="absolute top-2 left-2 flex flex-col gap-1 pointer-events-none">
-                    {product.stock <= 0 && <span className="px-2 py-0.5 bg-gray-800 text-white text-[10px] font-bold rounded shadow-lg uppercase tracking-wide">Agotado</span>}
-                    {product.is_discount && <span className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded shadow-lg">-{product.discount_percentage}%</span>}
                 </div>
             </div>
         ))}
       </div>
 
-      {/* PAGINACIÓN (Next/Prev) */}
-      <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
-            <TouchButton
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="secondary"
-            >
-                Anterior
-            </TouchButton>
-            
-            <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
-                Página {currentPage}
-            </span>
-
-            <TouchButton
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={!hasMore}
-                variant="secondary"
-            >
-                Siguiente
-            </TouchButton>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        hasMore={hasMore}
+        onPageChange={handlePageChange}
+        className="mt-6 pb-20 md:pb-8"
+      />
     </div>
   );
 }
 
-// --- Componente: Formulario de Producto ---
+// --- Componente: Formulario de Producto (Design 15) ---
 function ProductForm({
   product,
   onSave,
@@ -434,7 +391,7 @@ function ProductForm({
   isSaving: boolean;
   selectedCurrency: Currency | null;
 }) {
-  // Initialize state directly. The 'key' on the component instance handles resets.
+  const { alert } = useUI();
   const [formData, setFormData] = useState<Partial<Product>>(product || {
     name: "",
     description: "",
@@ -448,24 +405,18 @@ function ProductForm({
     image_url: "",
   });
   
-  const [displayPrice, setDisplayPrice] = useState("0");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url || null);
-  const [showImageModal, setShowImageModal] = useState(false);
-  // State for tabs
   const [activeTab, setActiveTab] = useState<'details' | 'images' | 'config'>('details');
 
-  // Update display price when currency changes (or on mount)
-  useEffect(() => {
+  // Logic to calculate display price based on base price and selected currency (Memoized)
+  const displayPrice = useMemo(() => {
     const basePrice = formData.price || 0;
     if (selectedCurrency && !selectedCurrency.is_base) {
-      // eslint-disable-next-line
-      setDisplayPrice((basePrice / selectedCurrency.exchange_rate).toFixed(2));
-    } else {
-      // eslint-disable-next-line
-      setDisplayPrice(basePrice.toFixed(2));
+      return (basePrice / selectedCurrency.exchange_rate).toFixed(2);
     }
-  }, [selectedCurrency, formData.price]); // Only depend on currency changes (formData.price updates usually sync displayPrice manually)
+    return basePrice.toFixed(2);
+  }, [formData.price, selectedCurrency]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -473,10 +424,8 @@ function ProductForm({
   };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDisplayPrice = e.target.value;
-    setDisplayPrice(newDisplayPrice);
-
-    const priceNum = parseFloat(newDisplayPrice) || 0;
+    const newPriceValue = e.target.value;
+    const priceNum = parseFloat(newPriceValue) || 0;
     let newBasePrice = priceNum;
 
     if (selectedCurrency && !selectedCurrency.is_base) {
@@ -488,7 +437,6 @@ function ProductForm({
 
   const handleImageSelect = (file: File) => {
     setPendingImageFile(file);
-    // Create local preview
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -497,184 +445,145 @@ function ProductForm({
   const currentImageUrl = imagePreview || formData.image_url;
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      data-testid="product-form"
-    >
-      {/* Tab Nav */}
-      <div className="flex border-b mb-6 overflow-x-auto">
-         <button
-           type="button"
-           className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'details' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-           onClick={() => setActiveTab('details')}
-         >
-           1. Detalles
-         </button>
-         <button
-            type="button"
-            className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => {
-                if (!formData.id) {
-                    alert("Guarda el producto primero para gestionar imágenes");
-                    return;
-                }
-                setActiveTab('images');
-            }}
-         >
-           2. Imágenes
-         </button>
-         <button
-            type="button"
-            className={`px-4 py-2 font-medium shrink-0 ${activeTab === 'config' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-            onClick={() => setActiveTab('config')}
-         >
-           3. Configuración
-         </button>
+    <form onSubmit={handleSubmit} data-testid="product-form" className="animate-fade-in">
+      {/* Premium Tabs */}
+      <div className="flex border-b border-gray-100 mb-6 sticky top-0 bg-white z-10 pt-2">
+         {['details', 'images', 'config'].map((tab, idx) => {
+             const labels = { details: 'Detalles', images: 'Galería', config: 'Avanzado' };
+             const isActive = activeTab === tab;
+             return (
+                 <button
+                    key={tab}
+                    type="button"
+                    onClick={async () => {
+                        if (tab === 'images' && !formData.id) {
+                            await alert("Guarda el producto primero para gestionar imágenes");
+                            return;
+                        }
+                        setActiveTab(tab as any);
+                    }}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-colors ${
+                        isActive ? 'text-blue-600 border-blue-600' : 'text-gray-400 border-transparent hover:text-gray-600'
+                    }`}
+                 >
+                    <span className="mr-2 opacity-50">{idx + 1}.</span>
+                    {labels[tab as keyof typeof labels]}
+                 </button>
+             )
+         })}
       </div>
 
-      <div className={activeTab === 'details' ? 'block' : 'hidden'}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Columna Izquierda: Datos */}
-        <div className="md:col-span-2 space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2">
-              <Tag size={16} /> Información Básica
-          </h3>
-          <Input
-            label="Nombre *"
-            value={formData.name || ""}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            placeholder="Ej. Paracetamol 500mg"
-          />
-          <TextArea
-            label="Descripción"
-            value={formData.description || ""}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
-            rows={3}
-          />
-          <Input
-            label="SKU"
-            value={formData.sku || ""}
-            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2 mb-3">
-                 <CreditCard size={16} /> Precios
-              </h3>
-              <Input
-                label={`Precio (${selectedCurrency?.symbol || "..."}) *`}
-                type="number"
-                step="0.01"
-                min="0"
-                value={displayPrice}
-                onChange={handlePriceChange}
-                required
-                data-testid="product-price-input"
-              />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 border-b pb-2 flex items-center gap-2 mb-3">
-                 <Package size={16} /> Inventario
-              </h3>
-              <Input
-                label="Stock"
-                type="number"
-                min="0"
-                value={formData.stock || 0}
-                onChange={(e) =>
-                    setFormData({
-                    ...formData,
-                    stock: parseInt(e.target.value) || 0,
-                    })
-                }
-              />
-            </div>
-          </div>
-          <Input
-            label="Categoría"
-            value={formData.category || ""}
-            onChange={(e) =>
-              setFormData({ ...formData, category: e.target.value })
-            }
-          />
-          <div className="flex gap-6">
-            <Checkbox
-              label="Producto Destacado"
-              checked={formData.is_featured || false}
-              onChange={(e) =>
-                setFormData({ ...formData, is_featured: e.target.checked })
-              }
-            />
-            <Checkbox
-              label="En Descuento"
-              checked={formData.is_discount || false}
-              onChange={(e) =>
-                setFormData({ ...formData, is_discount: e.target.checked })
-              }
-            />
-          </div>
-          {formData.is_discount && (
-            <Input
-              label="% Descuento"
-              type="number"
-              min="0"
-              max="100"
-              value={formData.discount_percentage || 0}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  discount_percentage: parseFloat(e.target.value) || 0,
-                })
-              }
-            />
-          )}
-        </div>
+      <div className={activeTab === 'details' ? 'block animate-fade-in' : 'hidden'}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Main Form */}
+            <div className="md:col-span-2 space-y-5">
+               <SectionHeader icon={Tag} title="Información Básica" />
+               <FloatingInput
+                    label="Nombre del Producto"
+                    value={formData.name || ""}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                    placeholder="Ej. Acetaminofén 500mg"
+               />
+               <div className="grid grid-cols-2 gap-4">
+                    <FloatingInput
+                        label="SKU / Código"
+                        value={formData.sku || ""}
+                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    />
+                     <FloatingInput
+                        label="Categoría"
+                        value={formData.category || ""}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        list="categories"
+                    />
+                    <datalist id="categories">
+                        <option value="Medicamentos" />
+                        <option value="Cuidado Personal" />
+                        <option value="Equipos Médicos" />
+                    </datalist>
+               </div>
+               <div className="relative">
+                   <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Descripción</label>
+                    <textarea
+                        value={formData.description || ""}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        rows={4}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none"
+                    />
+               </div>
 
-        {/* Columna Derecha: Imagen */}
-        <div>
-          <ImageUploader
-            label="Imagen del Producto"
-            currentImageUrl={currentImageUrl}
-            onFileSelect={handleImageSelect}
-            isUploading={isSaving}
-          />
-          {pendingImageFile && !formData.id && (
-            <p className="text-xs text-blue-600 mt-2">
-              ✓ Imagen seleccionada. Se subirá al guardar el producto.
-            </p>
-          )}
-          
-          {/* Modal de preview */}
-          {showImageModal && currentImageUrl && (
-            <div 
-              className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-              onClick={() => setShowImageModal(false)}
-            >
-              <div className="relative max-w-4xl max-h-[90vh]">
-                <button 
-                  onClick={() => setShowImageModal(false)}
-                  className="absolute -top-10 right-0 text-white hover:text-gray-300"
-                >
-                  <X size={32} />
-                </button>
-                <img 
-                  src={currentImageUrl.startsWith('data:') 
-                    ? currentImageUrl 
-                    : `${SERVER_URL}${currentImageUrl}` // Remove Date.now() to avoid impurities
-                  }
-                  alt="Preview"
-                  className="max-w-full max-h-[85vh] object-contain rounded-lg"
-                />
-              </div>
+               <div className="pt-4 grid grid-cols-2 gap-6">
+                    <div>
+                         <SectionHeader icon={CreditCard} title="Precio" small />
+                         <FloatingInput
+                            label={`Precio (${selectedCurrency?.symbol || "..."})`}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={displayPrice}
+                            onChange={handlePriceChange}
+                            required
+                            className="font-mono font-bold text-lg"
+                        />
+                    </div>
+                    <div>
+                         <SectionHeader icon={Package} title="Inventario" small />
+                         <FloatingInput
+                            label="Stock Disponible"
+                            type="number"
+                            min="0"
+                            value={formData.stock || 0}
+                            onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                        />
+                    </div>
+               </div>
+
+               <div className="flex gap-6 mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <Checkbox
+                        label="Producto Destacado"
+                        checked={formData.is_featured || false}
+                        onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                    />
+                    <Checkbox
+                        label="En Oferta"
+                        checked={formData.is_discount || false}
+                        onChange={(e) => setFormData({ ...formData, is_discount: e.target.checked })}
+                    />
+               </div>
+                
+               {formData.is_discount && (
+                    <div className="animate-fade-in">
+                        <FloatingInput
+                            label="Porcentaje de Descuento (%)"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formData.discount_percentage || 0}
+                            onChange={(e) => setFormData({ ...formData, discount_percentage: parseFloat(e.target.value) || 0 })}
+                        />
+                    </div>
+               )}
             </div>
-          )}
-        </div>
+
+            {/* Side Column: Image */}
+            <div className="space-y-4">
+               <SectionHeader icon={Image} title="Imagen Principal" />
+               <ImageUploader
+                    label=""
+                    currentImageUrl={currentImageUrl}
+                    onFileSelect={handleImageSelect}
+                    isUploading={isSaving}
+               />
+               
+               {pendingImageFile && !formData.id && (
+                <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                    <Check size={12} /> Imagen lista para subir
+                </div>
+               )}
+            </div>
+          </div>
       </div>
-      </div>
-      {/* Fin Tab Detalles */}
 
       {/* TAB IMÁGENES */}
       {activeTab === 'images' && formData.id && (
@@ -683,39 +592,36 @@ function ProductForm({
 
       {/* TAB CONFIGURACIÓN */}
       {activeTab === 'config' && (
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold text-lg mb-4">Configuración Avanzada</h3>
-          <p className="text-gray-500 mb-4">Opciones de SKU, SEO y Logística (Próximamente)</p>
-          <div className="grid grid-cols-1 gap-4 opacity-50 pointer-events-none">
-             <Input label="SKU (Stock Keeping Unit)" value={formData.sku || ''} disabled />
-             <Input label="Meta Title (SEO)" disabled />
-             <Input label="Meta Description (SEO)" disabled />
+        <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <div className="inline-block p-4 bg-white rounded-full shadow-sm mb-4">
+             <Package size={32} className="text-gray-400" />
           </div>
+          <h3 className="font-bold text-gray-900">Configuración Avanzada</h3>
+          <p className="text-gray-500 max-w-sm mx-auto mt-2">Próximamente podrás gestionar metadatos SEO, dimensiones de envío y códigos de barras adicionales.</p>
         </div>
       )}
 
-      {/* Botones (Solo en tab detalles o global? Dejémoslo global pero oculto en images si se desea) */}
+      {/* Actions Footer */}
       {activeTab !== 'images' && (
-      <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t whitespace-pre-wrap">
-        {/* Botones */}
-        <div className="flex-1">
-            <TouchButton
+      <div className="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t border-gray-100">
+        <TouchButton
+            type="button"
+            onClick={onCancel}
+            variant="secondary"
+            className="flex-1 sm:flex-none justify-center"
+        >
+          Cancelar
+        </TouchButton>
+        <TouchButton
             type="submit"
             disabled={isSaving || !formData.name || !displayPrice}
             data-testid="product-form-save-button"
             variant="primary"
             icon={Save}
             loading={isSaving}
-            >
-            {isSaving
-                ? "Guardando..."
-                : formData.id
-                ? "Guardar Cambios"
-                : "Crear Producto"}
-            </TouchButton>
-        </div>
-        <TouchButton type="button" onClick={onCancel} variant="secondary">
-          Cancelar
+            className="flex-1 justify-center"
+        >
+            {isSaving ? "Guardando..." : formData.id ? "Guardar Cambios" : "Crear Producto"}
         </TouchButton>
       </div>
       )}
@@ -723,8 +629,16 @@ function ProductForm({
   );
 }
 
+// --- Helper Components ---
+const SectionHeader = ({ icon: Icon, title, small }: { icon: any, title: string, small?: boolean }) => (
+    <h3 className={`font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2 ${small ? 'text-xs mb-2' : 'text-sm mb-4'}`}>
+        <Icon size={small ? 14 : 16} className="text-blue-600" /> {title}
+    </h3>
+);
+
 // --- Componente: Gestor de Imágenes (Galería) ---
 function ProductImageManager({ productId }: { productId: string }) {
+  const { confirm } = useUI();
   const [images, setImages] = useState<ProductImage[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useFeedback();
@@ -769,7 +683,7 @@ function ProductImageManager({ productId }: { productId: string }) {
   };
 
   const handleDelete = async (imageId: string) => {
-    if (!confirm("¿Eliminar esta imagen?")) return;
+    if (!await confirm("¿Eliminar esta imagen?")) return;
     try {
       await deleteProductImage(productId, imageId);
       showToast("Imagen eliminada", "success");
@@ -792,18 +706,18 @@ function ProductImageManager({ productId }: { productId: string }) {
   if (loading && images.length === 0) return <div className="p-8 text-center flex items-center justify-center gap-2"><Loader2 className="animate-spin" /> Cargando imágenes...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Galería de Imágenes ({images.length}/5)</h3>
+        <h3 className="text-lg font-bold text-gray-800">Galería Multimedia</h3>
         {images.length < 5 && (
             <TouchButton
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              variant="primary"
+              variant="secondary"
               icon={Upload}
-              className="text-sm px-3 py-1 mb-0"
+              className="text-sm px-4 py-2 mb-0"
             >
-              Subir Imagen
+              Subir Nueva Foto
             </TouchButton>
         )}
         <input
@@ -817,8 +731,8 @@ function ProductImageManager({ productId }: { productId: string }) {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {images.map((img) => (
-          <div key={img.id} className={`relative group border rounded-lg p-2 ${img.is_main ? 'border-blue-500 ring-2 ring-blue-100' : 'border-gray-200'}`}>
-            <div className="w-full h-32 bg-gray-50 rounded flex items-center justify-center overflow-hidden mb-2">
+          <div key={img.id} className={`relative group bg-white border-2 rounded-xl overflow-hidden transition-all ${img.is_main ? 'border-blue-500 ring-2 ring-blue-100' : 'border-dashed border-gray-200 hover:border-blue-300'}`}>
+            <div className="w-full h-32 flex items-center justify-center bg-gray-50">
               <img 
                 src={`${SERVER_URL}${img.image_url}`} 
                 alt="Product" 
@@ -826,37 +740,44 @@ function ProductImageManager({ productId }: { productId: string }) {
               />
             </div>
             
-            <div className="flex justify-between items-center px-1">
+            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => handleDelete(img.id)}
+                  className="bg-white text-red-500 hover:text-red-700 p-1.5 rounded-full shadow-sm"
+                  title="Eliminar"
+                >
+                  <Trash2 size={14} />
+                </button>
+            </div>
+
+            <div className="p-2 bg-white flex justify-between items-center border-t border-gray-100">
                 {img.is_main ? (
-                  <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
-                    <Star size={12} fill="currentColor" /> Principal
+                  <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1 uppercase tracking-wide">
+                    <Star size={10} fill="currentColor" /> Principal
                   </span>
                 ) : (
                   <button
                     onClick={() => handleSetMain(img.id)}
-                    className="text-xs text-gray-500 hover:text-blue-600 underline"
+                    className="text-[10px] font-bold text-gray-400 hover:text-blue-600 uppercase tracking-wide"
                   >
-                    Hacer Principal
+                    Establecer Principal
                   </button>
                 )}
-                
-                <button 
-                  onClick={() => handleDelete(img.id)}
-                  className="text-red-500 hover:text-red-700 p-1"
-                  title="Eliminar"
-                >
-                  <Trash2 size={16} />
-                </button>
             </div>
           </div>
         ))}
+        {images.length === 0 && (
+             <div className="col-span-full py-12 text-center text-gray-400 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                 <Image size={32} className="mx-auto mb-2 opacity-50" />
+                 <p>No hay imágenes adicionales</p>
+             </div>
+        )}
       </div>
     </div>
   );
 }
 
-
-// --- Componente: Subidor de Imágenes de Producto (Simplificado) ---
+// --- Componente: Subidor de Imágenes (Drag & Drop) ---
 function ImageUploader({
   label,
   currentImageUrl,
@@ -869,6 +790,7 @@ function ImageUploader({
   isUploading: boolean;
 }) {
   const [preview, setPreview] = useState(currentImageUrl);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useFeedback();
 
@@ -876,15 +798,13 @@ function ImageUploader({
     setPreview(currentImageUrl);
   }, [currentImageUrl]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      showToast("Por favor selecciona una imagen válida", "warning");
+      showToast("Solo se permiten imágenes", "warning");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast("La imagen es muy grande. Máximo 5MB.", "warning");
+      showToast("La imagen es muy grande (Máx 5MB)", "warning");
       return;
     }
 
@@ -895,115 +815,89 @@ function ImageUploader({
     onFileSelect(file);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFile(file);
+  };
+
   return (
     <div className="mb-4">
-      {label && (
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          {label}
-        </label>
-      )}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition">
+      <div 
+        className={`relative border-2 border-dashed rounded-2xl h-64 flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden ${
+            isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           onChange={handleFileChange}
-              className="hidden"
-              disabled={isUploading}
-            />
-            {preview ? (
-              <div className="relative group w-full h-48 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+          className="hidden"
+          disabled={isUploading}
+        />
+        
+        {preview ? (
+            <>
                 <img
-                  src={
-                    preview.startsWith("data:")
-                      ? preview
-                      : `${SERVER_URL}${preview}?t=${new Date().getTime()}`
-                  }
+                  src={preview.startsWith("data:") ? preview : `${SERVER_URL}${preview}`}
                   alt="Preview"
-                  className="max-w-full max-h-full object-contain"
+                  className="max-w-full max-h-full object-contain p-4"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="opacity-0 group-hover:opacity-100 transition bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                  >
-                    {isUploading ? "Subiendo..." : "Cambiar Imagen"}
-                  </button>
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <p className="text-white font-bold flex items-center gap-2"><Upload size={18} /> Cambiar Imagen</p>
                 </div>
-              </div>
-            ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full h-48 flex flex-col items-center justify-center bg-gray-50 rounded-lg hover:bg-gray-100 transition"
-          >
-            <Upload size={48} className="text-gray-400 mb-2" />
-            <span className="text-gray-600 font-medium">
-              {isUploading ? "Subiendo..." : "Click para subir imagen"}
-            </span>
-            <span className="text-xs text-gray-500 mt-1">
-              JPG, PNG, GIF (máx. 5MB)
-            </span>
-          </button>
+            </>
+        ) : (
+            <div className="text-center p-6">
+                <div className={`w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-4 transition-transform ${isDragging ? 'scale-110' : ''}`}>
+                    <Upload size={24} />
+                </div>
+                <p className="font-bold text-gray-900">Haz click o arrastra una imagen</p>
+                <p className="text-xs text-gray-500 mt-1">JPG, PNG, WEBP (Máx. 5MB)</p>
+            </div>
         )}
       </div>
     </div>
   );
 }
 
-// --- Componentes genéricos de formulario (reutilizados) ---
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-}
-const Input = ({ label, ...props }: InputProps) => (
-  <div>
-    {label && (
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label}
-      </label>
-    )}
-    <input
-      {...props}
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-    />
-  </div>
-);
-
-interface TextAreaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-}
-const TextArea = ({ label, ...props }: TextAreaProps) => (
-  <div>
-    {label && (
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label}
-      </label>
-    )}
-    <textarea
-      {...props}
-      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-        props.className || ""
-      }`}
-    />
-  </div>
-);
-
-
-
-interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
+// --- Floating Input Component (Premium) ---
+interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
 }
-const Checkbox = ({ label, ...props }: CheckboxProps) => (
-  <label className="flex items-center">
+const FloatingInput = ({ label, className, ...props }: FloatingInputProps) => (
+  <div className="relative">
     <input
-      type="checkbox"
       {...props}
-      className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+      placeholder=" " // Required for :placeholder-shown trick
+      className={`peer w-full px-4 pt-5 pb-2 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none placeholder-transparent ${className || ''}`}
     />
-    <span className="text-sm font-semibold text-gray-700">{label}</span>
+    <label className="absolute left-4 top-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider transition-all 
+      peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:font-normal peer-placeholder-shown:normal-case
+      peer-focus:top-1 peer-focus:text-[10px] peer-focus:font-bold peer-focus:text-blue-600 peer-focus:uppercase pointer-events-none">
+      {label}
+    </label>
+  </div>
+);
+
+const Checkbox = ({ label, ...props }: any) => (
+  <label className="flex items-center gap-3 cursor-pointer group">
+    <div className="relative flex items-center">
+        <input type="checkbox" className="peer sr-only" {...props} />
+        <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all"></div>
+        <Check size={12} className="absolute text-white left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
+    </div>
+    <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">{label}</span>
   </label>
 );

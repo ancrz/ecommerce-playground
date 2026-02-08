@@ -69,6 +69,10 @@ class Sale(BaseEntity):
     igtf_amount: Decimal = Field(default=Decimal(0))  # Porción IGTF (para mostrar en factura)
     total_with_tax: Decimal = Field(...)
 
+    # Billing / Email Queue
+    invoice_status: str = Field(default="pending")  # pending, sent, failed
+    invoice_retry_count: int = Field(default=0)
+
     class Config:
         json_encoders = {Decimal: lambda v: float(v), datetime: lambda v: v.isoformat()}
         from_attributes = True

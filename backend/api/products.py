@@ -7,17 +7,17 @@ REFACTORIZADO:
 """
 
 import logging
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
-
-logger = logging.getLogger(__name__)
 
 # REFACTOR: Importar los DTOs de Intención
 from ..models import Product, ProductCard, ProductCreate, ProductUpdate
 from ..services.product_service import ProductService
 from ..utils.auth import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # --- Inyección de Dependencias ---
@@ -60,7 +60,7 @@ async def get_products(
         return products
     except Exception as e:
         logger.error(f"Error al obtener productos: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/search", response_model=list[Product])
@@ -78,7 +78,7 @@ async def search_products(
         return products
     except Exception as e:
         logger.error(f"Error al buscar productos '{q}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/slider/{slider_type}", response_model=list[ProductCard])
@@ -94,7 +94,7 @@ async def get_slider_products(slider_type: str, service: ProductService = Depend
         return cards
     except Exception as e:
         logger.error(f"Error al obtener productos para slider '{slider_type}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{product_id}", response_model=Product)
@@ -128,10 +128,10 @@ async def create_product(
         return new_product
     except ValueError as e:
         logger.warning(f"Error de validación al crear producto: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al crear producto: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/{product_id}", response_model=Product)
@@ -160,10 +160,10 @@ async def update_product(
         return product
     except ValueError as e:
         logger.warning(f"Error de validación al actualizar producto '{product_id}': {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al actualizar producto '{product_id}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{product_id}", response_model=dict[str, str])
@@ -185,10 +185,10 @@ async def delete_product(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     except ValueError as e:
         logger.warning(f"Error de validación al eliminar producto '{product_id}': {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al eliminar producto '{product_id}': {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/with-image", response_model=Product, status_code=201)
@@ -257,10 +257,10 @@ async def create_product_with_image(
 
     except ValueError as e:
         logger.warning(f"Error de validación al crear producto con imagen: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al crear producto con imagen: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # REFACTOR: Endpoint 'upload_product_image' ELIMINADO en favor de api/images.py
@@ -293,7 +293,6 @@ async def add_product_image(
             raise HTTPException(status_code=503, detail="Servicio de imágenes no disponible.")
 
         file_data = await file.read()
-        import uuid
 
         image_uuid = str(uuid.uuid4())
 
@@ -311,14 +310,14 @@ async def add_product_image(
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error subiendo imagen extra: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{product_id}/images/{image_id}")
-async def delete_product_image(
+async def delete_product_image_endpoint(
     product_id: str,
     image_id: str,
     service: ProductService = Depends(get_product_service),
@@ -329,10 +328,10 @@ async def delete_product_image(
         await service.delete_product_image(product_id, image_id)
         return {"message": "Imagen eliminada"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error eliminando imagen {image_id}: {e}")
-        raise HTTPException(status_code=500, detail="Error interno")
+        raise HTTPException(status_code=500, detail="Error interno") from e
 
 
 @router.put("/{product_id}/images/{image_id}/main")
@@ -348,4 +347,4 @@ async def set_main_image(
         return {"message": "Imagen principal actualizada"}
     except Exception as e:
         logger.error(f"Error setting main image: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

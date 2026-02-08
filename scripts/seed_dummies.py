@@ -9,34 +9,32 @@ Este script asume arquitectura NO-ORM (SQL directo vía DatabaseManager):
 3. Inserta datos dummies usando sentencias SQL directas.
 """
 
-import sys
-import os
-import shutil
 import asyncio
+import hashlib
+import json
 import logging
-from pathlib import Path
-from decimal import Decimal
+import secrets
+import sys
 import uuid
 from datetime import datetime
-import json
+from pathlib import Path
 
 # Config add root
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-# Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-import hashlib
-import secrets
-
 try:
     from backend.database.manager import DatabaseManager
     # from passlib.context import CryptContext <-- Passlib eliminado
 except ImportError as e:
+    logger = logging.getLogger(__name__)
     logger.error(f"Error importando módulos del backend: {e}")
     sys.exit(1)
+
+# Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") <-- Eliminado
 
@@ -60,27 +58,27 @@ async def insert(db, chunk, table, data):
     # DatabaseManager adapta '?' a '$n' si es postgres, pero aquí asumimos SQLite por el script.
     # El manager ya maneja placeholders.
     placeholders = ["?"] * len(columns)
-    
+
     col_str = ", ".join(columns)
     val_str = ", ".join(placeholders)
-    
+
     sql = f"INSERT INTO {table} ({col_str}) VALUES ({val_str})"
     await db.execute(chunk, sql, tuple(data.values()))
 
 async def main():
     logger.info("⚠️  INICIANDO SEED DUMMIES (SQLite Reset) ⚠️")
-    
+
     # 1. Init Manager (crea tablas si no existen)
     db_path = PROJECT_ROOT / "data" / "database"
     db_path.mkdir(parents=True, exist_ok=True)
-    
+
     db = DatabaseManager(base_path=str(db_path))
     await db.initialize()
-    
+
     # 2. Limpieza SQL (OneDrive Friendly)
     logger.info("🧹 Limpiando tablas existentes...")
     tables = [
-        ("products", "products"), 
+        ("products", "products"),
         ("cart", "cart_items"), ("cart", "carts"),
         ("sales", "sales"), ("sales", "daily_closures"),
         ("finance", "currencies"),
@@ -89,7 +87,7 @@ async def main():
         ("password_tokens", "password_reset_tokens")
         # No borramos business/customization para conservar IDs 1 (se hará update)
     ]
-    
+
     for chunk, table in tables:
         try:
             await db.execute(chunk, f"DELETE FROM {table}") # DELETE para limpiar datos
@@ -100,7 +98,7 @@ async def main():
 
     try:
         now_str = datetime.now().isoformat()
-        
+
         # 3. Usuarios
         logger.info("busts_in_silhouette Creando usuarios...")
         users = [
@@ -134,7 +132,7 @@ async def main():
         logger.info("💰 Creando monedas...")
         usd_id = str(uuid.uuid4())
         eur_id = str(uuid.uuid4())
-        
+
         currencies = [
             {
                 "id": usd_id,
@@ -164,7 +162,7 @@ async def main():
         logger.info("🌍 Creando regiones...")
         reg_default_id = str(uuid.uuid4())
         reg_eu_id = str(uuid.uuid4())
-        
+
         regions = [
             {
                 "id": reg_default_id,
@@ -185,7 +183,7 @@ async def main():
         ]
         for r in regions:
             await insert(db, "tax", "regions", r)
-            
+
         # Tax Rates
         await insert(db, "tax", "tax_rates", {
             "id": str(uuid.uuid4()),
@@ -197,7 +195,7 @@ async def main():
             "created_at": now_str,
             "updated_at": now_str
         })
-        
+
         # 6. Business Info (Sobrescribir ID 1)
         # Nota: manager.py ya hace un INSERT OR IGNORE al inicio para business con ID 1.
         # Haremos un UPDATE.
@@ -207,12 +205,12 @@ async def main():
             {"name": "Instagram", "url": "https://instagram.com/ecommerce_core", "icon": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg"},
             {"name": "Twitter", "url": "https://twitter.com/ecommerce_core", "icon": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Logo_of_Twitter.svg"}
         ]
-        
+
         await db.execute("business", """
-            UPDATE business_info SET 
-                name = ?, 
-                rif = ?, 
-                contact = ?, 
+            UPDATE business_info SET
+                name = ?,
+                rif = ?,
+                contact = ?,
                 social_networks = ?,
                 logo_url = ?,
                 updated_at = ?
@@ -273,7 +271,7 @@ async def main():
                 "desc": "Fast and reliable storage on the go."
             }
         ]
-        
+
         for p in products:
             p_data = {
                 "id": str(uuid.uuid4()),

@@ -4,7 +4,7 @@
  *
  * REFACTORIZADO (FASE 4):
  * 1. Botones usan clases .btn-primary, .btn-secondary, .btn-icon
- * 2. Corregidas rutas de importación de Fase 2.
+ * 2. Implementados sub-tabs (Usuarios | Roles)
  */
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,16 +12,21 @@ import { Plus, Edit2, KeyRound, Save, User as UserIcon, Shield, Loader2 } from "
 
 // Importar API y Contexto
 import * as api from "../api";
+import { useUI } from "../components/UIContext";
 import type { User } from "../types";
-// Importar los DTOs de Intención (definidos en types.ts)
 import type { UserCreateRequest, UserUpdateRequest } from "../types";
 
 // Importar componentes reutilizables
 import { ResponsiveModal } from "../components/common/ResponsiveModal";
 import { TouchButton } from "../components/common/TouchButton";
+import { Pagination } from "../components/ui/Pagination";
 import { Input, Checkbox } from "../components/FormControls";
 
+// Importar el módulo de Roles
+import RoleManagementModule from "./RoleManagementModule";
+
 // Definición de los roles disponibles en el sistema (debe coincidir con utils/auth.py)
+// NOTA: Esto se mantiene para el formulario de usuario, aunque RoleManagementModule gestione la creación de roles dinámicos.
 const AVAILABLE_ROLES = [
   { id: "products_manager", label: "Gestor de Productos" },
   { id: "sales_manager", label: "Gestor de Ventas (POS)" },
@@ -29,8 +34,49 @@ const AVAILABLE_ROLES = [
   { id: "content_manager", label: "Gestor de Contenido (Marca/Tema)" },
 ];
 
-// --- Componente Principal del Módulo (Refactorizado con React Query) ---
+/**
+ * COMPONENTE PRINCIPAL (Wrapper de Tabs)
+ */
 export default function UserManagementModule() {
+  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+
+  return (
+    <div className="space-y-6">
+      {/* Navegación de Sub-Tabs */}
+      <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 inline-flex">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'users'
+              ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <UserIcon size={18} />
+          Usuarios
+        </button>
+        <button
+          onClick={() => setActiveTab('roles')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'roles'
+              ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-200'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Shield size={18} />
+          Roles y Permisos
+        </button>
+      </div>
+
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {activeTab === 'users' ? <UsersListTab /> : <RoleManagementModule />}
+      </div>
+    </div>
+  );
+}
+
+// --- Tab de Lista de Usuarios (Lógica Original) ---
+function UsersListTab() {
   const queryClient = useQueryClient();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -76,17 +122,17 @@ export default function UserManagementModule() {
         return api.updateUser(id, data as UserUpdateRequest);
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      alert(
+      await alert(
         variables.isNew
           ? "✓ Usuario creado exitosamente."
           : "✓ Usuario actualizado exitosamente."
       );
       handleCloseForm();
     },
-    onError: (err: any) => {
-      alert("Error guardando usuario: " + (err.message || err));
+    onError: async (error: unknown) => {
+      await alert("Error guardando usuario: " + ((error as Error).message || error));
     },
   });
 
@@ -180,10 +226,8 @@ export default function UserManagementModule() {
 
       <div className="mb-6 flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">
-          Gestión de Usuarios y Roles (RBAC)
+          Listado de Usuarios
         </h2>
-        {/* REFACTOR FASE 4: Botón Primario */}
-        {/* REFACTOR FASE 4: Botón Primario */}
         <TouchButton
           onClick={handleNewUser}
           variant="primary"
@@ -195,7 +239,7 @@ export default function UserManagementModule() {
 
       <div className="bg-white rounded-lg shadow overflow-hidden hidden md:block">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">
                 Usuario
@@ -217,7 +261,7 @@ export default function UserManagementModule() {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 text-gray-800">
             {isLoading ? (
               <tr>
                 <td colSpan={6} className="text-center p-8 text-gray-500">
@@ -230,7 +274,7 @@ export default function UserManagementModule() {
               users.map((user) => (
                 <tr
                   key={user.id}
-                  className="hover:bg-gray-50"
+                  className="hover:bg-gray-50 transition-colors"
                   data-testid={`user-row-${user.id}`}
                 >
                   <td className="p-3 font-semibold">{user.username}</td>
@@ -264,7 +308,6 @@ export default function UserManagementModule() {
                     )}
                   </td>
                   <td className="p-3 text-center space-x-1 whitespace-nowrap">
-                    {/* REFACTOR FASE 4: Botones de Icono */}
                     <div className="flex gap-1 justify-center">
                     <TouchButton
                       onClick={() => handleEditUser(user)}
@@ -296,7 +339,7 @@ export default function UserManagementModule() {
           <div className="text-center p-8"><Loader2 className="animate-spin inline" /> Cargando...</div>
         ) : (
           users.map((user) => (
-            <div key={user.id} className="bg-white p-4 rounded-xl shadow-sm border flex flex-col gap-3">
+            <div key={user.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-3">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="font-bold text-gray-900">{user.username}</div>
@@ -340,31 +383,12 @@ export default function UserManagementModule() {
       </div>
 
       {/* PAGINACIÓN */}
-      <div className="flex justify-center items-center gap-4 mt-6 pb-20 md:pb-8">
-        <TouchButton
-          onClick={() => setCurrentPage((old) => Math.max(old - 1, 1))}
-          disabled={currentPage === 1 || isLoading}
-          variant="secondary"
-        >
-          Anterior
-        </TouchButton>
-
-        <span className="text-gray-600 font-medium bg-gray-100 px-3 py-1 rounded-lg">
-           Página {currentPage}
-        </span>
-
-        <TouchButton
-          onClick={() => {
-            if (!isPlaceholderData && users.length === itemsPerPage) {
-               setCurrentPage((old) => old + 1);
-            }
-          }}
-          disabled={isPlaceholderData || users.length < itemsPerPage || isLoading}
-          variant="secondary"
-        >
-          Siguiente
-        </TouchButton>
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        hasMore={!isPlaceholderData && users.length === itemsPerPage}
+        onPageChange={(page) => setCurrentPage(page)}
+        className="mt-6 pb-20 md:pb-8"
+      />
     </>
   );
 }
@@ -382,6 +406,7 @@ const UserFormModal = ({
   ) => void;
   onCancel: () => void;
 }) => {
+  const { alert } = useUI();
   const [formData, setFormData] = useState({
     username: user?.username || "",
     full_name: user?.full_name || "",
@@ -403,7 +428,7 @@ const UserFormModal = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const payload: Partial<UserCreateRequest | UserUpdateRequest> = {
@@ -417,7 +442,7 @@ const UserFormModal = ({
     const isNew = !user;
     if (isNew) {
       if (formData.plain_password.length < 8) {
-        alert("La contraseña debe tener al menos 8 caracteres.");
+        await alert("La contraseña debe tener al menos 8 caracteres.");
         return;
       }
       (payload as UserCreateRequest).plain_password = formData.plain_password;
@@ -535,23 +560,24 @@ const PasswordResetModal = ({
   user: User;
   onClose: () => void;
 }) => {
+  const { alert } = useUI();
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 8) {
-      alert("La contraseña debe tener al menos 8 caracteres.");
+      await alert("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
     setLoading(true);
     try {
       await api.adminResetPassword(user.id, newPassword);
-      alert("✓ Contraseña reseteada exitosamente.");
+      await alert("✓ Contraseña reseteada exitosamente.");
       onClose(); // Cierra el modal
-    } catch (e: any) {
-      alert("Error reseteando contraseña: " + e.message);
+    } catch (error: unknown) {
+      await alert("Error reseteando contraseña: " + (error as Error).message);
     } finally {
       setLoading(false);
     }

@@ -55,10 +55,10 @@ async def create_new_user(request: UserCreateRequest = Body(...), service: UserS
         return user
     except ValueError as e:
         # Error (ej. "username ya existe", "email ya existe")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al crear usuario: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno al crear usuario.")
+        raise HTTPException(status_code=500, detail="Error interno al crear usuario.") from e
 
 
 @router.get("/{user_id}", response_model=User)
@@ -85,7 +85,7 @@ async def update_user(
         updated_user = await service.admin_update_user(user_id, updates)
         return updated_user
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/reset-password", response_model=dict[str, str])
@@ -100,4 +100,4 @@ async def admin_reset_password(
         await service.admin_reset_password(request.user_id, request.new_password)
         return {"message": "Contraseña del usuario reseteada exitosamente."}
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

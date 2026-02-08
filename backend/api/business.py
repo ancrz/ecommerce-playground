@@ -47,7 +47,7 @@ async def get_business_info(service: BusinessService = Depends(get_business_serv
         return info
     except Exception as e:
         logger.error(f"Error al obtener información del negocio: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno al obtener información del negocio.")
+        raise HTTPException(status_code=500, detail="Error interno al obtener información del negocio.") from e
 
 
 @router.put("/info", response_model=BusinessInfo)
@@ -64,10 +64,10 @@ async def update_business_info(
         # Pasa solo los campos que el frontend envió al servicio
         return await service.update_business_info(info_updates)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al actualizar información del negocio: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno al actualizar información.")
+        raise HTTPException(status_code=500, detail="Error interno al actualizar información.") from e
 
 
 @router.post("/social-icon/{network_index}", response_model=BusinessInfo)
@@ -84,7 +84,7 @@ async def upload_social_icon(
         file_data = await file.read()
         return await service.upload_social_network_icon(network_index, file_data, file.filename)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error al subir icono de red social: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error procesando imagen.")
+        raise HTTPException(status_code=500, detail="Error procesando imagen.") from e

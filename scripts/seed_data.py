@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Seed Data Script - farmalux-ecommerce
+Seed Data Script - ecommerce-playground
 =====================================
 Inicializa la base de datos con datos semilla para desarrollo.
 
@@ -268,7 +268,7 @@ async def main():
 
     print("")
     print("=" * 60)
-    print("  Seed Data - farmalux-ecommerce")
+    print("  Seed Data - ecommerce-playground")
     print("=" * 60)
     print("")
 

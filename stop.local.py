@@ -223,9 +223,8 @@ def load_env():
                 key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
+                if key:
                     os.environ[key] = value
-
 
 def is_port_in_use(port: int) -> bool:
     """Verifica si un puerto está en uso."""
@@ -539,7 +538,7 @@ def main():
     parser.add_argument("--frontend-only", action="store_true", help="Solo detener frontend")
     args = parser.parse_args()
 
-    print("\n>>> Deteniendo farmalux-ecommerce <<<\n")
+    print("\n>>> Deteniendo ecommerce-playground <<<\n")
 
     # Limpieza de logs n-1 (Primero lo que hará)
     cleanup_logs(keep_count=3)  # Mantener 3 últimos por tipo

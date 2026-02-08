@@ -15,7 +15,7 @@ export const Input: React.FC<InputProps> = ({ label, className, ...props }) => (
     {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <input
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 ${className || ''}`}
     />
   </div>
 );
@@ -29,7 +29,7 @@ export const TextArea: React.FC<TextAreaProps> = ({ label, className, ...props }
     {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <textarea
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 ${className || ''}`}
     />
   </div>
 );
@@ -44,7 +44,7 @@ export const Select: React.FC<SelectProps> = ({ label, children, className, ...p
     {label && <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>}
     <select
       {...props}
-      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white ${className || ''}`}
+      className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900 ${className || ''}`}
     >
       {children}
     </select>
@@ -60,7 +60,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ label, className, ...props }
     <input
       type="checkbox"
       {...props}
-      className={`mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 ${className || ''}`}
+      className={`mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 bg-white ${className || ''}`}
     />
     <span className="text-sm font-semibold text-gray-700">{label}</span>
   </label>
@@ -80,13 +80,13 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange
         type="color" 
         value={value || '#000000'}
         onChange={(e) => onChange(e.target.value)}
-        className="w-12 h-10 rounded border border-gray-300 p-1"
+        className="w-12 h-10 rounded border border-gray-300 p-1 bg-white"
       />
       <input 
         type="text"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
       />
     </div>
   </div>

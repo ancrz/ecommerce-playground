@@ -1,12 +1,13 @@
-import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from ..core.config import settings
+
 # URL base para generar URLs completas de imágenes
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8042")
+BACKEND_URL = settings.BACKEND_URL
 
 
 class BaseEntity(BaseModel):

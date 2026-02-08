@@ -5,12 +5,12 @@ Crea un archivo .zip de toda la carpeta './data' (bases de datos SQLite y archiv
 Diseñado para ser llamado desde automatización (ej. Tareas Programadas).
 """
 
-import os
-import zipfile
-from pathlib import Path
-from datetime import datetime
 import logging
+import os
 import sys
+import zipfile
+from datetime import datetime
+from pathlib import Path
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -24,7 +24,7 @@ BACKUP_DIR = PROJECT_ROOT / "_backups"
 
 def zip_directory(path: Path, zip_handle: zipfile.ZipFile, root_dir: Path):
     """Añade recursivamente un directorio a un archivo zip."""
-    for root, dirs, files in os.walk(path):
+    for root, _dirs, files in os.walk(path):
         for file in files:
             file_path = Path(root) / file
             # Ruta relativa dentro del zip (ej: 'data/database/products.db')
@@ -34,7 +34,7 @@ def zip_directory(path: Path, zip_handle: zipfile.ZipFile, root_dir: Path):
 
 def create_backup():
     logger.info("--- Iniciando Proceso de Backup (Modo Local/SQLite) ---")
-    
+
     # 1. Asegurarse de que el directorio de backups exista
     try:
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -46,7 +46,7 @@ def create_backup():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_filename = f"backup-sqlite-{timestamp}.zip"
     backup_filepath = BACKUP_DIR / backup_filename
-    
+
     logger.info(f"Creando backup en: {backup_filepath}")
 
     # 3. Validar que la carpeta 'data' exista
@@ -60,8 +60,8 @@ def create_backup():
         # para que el zip contenga la carpeta 'data/'
         with zipfile.ZipFile(backup_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
             zip_directory(SOURCE_DIR, zipf, SOURCE_DIR.parent)
-            
-        logger.info(f"✅ Backup (SQLite) completado exitosamente.")
+
+        logger.info("✅ Backup (SQLite) completado exitosamente.")
         logger.info(f"Archivo: {backup_filepath}")
         logger.info("--- Proceso de Backup Finalizado ---")
         return True

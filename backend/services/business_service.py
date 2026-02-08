@@ -9,6 +9,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
+
 from ..database.manager import DatabaseManager
 
 # Importar Modelos DTO
@@ -16,11 +18,6 @@ from ..models import BusinessInfo  # Necesitaremos ProductUpdate
 from .image_service import ImageService
 
 logger = logging.getLogger(__name__)
-
-# Definir los DTOs de Intención aquí mismo o en base.py
-# Por simplicidad, los definimos aquí si base.py se vuelve muy grande
-# Pero idealmente irían en base.py
-from pydantic import BaseModel
 
 
 class BusinessInfoUpdate(BaseModel):
@@ -104,7 +101,7 @@ class BusinessService:
             return await self.get_business_info()
         except Exception as e:
             logger.error(f"Error al actualizar business_info: {e}", exc_info=True)
-            raise ValueError(f"Error al actualizar la base de datos: {e}")
+            raise ValueError(f"Error al actualizar la base de datos: {e}") from e
 
     async def upload_social_network_icon(
         self, network_index: int, file_data: bytes, original_filename: str

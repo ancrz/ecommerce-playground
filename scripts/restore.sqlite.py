@@ -6,12 +6,11 @@ Restaura un estado anterior desde un archivo .zip (creado por backup.local.py).
 carpeta './data' actual (DBs e imágenes) antes de restaurar.
 """
 
-import os
-import zipfile
-import shutil
-from pathlib import Path
 import logging
+import shutil
 import sys
+import zipfile
+from pathlib import Path
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -23,7 +22,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 
 def restore_from_backup(backup_filepath: Path, force: bool = False):
     logger.info("--- Iniciando Proceso de Restauración (Modo Local/SQLite) ---")
-    
+
     # 1. Validar que el archivo de backup exista
     if not backup_filepath.exists():
         logger.error(f"❌ Error fatal: El archivo de backup no existe en {backup_filepath}")
@@ -31,22 +30,22 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
 
     logger.warning("¡ADVERTENCIA! Esta operación es DESTRUCTIVA.")
     logger.warning(f"Se eliminará por completo la carpeta: {DATA_DIR}")
-    
+
     # 2. Confirmación (si no es forzado por automatización)
     if not force:
         confirm = input("¿Está seguro de que desea continuar? (Escriba 'si' para confirmar): ")
         if confirm.lower() != 'si':
             logger.info("Operación cancelada por el usuario.")
             return False
-            
+
     # 3. Detener el servidor (Validación)
     pid_file = PROJECT_ROOT / "pids.json"
     mode_file = PROJECT_ROOT / "run.mode"
     if pid_file.exists() or mode_file.exists():
-        logger.error(f"❌ Error fatal: El sistema parece estar en ejecución.")
+        logger.error("❌ Error fatal: El sistema parece estar en ejecución.")
         logger.error("   Por favor, ejecute 'python stop.local.py' ANTES de restaurar.")
         return False
-        
+
     logger.info("Procediendo con la restauración...")
 
     try:
@@ -63,7 +62,7 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
         with zipfile.ZipFile(backup_filepath, 'r') as zipf:
             # Extraer todo en la raíz del proyecto
             zipf.extractall(path=PROJECT_ROOT)
-        
+
         logger.info("✅ Restauración (SQLite) completada exitosamente.")
         logger.info("Ahora puede iniciar el servidor con 'python start.local.py'.")
         logger.info("--- Proceso de Restauración Finalizado ---")
@@ -78,20 +77,20 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
 
 if __name__ == "__main__":
     # --- Lógica de Argumentos (Compatible con automatización) ---
-    
+
     force_mode = False
     backup_file_arg = None
-    
+
     # python scripts/restore.local.py _backups/file.zip
     if len(sys.argv) == 2:
         backup_file_arg = sys.argv[1]
-        
+
     # python scripts/restore.local.py _backups/file.zip --force
     if len(sys.argv) == 3 and sys.argv[2] == '--force':
         backup_file_arg = sys.argv[1]
         force_mode = True
         logger.info("Modo --force detectado. Se omitirá la confirmación.")
-        
+
     if not backup_file_arg:
         print("Error: Debe proporcionar la ruta al archivo .zip del backup.")
         print("Uso:   python scripts/restore.local.py <ruta_al_backup.zip> [--force]")

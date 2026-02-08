@@ -22,11 +22,12 @@ import React, {
     Suspense, 
     useRef, 
     lazy, 
-    ElementType // REFACTOR: Añadido ElementType para tipado
+    ElementType 
 } from 'react';
 import { 
-  DollarSign, Palette, Building, Package, TrendingUp, 
-  Users, Percent, Loader2, Shield 
+  Palette, Package, 
+  Users, Loader2, LayoutDashboard, ShoppingCart, ClipboardList, Settings,
+  DollarSign, Percent, BarChart3, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // Importar el contexto
@@ -35,7 +36,6 @@ import { useApp } from '../App';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 // --- Importación Dinámica (Lazy Loading) de "Chunks" ---
-// (REFACTOR: Módulos importados con React.lazy para code-splitting)
 const ProductsModule = lazy(() => import('../admin-modules/ProductsModule'));
 const SalesModule = lazy(() => import('../admin-modules/SalesModule'));
 const FinanceModule = lazy(() => import('../admin-modules/FinanceModule'));
@@ -43,7 +43,15 @@ const TaxModule = lazy(() => import('../admin-modules/TaxModule'));
 const ContentModule = lazy(() => import('../admin-modules/ContentModule'));
 const ThemeModule = lazy(() => import('../admin-modules/ThemeModule'));
 const UserManagementModule = lazy(() => import('../admin-modules/UserManagementModule'));
-const RoleManagementModule = lazy(() => import('../admin-modules/RoleManagementModule'));
+
+// Alias mapping for tabs
+const POSModule = SalesModule;
+const OrdersModule = SalesModule;
+
+// Dashboard Lazy Load
+const DashboardModule = lazy(() => import('../admin-modules/DashboardModule'));
+const SMTPConfigModule = lazy(() => import('../admin-modules/SMTPConfigModule'));
+const BillingModule = lazy(() => import('../admin-modules/BillingModule'));
 // --- Fin de Chunks ---
 
 // REFACTOR (Punto 2): Documentación de SERVER_URL
@@ -101,15 +109,18 @@ export default function AdminPanel() {
   // 'customization' es la única dependencia (para los iconUrl).
   const allTabs = useMemo(() => [
     // REFACTOR (Punto 4): 'component' es ahora una REFERENCIA, no JSX.
-    { id: 'products', label: 'Productos', icon: Package, iconUrl: customization?.icon_products_url, roles: ['admin', 'products_manager'], component: ProductsModule },
-    { id: 'sales', label: 'Ventas (POS)', icon: TrendingUp, iconUrl: customization?.icon_sales_url, roles: ['admin', 'sales_manager'], component: SalesModule },
-    { id: 'finance', label: 'Finanzas', icon: DollarSign, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: FinanceModule },
-    { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
-    { id: 'content', label: 'Contenido', icon: Building, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },
-    { id: 'theme', label: 'Tema (Visual)', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
-    { id: 'users', label: 'Usuarios', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
-    { id: 'roles', label: 'Roles y Permisos', icon: Shield, iconUrl: null, roles: ['admin'], component: RoleManagementModule },
-  ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, iconUrl: customization?.icon_dashboard_url, roles: ['admin', 'sales_manager', 'products_manager'], component: DashboardModule },
+      { id: 'pos', label: 'Punto de Venta', icon: ShoppingCart, iconUrl: customization?.icon_pos_url, roles: ['admin', 'sales_manager'], component: POSModule },
+      { id: 'products', label: 'Productos', icon: Package, iconUrl: customization?.icon_products_url, roles: ['admin', 'products_manager'], component: ProductsModule },
+      { id: 'orders', label: 'Pedidos', icon: ClipboardList, iconUrl: customization?.icon_orders_url, roles: ['admin', 'sales_manager'], component: OrdersModule },
+      { id: 'finance', label: 'Finanzas', icon: DollarSign, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: FinanceModule },
+      { id: 'tax', label: 'Impuestos', icon: Percent, iconUrl: customization?.icon_tax_url, roles: ['admin', 'finance_manager'], component: TaxModule },
+      { id: 'billing', label: 'Facturación', icon: BarChart3, iconUrl: customization?.icon_finance_url, roles: ['admin', 'finance_manager'], component: BillingModule }, // Icono temporal
+      { id: 'smtp', label: 'SMTP Config', icon: Settings, iconUrl: customization?.icon_business_url, roles: ['admin'], component: SMTPConfigModule },
+      { id: 'users', label: 'Usuarios (RBAC)', icon: Users, iconUrl: customization?.icon_users_url, roles: ['admin'], component: UserManagementModule },
+      { id: 'theme', label: 'Personalización', icon: Palette, iconUrl: customization?.icon_customization_url, roles: ['admin', 'content_manager'], component: ThemeModule },
+      { id: 'content', label: 'Contenido', icon: Settings, iconUrl: customization?.icon_business_url, roles: ['admin', 'content_manager'], component: ContentModule },
+    ], [customization]); // 'forceAppUpdate' (función estable) no es dependencia
   
   // Filtrar pestañas basado en los roles del usuario
   const visibleTabs = useMemo(() => allTabs.filter(tab => 
@@ -135,6 +146,16 @@ export default function AdminPanel() {
 
   // --- Manejo de Teclado (Accesibilidad y E2E) ---
   const tabListRef = useRef<HTMLDivElement>(null);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabListRef.current) {
+      const scrollAmount = 200;
+      tabListRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     // REFACTOR (Punto 7): Usar el array de datos 'visibleTabs', no el DOM
@@ -185,57 +206,75 @@ export default function AdminPanel() {
       );
   }
 
-
-
   return (
-    <div className="min-h-screen" data-testid="admin-panel">
+    <div className="min-h-screen bg-gray-100" data-testid="admin-panel">
       {/* Navegación por Pestañas (Filtrada por RBAC y A11y) */}
-      <div className="bg-white shadow-md border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6">
-          <div 
-            className="flex gap-1 overflow-x-auto no-scrollbar" 
-            role="tablist" 
-            aria-label="Panel de Administración"
-            ref={tabListRef}
-          >
-            {visibleTabs.map(tab => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  id={`admin-tab-${tab.id}`} // A11y
-                  onClick={() => setActiveTab(tab.id)}
-                  onKeyDown={handleKeyDown} // A11y
-                  role="tab" // A11y
-                  aria-selected={isSelected} // A11y
-                  aria-controls={`admin-panel-${tab.id}`} // A11y (conecta con el panel)
-                  tabIndex={isSelected ? 0 : -1} // A11y (manejo de foco)
-                  data-testid={`admin-tab-${tab.id}`} // E2E
-                  
-                  // REFACTOR (Corregido): 'F' eliminada
-                  className={`px-6 py-4 font-semibold transition flex items-center gap-2 whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 ${
-                    isSelected
-                      ? 'text-blue-600 border-b-2 border-blue-600'
-                      : 'text-gray-600 hover:text-blue-600'
-                  }`}
-                >
-                  <ModuleIcon 
-                    url={tab.iconUrl} 
-                    IconComponent={tab.icon} 
-                    label={tab.label}
-                    // REFACTOR (Punto 3): Cache bust con fallback
-                    cacheKey={customization?.updated_at || 'static'}
-                  />
-                  {tab.label}
-                </button>
-              )
-            })}
+      <div className="bg-white shadow-md border-b border-gray-200 sticky top-0 z-10 w-full ml-0">
+        <div className="w-full max-w-[1920px] mx-auto px-4 md:px-6">
+          <div className="flex items-center gap-2 py-1">
+             <button 
+                onClick={() => scrollTabs('left')}
+                className="hidden md:flex p-2 rounded-full text-white hover:opacity-90 transition shrink-0 z-20 shadow-md"
+                style={{ backgroundColor: 'rgb(38, 65, 146)' }}
+                aria-label="Scroll left"
+            >
+                <ChevronLeft size={20} />
+            </button>
+
+            <div 
+                className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth flex-1 py-1" 
+                role="tablist" 
+                aria-label="Panel de Administración"
+                ref={tabListRef}
+            >
+                {visibleTabs.map(tab => {
+                const isSelected = activeTab === tab.id;
+                return (
+                    <button
+                        key={tab.id}
+                        id={`admin-tab-${tab.id}`} // A11y
+                        onClick={() => setActiveTab(tab.id)}
+                        onKeyDown={handleKeyDown} // A11y
+                        role="tab" // A11y
+                        aria-selected={isSelected} // A11y
+                        aria-controls={`admin-panel-${tab.id}`} // A11y (conecta con el panel)
+                        tabIndex={isSelected ? 0 : -1} // A11y (manejo de foco)
+                        data-testid={`admin-tab-${tab.id}`} // E2E
+                        
+                        // REFACTOR (Corregido): 'F' eliminada
+                        className={`px-6 py-4 font-semibold transition flex items-center gap-2 whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 border-b-2 ${
+                            isSelected
+                            ? 'text-blue-600 border-blue-600'
+                            : 'text-gray-600 border-transparent hover:text-blue-600'
+                        }`}
+                    >
+                    <ModuleIcon 
+                        url={tab.iconUrl} 
+                        IconComponent={tab.icon} 
+                        label={tab.label}
+                        // REFACTOR (Punto 3): Cache bust con fallback
+                        cacheKey={customization?.updated_at || 'static'}
+                    />
+                    {tab.label}
+                    </button>
+                    )
+                })}
+            </div>
+
+            <button 
+                onClick={() => scrollTabs('right')}
+                className="hidden md:flex p-2 rounded-full text-white hover:opacity-90 transition shrink-0 z-20 shadow-md"
+                style={{ backgroundColor: 'rgb(38, 65, 146)' }}
+                aria-label="Scroll right"
+            >
+                <ChevronRight size={20} />
+            </button>
           </div>
         </div>
       </div>
       
       {/* Contenido de la Pestaña Activa (Cargado con Lazy + Suspense) */}
-      <div className="max-w-7xl mx-auto p-0 md:p-6">
+      <div className="w-full max-w-[1920px] mx-auto p-0 md:p-6">
         {/* REFACTOR (Punto 1): Añadido ErrorBoundary */}
         <ErrorBoundary fallbackMessage="Error al cargar este módulo.">
           <Suspense fallback={<ModuleLoader />}>
