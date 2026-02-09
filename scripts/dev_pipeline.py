@@ -47,6 +47,7 @@ def generate_static_schema():
     except Exception as e:
         logger.error(f"❌ Error generando esquema estático: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -71,14 +72,14 @@ def regenerate_frontend_client():
             check=True,
             capture_output=True,
             text=True,
-            encoding="utf-8"  # FIX CRÍTICO para Windows
+            encoding="utf-8",  # FIX CRÍTICO para Windows
         )
         print(result.stdout)
         logger.info("✅ Frontend regenerado exitosamente.")
         return True
     except subprocess.CalledProcessError as e:
         logger.error("❌ Error al regenerar frontend:")
-        print(e.stderr) # Imprimir stderr directamente
+        print(e.stderr)  # Imprimir stderr directamente
         return False
     except Exception as e:
         logger.error(f"❌ Error inesperado ejecutando npm: {e}")
@@ -86,22 +87,15 @@ def regenerate_frontend_client():
 
 
 def restart_stack():
-    """Reinicia el stack completo invocando stop y start."""
+    """Reinicia el stack completo invocando scripts/restart.py."""
     logger.info("🔄 Reiniciando Stack Completo...")
 
     python_exe = sys.executable
-    stop_script = PROJECT_ROOT / "stop.local.py"
-    start_script = PROJECT_ROOT / "start.local.py"
+    restart_script = PROJECT_ROOT / "scripts" / "restart.py"
 
     try:
-        logger.info("1. Deteniendo servicios...")
-        subprocess.run([python_exe, str(stop_script)], check=True)
-
-        logger.info("2. Iniciando servicios...")
-        # Start se lanza y libera, o bloquea? start.local.py actual bloquea si no tiene flag de daemon.
-        # Asumimos que queremos lanzarlo en una ventana nueva o dejarlo corriendo.
-        # Por simplicidad, ejecutamos y dejamos que el usuario maneje la ventana o proceso.
-        subprocess.run([python_exe, str(start_script)], check=False)
+        # Ejecutamos restart.py que orquesta stop + start
+        subprocess.run([python_exe, str(restart_script)], check=True)
     except Exception as e:
         logger.error(f"Error reiniciando stack: {e}")
 
@@ -122,17 +116,48 @@ def wait_for_backend_health(timeout=30):
     return False
 
 
+def run_migrations():
+    """Ejecuta la sincronización de base de datos con Alembic."""
+    logger.info("🗄️ Sincronizando base de datos (Alembic)...")
+
+    python_exe = sys.executable
+
+    try:
+        # 1. Generar revisión automática
+        logger.info("  > Detectando cambios en modelos...")
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        subprocess.run(
+            [python_exe, "-m", "alembic", "revision", "--autogenerate", "-m", f"auto_sync_{timestamp}"],
+            check=False,  # No fallar si no hay cambios
+            cwd=PROJECT_ROOT,
+        )
+
+        # 2. Aplicar migraciones
+        logger.info("  > Aplicando migraciones pendientes...")
+        subprocess.run([python_exe, "-m", "alembic", "upgrade", "head"], check=True, cwd=PROJECT_ROOT)
+        logger.info("✅ Base de datos sincronizada.")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error en migraciones: {e}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ecommerce Playground Dev Pipeline Automation")
     parser.add_argument("--static", action="store_true", help="Generar OpenAPI estáticamente (sin server)")
     parser.add_argument("--regen", action="store_true", help="Solo regenerar cliente frontend")
     parser.add_argument("--restart", action="store_true", help="Reiniciar todo el stack (Stop + Start)")
+    parser.add_argument("--migrate", action="store_true", help="Sincronizar base de datos (Alembic)")
 
     args = parser.parse_args()
 
     print("\n==========================================")
     print(" 🛠️  ECOMMERCE PLAYGROUND DEV PIPELINE v2.0")
     print("==========================================\n")
+
+    # 0. Migraciones
+    if args.migrate:
+        run_migrations()
 
     # 1. Generación de Schema (Static es más robusto)
     # Por defecto intentamos Static primero porque es más rápido y seguro.

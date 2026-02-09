@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel, Field, computed_field, validator
+from pydantic import BaseModel, computed_field, validator
+from sqlmodel import Field, SQLModel
 
 from .common import BaseEntity
 
@@ -18,22 +19,22 @@ class ProductCard(BaseModel):
     is_discount: bool
     discount_percentage: Decimal
 
-    class Config:
-        json_encoders = {Decimal: lambda v: float(v)}
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
-class Product(BaseEntity):
-    name: str = Field(..., min_length=1, max_length=200)
+class Product(BaseEntity, table=True):
+    __tablename__ = "products"
+
+    name: str = Field(..., min_length=1, max_length=200, index=True)
     description: str | None = None
-    sku: str | None = None
-    price: Decimal = Field(..., gt=0)  # Precio Base (Asumido en Moneda Base)
+    sku: str | None = Field(default=None, unique=True, index=True)
+    price: Decimal = Field(default=0, max_digits=10, decimal_places=2)  # Precio Base
     stock: int = Field(default=0, ge=0)
-    category: str | None = None
+    category: str | None = Field(default=None, index=True)
     image_url: str | None = None
     is_featured: bool = False
     is_discount: bool = False
-    discount_percentage: Decimal = Field(default=0, ge=0, le=100)
+    discount_percentage: Decimal = Field(default=0, max_digits=5, decimal_places=2)
     banner_assignment: str = Field(default="main")
 
     @validator("price", "discount_percentage", pre=True)
@@ -67,14 +68,16 @@ class Product(BaseEntity):
         )
 
 
-class ProductImage(BaseModel):
+class ProductImage(SQLModel, table=True):
     """
     Imagen asociada a un producto.
     Soporta múltiples imágenes por producto con una imagen principal (is_main).
     """
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    product_id: str = Field(...)
+    __tablename__ = "product_images"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    product_id: str = Field(foreign_key="products.id", index=True)
     image_url: str = Field(...)
     thumbnail_url: str | None = None
     is_main: bool = Field(default=False)
@@ -82,9 +85,7 @@ class ProductImage(BaseModel):
     alt_text: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime: lambda v: v.isoformat() + "Z"}
+    model_config = {"from_attributes": True}
 
 
 class ProductCreate(BaseModel):

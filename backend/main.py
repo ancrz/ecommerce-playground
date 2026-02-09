@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI):
     app.state.email_service = email_service
 
     # Servicios Nivel 1 (Integradores)
-    invoice_service = InvoiceService()
+    invoice_service = InvoiceService(db_manager=db_manager, business_service=business_service)
     app.state.invoice_service = invoice_service
 
     app.state.cart_service = CartService(
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
 # --- 6. Crear aplicación FastAPI ---
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API para sistema de e-commerce de farmacia (Arquitectura de Servicios Refactorizada v2.1)",
+    description="API para sistema de e-commerce (Arquitectura de Servicios Refactorizada v2.1)",
     version=settings.VERSION,
     lifespan=lifespan,
 )

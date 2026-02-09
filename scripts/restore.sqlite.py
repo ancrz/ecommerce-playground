@@ -13,12 +13,13 @@ import zipfile
 from pathlib import Path
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # --- Configuración de Rutas ---
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
+
 
 def restore_from_backup(backup_filepath: Path, force: bool = False):
     logger.info("--- Iniciando Proceso de Restauración (Modo Local/SQLite) ---")
@@ -34,7 +35,7 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
     # 2. Confirmación (si no es forzado por automatización)
     if not force:
         confirm = input("¿Está seguro de que desea continuar? (Escriba 'si' para confirmar): ")
-        if confirm.lower() != 'si':
+        if confirm.lower() != "si":
             logger.info("Operación cancelada por el usuario.")
             return False
 
@@ -59,7 +60,7 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
 
         # 5. Extraer el backup
         logger.info(f"Restaurando desde {backup_filepath}...")
-        with zipfile.ZipFile(backup_filepath, 'r') as zipf:
+        with zipfile.ZipFile(backup_filepath, "r") as zipf:
             # Extraer todo en la raíz del proyecto
             zipf.extractall(path=PROJECT_ROOT)
 
@@ -75,6 +76,7 @@ def restore_from_backup(backup_filepath: Path, force: bool = False):
         logger.error(f"❌ Error fatal durante la restauración: {e}", exc_info=True)
         return False
 
+
 if __name__ == "__main__":
     # --- Lógica de Argumentos (Compatible con automatización) ---
 
@@ -86,7 +88,7 @@ if __name__ == "__main__":
         backup_file_arg = sys.argv[1]
 
     # python scripts/restore.local.py _backups/file.zip --force
-    if len(sys.argv) == 3 and sys.argv[2] == '--force':
+    if len(sys.argv) == 3 and sys.argv[2] == "--force":
         backup_file_arg = sys.argv[1]
         force_mode = True
         logger.info("Modo --force detectado. Se omitirá la confirmación.")
@@ -97,4 +99,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if not restore_from_backup(Path(backup_file_arg), force=force_mode):
-        sys.exit(1) # Terminar con código de error si la restauración falló
+        sys.exit(1)  # Terminar con código de error si la restauración falló

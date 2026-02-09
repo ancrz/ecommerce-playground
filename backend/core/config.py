@@ -58,11 +58,11 @@ class Settings(BaseSettings):
             self.CORS_ORIGINS = [
                 f"http://localhost:{self.FRONTEND_PORT}",
                 f"http://127.0.0.1:{self.FRONTEND_PORT}",
-                "http://localhost:5173", # Fallback común
+                "http://localhost:5173",  # Fallback común
             ]
         # Sincronizar BACKEND_URL si el puerto cambió pero la URL no
         if f":{self.PORT}" not in self.BACKEND_URL and "localhost" in self.BACKEND_URL:
-             self.BACKEND_URL = f"http://localhost:{self.PORT}"
+            self.BACKEND_URL = f"http://localhost:{self.PORT}"
 
         # Sincronizar API_DOMAIN
         if "localhost" in self.API_DOMAIN and f":{self.PORT}" not in self.API_DOMAIN:

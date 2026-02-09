@@ -88,3 +88,46 @@ async def upload_social_icon(
     except Exception as e:
         logger.error(f"Error al subir icono de red social: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error procesando imagen.") from e
+
+
+# --- Nuevo Endpoint: Previsualización de Factura ---
+
+
+@router.post("/preview-invoice")
+async def preview_invoice_pdf(
+    info_updates: BusinessInfoUpdate = Body(...),
+    current_user: dict = Depends(get_current_user),
+    service: BusinessService = Depends(get_business_service),
+    request: Request = None,
+):
+    """
+    Genera un PDF de prueba con los datos fiscales enviados (sin guardarlos).
+    Útil para previsualizar cómo quedará la factura antes de guardar cambios.
+    """
+    try:
+        # 1. Recuperar el InvoiceService (que no está inyectado directamente aquí, pero está en app.state)
+        # Podríamos inyectarlo, pero para no romper firmas, lo sacamos de request.app.state
+        if not hasattr(request.app.state, "invoice_service"):
+            raise HTTPException(status_code=503, detail="InvoiceService no disponible")
+        invoice_service = request.app.state.invoice_service
+
+        # 2. Construir objeto BusinessInfo temporal mezclando lo actual con los updates
+        current_info = await service.get_business_info()
+
+        # update de pydantic (mocking param dict)
+        update_data = info_updates.model_dump(exclude_unset=True)
+
+        # Crear copia modificada
+        temp_info = current_info.model_copy(update=update_data)
+
+        # 3. Generar Preview
+        pdf_bytes = await invoice_service.generate_preview(custom_business_info=temp_info)
+
+        # 4. Retornar Blob
+        from fastapi.responses import Response
+
+        return Response(content=pdf_bytes, media_type="application/pdf")
+
+    except Exception as e:
+        logger.error(f"Error generando preview de factura: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generando preview: {e}") from e

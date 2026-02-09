@@ -20,9 +20,11 @@ Uso:
 
 import argparse
 import logging
+import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # --- Configuración ---
@@ -36,6 +38,64 @@ DATA_DIR = PROJECT_ROOT / "data"
 DATABASE_DIR = DATA_DIR / "database"
 
 MIN_PYTHON_VERSION = (3, 11)
+
+
+def kill_orphan_processes() -> int:
+    """
+    Limpieza de procesos huérfanos de python/node del proyecto.
+    Evita bloqueos de archivos en .venv.
+    """
+    killed = 0
+    project_path = str(PROJECT_ROOT).lower()
+    is_windows = sys.platform == "win32"
+
+    logger.info("🧹 Buscando procesos bloqueadores (zombies)...")
+
+    if is_windows:
+        try:
+            # Usar PowerShell para obtener procesos con su línea de comandos
+            cmd = [
+                "powershell",
+                "-Command",
+                "Get-CimInstance Win32_Process | Where-Object { "
+                "$_.Name -match 'python|node' } | "
+                "Select-Object ProcessId, Name, CommandLine | "
+                "ConvertTo-Json",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0 and result.stdout.strip():
+                import json as json_mod
+                processes = json_mod.loads(result.stdout)
+                if isinstance(processes, dict):
+                    processes = [processes]
+
+                for proc in processes:
+                    cmd_line = (proc.get("CommandLine") or "").lower()
+                    pid = proc.get("ProcessId")
+                    if pid and project_path in cmd_line and str(os.getpid()) != str(pid):
+                        subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True)
+                        killed += 1
+        except Exception as e:
+            logger.debug(f"Error en kill_orphan_processes: {e}")
+    else:
+        try:
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True)
+            for line in result.stdout.split("\n"):
+                if ("python" in line.lower() or "node" in line.lower()) and project_path in line.lower():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        pid = int(parts[1])
+                        if pid != os.getpid():
+                            os.kill(pid, 9)
+                            killed += 1
+        except Exception:
+            pass
+
+    if killed > 0:
+        logger.info(f"✓ Se eliminaron {killed} procesos huérfanos.")
+        time.sleep(1)
+    return killed
 
 
 def print_header(text: str) -> None:
@@ -97,6 +157,9 @@ def run_command(command: list, cwd: Path | None = None, shell: bool = False) -> 
 def create_venv() -> tuple[str, str]:
     """Create virtual environment and return paths to python and pip."""
     print_header("Paso 1: Creando Entorno Virtual")
+
+    # Limpiar procesos antes de tocar .venv
+    kill_orphan_processes()
 
     if VENV_PATH.exists():
         logger.warning("Directorio .venv existente encontrado. Eliminándolo...")

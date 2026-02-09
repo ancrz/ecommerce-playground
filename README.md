@@ -38,8 +38,15 @@ Sigue estos pasos estrictos para levantar el entorno sin errores.
 
 Asegúrate de tener instalados:
 
-1.  **Python 3.12+**: [Descargar Oficial](https://www.python.org/downloads/)
-    - ⚠️ **Importante**: Marcar `Add Python to PATH` durante instalación.
+1.  **Python 3.12+**:
+    - **Windows (PowerShell Administrador)**:
+      ```powershell
+      Start-Process choco -ArgumentList "install python312 -y" -Verb RunAs
+      ```
+    - **Linux (Debian/Ubuntu)**:
+      ```bash
+      sudo apt update && sudo apt install python3.12 python3.12-venv python3.12-dev -y
+      ```
     - _Verificar_: `python --version` (Debe decir 3.12.x)
 2.  **Node.js 20+ (LTS)**: [Descargar Oficial](https://nodejs.org/)
     - _Verificar_: `node -v`
@@ -91,7 +98,20 @@ python scripts/dev_pipeline.py
 
 ## 🏗️ Architecture & DNA
 
-Este proyecto utiliza una arquitectura **Schema-Driven** estricta para garantizar que el Backend y el Frontend estén siempre sincronizados (Interdependencia Sincrónica).
+Este proyecto utiliza una arquitectura **Schema-Driven** estricta para garantizar que el Backend y el Frontend estén siempre sincronizados.
+
+### 💾 Unified Database Architecture (New v3.0)
+
+Hemos migrado de una arquitectura fragmentada (SQLite chunks) a un diseño **Unificado y Agnóstico**.
+
+*   **Motor**: Soporte nativo para **PostgreSQL** (Producción) y **SQLite** (Dev/Unified).
+*   **ORM Moderno**: Implementación de **SQLModel** (Pydantic + SQLAlchemy) para definir la verdad única del esquema.
+*   **Migraciones Automáticas**: `Alembic` detecta cambios en los modelos Python y actualiza la DB.
+
+**Para sincronizar cambios en la BD:**
+```bash
+python scripts/dev_pipeline.py --migrate
+```
 
 ### 🗺️ System Map (Dependency Graph)
 

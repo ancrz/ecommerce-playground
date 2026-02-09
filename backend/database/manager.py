@@ -41,102 +41,9 @@ def row_to_dict(row: Any) -> dict[str, Any] | None:
 
 
 # Define los esquemas SQL para POSTGRES
-# (usando JSONB, SERIAL, NUMERIC, BOOLEAN)
+# (Solo mantenemos DAILY_CLOSURES y BUSINESS_INFO que aún no son SQLModel completo)
 _SCHEMAS_POSTGRES = {
-    "products": [
-        """
-        CREATE TABLE IF NOT EXISTS products (
-            id VARCHAR(36) PRIMARY KEY,
-            name VARCHAR(200) NOT NULL,
-            description TEXT,
-            sku VARCHAR(100) UNIQUE,
-            price NUMERIC(10, 2) NOT NULL,
-            stock INTEGER DEFAULT 0 CHECK(stock >= 0),
-            category VARCHAR(100),
-            image_url TEXT,
-            is_featured BOOLEAN DEFAULT false,
-            is_discount BOOLEAN DEFAULT false,
-            discount_percentage NUMERIC(5, 2) DEFAULT 0,
-            banner_assignment VARCHAR(50) DEFAULT 'main',
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-        """
-        CREATE TABLE IF NOT EXISTS product_images (
-            id VARCHAR(36) PRIMARY KEY,
-            product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-            image_url TEXT NOT NULL,
-            thumbnail_url TEXT,
-            is_main BOOLEAN DEFAULT false,
-            display_order INTEGER DEFAULT 0,
-            alt_text VARCHAR(200),
-            created_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-        """
-        CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
-    """,
-    ],
-    "cart": [
-        """
-        CREATE TABLE IF NOT EXISTS carts (
-            id VARCHAR(36) PRIMARY KEY,
-            customer_name TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            status VARCHAR(50) NOT NULL DEFAULT 'pending',
-            currency_id VARCHAR(36),
-            payment_method VARCHAR(100),
-            payment_type VARCHAR(100),
-            qr_code TEXT,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL,
-            region_id VARCHAR(36),
-            subtotal NUMERIC(10, 2) DEFAULT 0,
-            tax_amount NUMERIC(10, 2) DEFAULT 0,
-            total_with_tax NUMERIC(10, 2) DEFAULT 0
-        );
-    """,
-        """
-        CREATE TABLE IF NOT EXISTS cart_items (
-            id SERIAL PRIMARY KEY,
-            cart_id VARCHAR(36) NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
-            product_id VARCHAR(36) NOT NULL,
-            product_name TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
-            price NUMERIC(10, 2) NOT NULL
-        );
-    """,
-    ],
-    "sales": [
-        """
-        CREATE TABLE IF NOT EXISTS sales (
-            id VARCHAR(36) PRIMARY KEY,
-            cart_id VARCHAR(36) NOT NULL,
-            customer_name TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            items JSONB,
-            currency_id VARCHAR(36) NOT NULL,
-            payment_details JSONB,
-            status VARCHAR(50) NOT NULL DEFAULT 'completed',
-            completed_by VARCHAR(100),
-            completed_at TIMESTAMPTZ NOT NULL,
-            region_id VARCHAR(36),
-            subtotal NUMERIC(10, 2) NOT NULL,
-            tax_amount NUMERIC(10, 2) NOT NULL,
-            igtf_amount NUMERIC(10, 2) DEFAULT 0,
-            total_with_tax NUMERIC(10, 2) NOT NULL
-        );
-    """,
-        """
-        ALTER TABLE sales ADD COLUMN IF NOT EXISTS igtf_amount NUMERIC(10, 2) DEFAULT 0;
-    """,
-        """
-        ALTER TABLE sales ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(50) DEFAULT 'pending';
-    """,
-        """
-        ALTER TABLE sales ADD COLUMN IF NOT EXISTS invoice_retry_count INTEGER DEFAULT 0;
-    """,
+    "daily_closures": [
         """
         CREATE TABLE IF NOT EXISTS daily_closures (
             id SERIAL PRIMARY KEY,
@@ -147,26 +54,7 @@ _SCHEMAS_POSTGRES = {
             closed_by VARCHAR(100),
             closed_at TIMESTAMPTZ NOT NULL
         );
-    """,
-    ],
-    "finance": [
-        """
-        CREATE TABLE IF NOT EXISTS currencies (
-            id VARCHAR(36) PRIMARY KEY,
-            name VARCHAR(100) NOT NULL UNIQUE,
-            symbol VARCHAR(10) NOT NULL,
-            is_base BOOLEAN DEFAULT false,
-            exchange_rate NUMERIC(12, 6) NOT NULL DEFAULT 1.0,
-            tax_rate NUMERIC(5, 2) DEFAULT 0,
-            base_currency_id VARCHAR(36),
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-        """
-        ALTER TABLE currencies ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5, 2) DEFAULT 0;
-    """,
+    """
     ],
     "business": [
         """
@@ -210,294 +98,117 @@ _SCHEMAS_POSTGRES = {
         ON CONFLICT (id) DO NOTHING;
     """,
     ],
-    "roles": [
-        """
-        CREATE TABLE IF NOT EXISTS roles (
-            id VARCHAR(36) PRIMARY KEY,
-            name VARCHAR(50) NOT NULL UNIQUE,
-            description TEXT,
-            permissions JSONB NOT NULL DEFAULT '{}',
-            is_system BOOLEAN DEFAULT false,
-            is_active BOOLEAN DEFAULT true,
-            is_deleted BOOLEAN DEFAULT false,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """
-    ],
-    "users": [
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id VARCHAR(36) PRIMARY KEY,
-            username VARCHAR(100) NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            full_name TEXT,
-            email VARCHAR(255) UNIQUE,
-            roles JSONB NOT NULL DEFAULT '[]',
-            role_id VARCHAR(36) REFERENCES roles(id),
-            is_active BOOLEAN DEFAULT true,
-            is_deleted BOOLEAN DEFAULT false,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """
-    ],
-    "password_tokens": [
-        """
-        CREATE TABLE IF NOT EXISTS password_reset_tokens (
-            id VARCHAR(36) PRIMARY KEY,
-            user_id VARCHAR(36) NOT NULL,
-            token_hash TEXT NOT NULL,
-            expires_at TIMESTAMPTZ NOT NULL,
-            is_used BOOLEAN DEFAULT false,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """
-    ],
-    "tax": [
-        """
-        CREATE TABLE IF NOT EXISTS regions (
-            id VARCHAR(36) PRIMARY KEY,
-            name VARCHAR(100) NOT NULL UNIQUE,
-            country VARCHAR(100),
-            state VARCHAR(100),
-            city VARCHAR(100),
-            zip_code VARCHAR(20),
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-        """
-        CREATE TABLE IF NOT EXISTS tax_rates (
-            id VARCHAR(36) PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            region_id VARCHAR(36) NOT NULL REFERENCES regions(id),
-            rate NUMERIC(8, 6) NOT NULL DEFAULT 0,
-            priority INTEGER DEFAULT 1,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-    ],
-    "customers": [
-        """
-        CREATE TABLE IF NOT EXISTS customers (
-            id VARCHAR(36) PRIMARY KEY,
-            cedula VARCHAR(50) NOT NULL UNIQUE,
-            name VARCHAR(200) NOT NULL,
-            address TEXT,
-            phone VARCHAR(50),
-            email VARCHAR(255),
-            last_purchase TIMESTAMPTZ,
-            created_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL
-        );
-    """,
-        """
-        CREATE INDEX IF NOT EXISTS idx_customers_cedula ON customers(cedula);
-    """,
-    ],
 }
 
 # Define los "chunks" (archivos de base de datos separados)
 # ESTO SÓLO SE USA EN MODO SQLITE
 _DBS_SQLITE = {
-    "products": "products.db",
-    "cart": "cart.db",
-    "sales": "sales.db",
-    "finance": "finance.db",
-    "business": "business.db",
-    "customization": "customization.db",
-    "roles": "roles.db",
-    "users": "users.db",
-    "tax": "tax.db",
-    "password_tokens": "password_reset_tokens.db",
-    "customers": "customers.db",
+    "products": "ecommerce.db",
+    "cart": "ecommerce.db",
+    "sales": "ecommerce.db",
+    "finance": "ecommerce.db",
+    "business": "ecommerce.db",
+    "customization": "ecommerce.db",
+    "roles": "ecommerce.db",
+    "users": "ecommerce.db",
+    "tax": "ecommerce.db",
+    "password_tokens": "ecommerce.db",
+    "customers": "ecommerce.db",
 }
 
-# Esquemas adaptados para SQLite (menos tipos de datos estrictos)
-# Esto traduce automáticamente los esquemas de Postgres a SQLite
+# Esquemas adaptados para SQLite (unificado)
 _SCHEMAS_SQLITE = {
-    "products": [
-        s.replace("NUMERIC(10, 2)", "REAL")
-        .replace("NUMERIC(5, 2)", "REAL")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(200)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("VARCHAR(50)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("REFERENCES products(id)", "REFERENCES products (id)")
-        .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX IF NOT EXISTS")
-        for s in _SCHEMAS_POSTGRES["products"]
-    ],
-    "cart": [
-        s.replace("NUMERIC(10, 2)", "REAL")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(50)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
-        .replace("REFERENCES carts(id)", "REFERENCES carts (id)")  # Corrección de sintaxis
-        for s in _SCHEMAS_POSTGRES["cart"]
-    ],
-    "sales": [
-        s.replace("NUMERIC(10, 2)", "REAL")
-        .replace("NUMERIC(12, 2)", "REAL")
-        .replace("JSONB", "TEXT")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(50)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("DATE", "TEXT")
-        .replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
-        .replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")
-        for s in _SCHEMAS_POSTGRES["sales"]
-    ],
-    "finance": [
-        s.replace("NUMERIC(12, 6)", "REAL")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("VARCHAR(10)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")
-        for s in _SCHEMAS_POSTGRES["finance"]
-    ],
     "business": [
         s.replace("JSONB", "TEXT")
         .replace("TIMESTAMPTZ", "TEXT")
-        .replace("ON CONFLICT (id) DO NOTHING", "ON CONFLICT(id) DO NOTHING")  # Corrección de sintaxis
+        .replace("ON CONFLICT (id) DO NOTHING", "ON CONFLICT(id) DO NOTHING")
         for s in _SCHEMAS_POSTGRES["business"]
     ],
     "customization": [
-        s.replace("TIMESTAMPTZ", "TEXT").replace(
-            "ON CONFLICT (id) DO NOTHING", "ON CONFLICT(id) DO NOTHING"
-        )  # Corrección de sintaxis
+        s.replace("TIMESTAMPTZ", "TEXT").replace("ON CONFLICT (id) DO NOTHING", "ON CONFLICT(id) DO NOTHING")
         for s in _SCHEMAS_POSTGRES["customization"]
-    ],
-    "roles": [
-        s.replace("JSONB", "TEXT")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(50)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        for s in _SCHEMAS_POSTGRES["roles"]
-    ],
-    "users": [
-        s.replace("JSONB", "TEXT")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("VARCHAR(255)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("REFERENCES roles(id)", "REFERENCES roles (id)")
-        for s in _SCHEMAS_POSTGRES["users"]
-    ],
-    "password_tokens": [
-        s.replace("VARCHAR(36)", "TEXT").replace("TIMESTAMPTZ", "TEXT") for s in _SCHEMAS_POSTGRES["password_tokens"]
-    ],
-    "tax": [
-        s.replace("NUMERIC(8, 6)", "REAL")
-        .replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(100)", "TEXT")
-        .replace("VARCHAR(20)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("REFERENCES regions(id)", "REFERENCES regions (id)")  # Corrección de sintaxis
-        for s in _SCHEMAS_POSTGRES["tax"]
-    ],
-    "customers": [
-        s.replace("VARCHAR(36)", "TEXT")
-        .replace("VARCHAR(50)", "TEXT")
-        .replace("VARCHAR(200)", "TEXT")
-        .replace("VARCHAR(255)", "TEXT")
-        .replace("TIMESTAMPTZ", "TEXT")
-        .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX IF NOT EXISTS")
-        for s in _SCHEMAS_POSTGRES["customers"]
     ],
 }
 
 
 class DatabaseManager:
     """
-    Gestor de conexiones de base de datos híbrido (SQLite o Postgres).
+    Gestor de conexiones de base de datos unificado (Postgres optimizado o SQLite).
     """
 
     def __init__(self, base_path: str = "./data/database"):
         self.is_initialized = False
 
         if DB_TYPE == "postgres":
-            # Construye la URL de conexión de Postgres desde las variables de entorno
-            self.db_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+            # Construye la URL de conexión de Postgres
+            user = os.getenv("DB_USER", "admin")
+            password = os.getenv("DB_PASS", "admin2024")
+            host = os.getenv("DB_HOST", "localhost")
+            port = os.getenv("DB_PORT", "5432")
+            name = os.getenv("DB_NAME", "ecommerce_unified")
+
+            self.db_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
             self._pool: asyncpg.Pool | None = None
-            logger.info(f"DatabaseManager inicializado en modo POSTGRES (host: {os.getenv('DB_HOST')})")
+            logger.info(f"DatabaseManager inicializado en modo POSTGRES (host: {host})")
         else:
-            # Lógica de SQLite (modo local)
+            # Lógica de SQLite (modo local unificado)
             self.base_path = Path(base_path)
             self.base_path.mkdir(parents=True, exist_ok=True)
             self._connections: dict[str, aiosqlite.Connection] = {}
-            logger.info(f"DatabaseManager inicializado en modo SQLITE (path: {base_path})")
+            logger.info(f"DatabaseManager inicializado en modo SQLITE (unificado en {base_path})")
 
     async def initialize(self):
-        """Enciende las conexiones y crea los esquemas."""
+        """Enciende las conexiones y verifica esquemas."""
         if self.is_initialized:
             return
 
         if DB_TYPE == "postgres":
-            # --- Lógica de Inicialización de Postgres ---
             try:
-                self._pool = await asyncpg.create_pool(self.db_url)
-                logger.info("Pool de conexiones de PostgreSQL conectado.")
-                # Crear todas las tablas en la única base de datos
+                # OPTIMIZACIÓN: Pool de conexiones con settings de performance
+                self._pool = await asyncpg.create_pool(
+                    self.db_url, min_size=5, max_size=20, max_queries=1000, max_inactive_connection_lifetime=300
+                )
+                logger.info("Pool de PostgreSQL conectado (min:5, max:20).")
+
+                # Aplicar esquemas manuales (DAILY_CLOSURES, etc.)
                 async with self._pool.acquire() as conn:
-                    for chunk_name, schemas in _SCHEMAS_POSTGRES.items():
-                        logger.info(f"Aplicando esquema de Postgres para: {chunk_name}")
+                    for _chunk_name, schemas in _SCHEMAS_POSTGRES.items():
                         for schema in schemas:
                             await conn.execute(schema)
-                logger.info("Esquemas de PostgreSQL creados/verificados.")
+                logger.info("Esquemas manuales de PostgreSQL verificados.")
             except Exception as e:
-                logger.error(f"Error fatal inicializando PostgreSQL: {e}", exc_info=True)
+                logger.error(f"Error fatal inicializando PostgreSQL: {e}")
                 raise
         else:
-            # --- Lógica de Inicialización de SQLite ---
-            logger.info(f"Inicializando DatabaseManager (SQLite). {len(_DBS_SQLITE)} chunks definidos.")
-            for chunk_name, db_file in _DBS_SQLITE.items():
-                db_path = self.base_path / db_file
-                try:
-                    conn = await aiosqlite.connect(db_path)
-                    conn.row_factory = aiosqlite.Row
+            # Lógica SQLite unificada
+            db_path = self.base_path / "ecommerce.db"
+            try:
+                conn = await aiosqlite.connect(db_path)
+                conn.row_factory = aiosqlite.Row
+                await conn.execute("PRAGMA journal_mode=WAL;")
+                await conn.execute("PRAGMA synchronous=NORMAL;")
+
+                # Mapear todos los chunks a la misma conexión
+                for chunk_name in _DBS_SQLITE.keys():
                     self._connections[chunk_name] = conn
-                    await conn.execute("PRAGMA journal_mode=WAL;")  # Enable WAL for concurrency
-                    await conn.execute("PRAGMA synchronous=NORMAL;")  # Faster writes
-                    await conn.execute("PRAGMA foreign_keys = OFF;")
 
-                    if chunk_name in _SCHEMAS_SQLITE:
-                        for schema in _SCHEMAS_SQLITE[chunk_name]:
-                            try:
-                                await conn.execute(schema)
-                            except Exception as e:
-                                # Ignorar error de columna duplicada en migraciones (ALTER TABLE)
-                                # SQLite no soporta "ADD COLUMN IF NOT EXISTS" nativamente en versiones viejas
-                                # o la sintaxis difiere, así que intentamos añadir y si falla porque existe, ignoramos.
-                                if "duplicate column" in str(e).lower():
-                                    logger.warning(f"Aviso migración SQLite: {e}")
-                                else:
-                                    raise
+                # Aplicar esquemas manuales
+                for _chunk_name, schemas in _SCHEMAS_SQLITE.items():
+                    for schema in schemas:
+                        try:
+                            await conn.execute(schema)
+                        except Exception as e:
+                            if "duplicate column" not in str(e).lower():
+                                logger.warning(f"Aviso esquema manual SQLite: {e}")
 
-                        # --- Índices de Optimización (SQLite) ---
-                        if chunk_name == "sales":
-                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);")
-                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_region ON sales(region_id);")
-                        elif chunk_name == "cart":
-                            await conn.execute("CREATE INDEX IF NOT EXISTS idx_carts_customer ON carts(customer_id);")
-
-                        await conn.commit()
-                    logger.info(f"Chunk (SQLite) '{chunk_name}' [conectado, WAL enabled] en {db_path}")
-                except Exception as e:
-                    logger.error(f"Error inicializando chunk (SQLite) '{chunk_name}' en {db_path}: {e}", exc_info=True)
-                    raise
+                await conn.commit()
+                logger.info(f"Base de datos SQLite unificada y lista: {db_path}")
+            except Exception as e:
+                logger.error(f"Error inicializando SQLite unificada: {e}")
+                raise
 
         self.is_initialized = True
-        logger.info("DatabaseManager inicializado exitosamente.")
+        logger.info("DatabaseManager listo.")
 
     async def close(self):
         """Cierra todas las conexiones activas."""

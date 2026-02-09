@@ -23,10 +23,7 @@ import sys
 from pathlib import Path
 
 # Configuración
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -135,18 +132,18 @@ def main():
     command = sys.argv[1].lower()
 
     commands = {
-        'setup': cmd_setup,
-        'start': cmd_start,
-        'stop': cmd_stop,
-        'restart': cmd_restart,
-        'status': cmd_status,
-        'regen': cmd_regen,
-        'regenerate': cmd_regen,
-        'migrate': cmd_migrate,
-        'seed': cmd_seed,
-        'help': lambda: (print_help(), 0)[1],
-        '--help': lambda: (print_help(), 0)[1],
-        '-h': lambda: (print_help(), 0)[1],
+        "setup": cmd_setup,
+        "start": cmd_start,
+        "stop": cmd_stop,
+        "restart": cmd_restart,
+        "status": cmd_status,
+        "regen": cmd_regen,
+        "regenerate": cmd_regen,
+        "migrate": cmd_migrate,
+        "seed": cmd_seed,
+        "help": lambda: (print_help(), 0)[1],
+        "--help": lambda: (print_help(), 0)[1],
+        "-h": lambda: (print_help(), 0)[1],
     }
 
     if command not in commands:

@@ -12,7 +12,7 @@ import os
 import sys
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 try:
@@ -47,10 +47,7 @@ async def test_connection():
             # 3. Suscribirse a un producto dummy
             dummy_id = "test-product-123"
             logger.info(f"Suscribiéndose a producto {dummy_id}...")
-            await websocket.send(json.dumps({
-                "action": "subscribe",
-                "product_id": dummy_id
-            }))
+            await websocket.send(json.dumps({"action": "subscribe", "product_id": dummy_id}))
 
             sub_msg = await websocket.recv()
             logger.info(f"Recibido: {sub_msg}")
@@ -69,6 +66,7 @@ async def test_connection():
         logger.error("❌ No se pudo conectar. Asegúrate de que el servidor Backend esté corriendo (puerto 8042).")
     except Exception as e:
         logger.error(f"❌ Error durante la prueba: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_connection())

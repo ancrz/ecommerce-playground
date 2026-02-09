@@ -9,6 +9,8 @@ export const SocialNetworkSchema = z.object({
 export const BusinessInfoSchema = z.object({
   name: z.string(),
   rif: z.string().nullable(),
+  address: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
   contact: z.string().nullable(),
   social_networks: z.array(SocialNetworkSchema),
   logo_url: z.string().url().nullable(),
@@ -19,8 +21,10 @@ export const BusinessInfoSchema = z.object({
 
 export const BusinessInfoUpdateSchema = BusinessInfoSchema.pick({
     name: true,
-    rif: true,
-    contact: true,
+  rif: true,
+  address: true,
+  phone: true,
+  contact: true,
     social_networks: true,
 }).partial();
 

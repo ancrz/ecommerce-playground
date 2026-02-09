@@ -21,27 +21,22 @@ def setup_logs():
         "business": ["backend.api.business", "backend.services.business_service"],
         "client": ["backend.api.client_logs"],
         "images": ["backend.services.image_service", "backend.api.images"],
-        "database": ["backend.database.manager"]
+        "database": ["backend.database.manager"],
     }
 
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     for log_name, loggers in mappings.items():
         try:
             file_path = log_dir / f"{log_name}.log"
             # Rotación: Máx 5MB, mantener 3 backups
-            file_handler = RotatingFileHandler(
-                file_path,
-                maxBytes=5*1024*1024,
-                backupCount=3,
-                encoding='utf-8'
-            )
+            file_handler = RotatingFileHandler(file_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
             file_handler.setFormatter(formatter)
             file_handler.setLevel(logging.INFO)
 
             for logger_name in loggers:
                 logger_instance = logging.getLogger(logger_name)
                 logger_instance.addHandler(file_handler)
-                logger_instance.propagate = True # Seguir enviando al root logger (backend.log console)
+                logger_instance.propagate = True  # Seguir enviando al root logger (backend.log console)
         except Exception as e:
             print(f"Error configurando log {log_name}: {e}")

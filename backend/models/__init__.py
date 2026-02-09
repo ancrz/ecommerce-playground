@@ -3,6 +3,8 @@ from .common import BaseEntity as BaseEntity
 from .config import BusinessInfo as BusinessInfo
 from .config import Customization as Customization
 from .config import SocialNetwork as SocialNetwork
+from .customers import Customer as Customer
+from .customers import CustomerCreate as CustomerCreate
 from .finance import Currency as Currency
 from .finance import Region as Region
 from .finance import TaxRate as TaxRate

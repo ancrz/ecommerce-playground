@@ -24,10 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Configuración ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -40,11 +37,11 @@ def load_env():
     if not env_file.exists():
         return
 
-    with open(env_file, encoding='utf-8') as f:
+    with open(env_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, _, value = line.partition('=')
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
                 if key:
@@ -113,16 +110,11 @@ def cmd_history() -> int:
 def main():
     """Entry point principal."""
     parser = argparse.ArgumentParser(description="Gestión de migraciones de BD")
-    parser.add_argument("--generate", "-g", action="store_true",
-                       help="Generar nueva migración")
-    parser.add_argument("--message", "-m", type=str,
-                       help="Mensaje para la migración")
-    parser.add_argument("--rollback", "-r", action="store_true",
-                       help="Revertir última migración")
-    parser.add_argument("--status", "-s", action="store_true",
-                       help="Ver estado de migraciones")
-    parser.add_argument("--history", action="store_true",
-                       help="Ver historial de migraciones")
+    parser.add_argument("--generate", "-g", action="store_true", help="Generar nueva migración")
+    parser.add_argument("--message", "-m", type=str, help="Mensaje para la migración")
+    parser.add_argument("--rollback", "-r", action="store_true", help="Revertir última migración")
+    parser.add_argument("--status", "-s", action="store_true", help="Ver estado de migraciones")
+    parser.add_argument("--history", action="store_true", help="Ver historial de migraciones")
     args = parser.parse_args()
 
     print("\n>>> Gestión de Migraciones <<<\n")

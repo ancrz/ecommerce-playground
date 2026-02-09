@@ -256,6 +256,31 @@ export const updateBusinessInfo = (updates: BusinessInfoUpdate): Promise<Busines
   }, BusinessInfoSchema);
 };
 
+export const previewInvoice = async (updates: BusinessInfoUpdate): Promise<Blob> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/business/preview-invoice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+        let errorDetail = "Error generando vista previa";
+        try {
+            const errorJson = await response.json();
+            errorDetail = errorJson.detail || JSON.stringify(errorJson);
+        } catch (e) {
+            // Fallback if response is not JSON
+            errorDetail = "Error de red o formato inválido";
+        }
+        throw new Error(errorDetail);
+    }
+    return await response.blob();
+};
+
 export const getCustomization = (): Promise<Customization> => {
   return authFetch<Customization>('/admin/customization/', { method: 'GET' }, CustomizationSchema);
 };

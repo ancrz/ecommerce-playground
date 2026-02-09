@@ -42,11 +42,8 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 # Configurar logging con archivo
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(LOG_DIR / "regenerate.log", encoding='utf-8')
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler(LOG_DIR / "regenerate.log", encoding="utf-8")],
 )
 logger = logging.getLogger(__name__)
 
@@ -75,11 +72,11 @@ def load_env():
     if not env_file.exists():
         return
 
-    with open(env_file, encoding='utf-8') as f:
+    with open(env_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, _, value = line.partition('=')
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
                 if key:
@@ -91,7 +88,7 @@ def is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(1)
         try:
-            s.connect(('127.0.0.1', port))
+            s.connect(("127.0.0.1", port))
             return True  # Conexión exitosa = puerto en uso
         except (ConnectionRefusedError, TimeoutError, OSError):
             return False
@@ -228,7 +225,7 @@ def save_openapi_schema(schema: dict[str, Any]) -> Path:
 
     output_path = DOCS_DIR / "openapi.json"
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(schema, f, indent=2, ensure_ascii=False)
 
     logger.info(f"✓ OpenAPI guardado en {output_path}")
@@ -357,9 +354,16 @@ def convert_schema_to_zod(schema: dict[str, Any], all_schemas: dict, name: str =
 
     # Parche de Robustez Financiera: Pydantic v2 a veces emite float, OpenAPI dice string(decimal)
     financial_fields = [
-        "price", "final_price", "subtotal", "tax_amount",
-        "total", "total_with_tax", "exchange_rate",
-        "rate", "discount_percentage", "amount"
+        "price",
+        "final_price",
+        "subtotal",
+        "tax_amount",
+        "total",
+        "total_with_tax",
+        "exchange_rate",
+        "rate",
+        "discount_percentage",
+        "amount",
     ]
     if name in financial_fields:
         base = "z.union([z.string(), z.number()])"
@@ -542,7 +546,7 @@ def save_generated_types(code: str) -> Path:
     """Guarda los tipos generados."""
     output_path = FRONTEND_DIR / "src" / "types.generated.ts"
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
 
     logger.info(f"✓ Tipos Zod generados en {output_path}")
@@ -553,7 +557,7 @@ def save_api_helpers(code: str) -> Path:
     """Guarda los helpers de API."""
     output_path = FRONTEND_DIR / "src" / "api.generated.ts"
 
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
 
     logger.info(f"✓ API helpers generados en {output_path}")
@@ -573,11 +577,7 @@ def run_alembic_autogenerate() -> bool:
 
     try:
         result = subprocess.run(
-            [python, "-m", "alembic", "check"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=60
+            [python, "-m", "alembic", "check"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=60
         )
 
         if "No new upgrade operations detected" in result.stdout:
@@ -590,16 +590,12 @@ def run_alembic_autogenerate() -> bool:
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
 
         if result.returncode == 0:
             logger.info(f"✓ Migración generada: auto_{timestamp}")
-            subprocess.run(
-                [python, "-m", "alembic", "upgrade", "head"],
-                cwd=PROJECT_ROOT,
-                timeout=60
-            )
+            subprocess.run([python, "-m", "alembic", "upgrade", "head"], cwd=PROJECT_ROOT, timeout=60)
             logger.info("✓ Migración aplicada")
             return True
         else:
@@ -609,7 +605,6 @@ def run_alembic_autogenerate() -> bool:
     except Exception as e:
         logger.warning(f"⚠️ Error en Alembic: {e}")
         return False
-
 
 
 def generate_react_hooks(schema: dict[str, Any]) -> str:
@@ -767,11 +762,10 @@ def generate_react_hooks(schema: dict[str, Any]) -> str:
 def save_hooks(code: str) -> Path:
     """Guarda los hooks generados."""
     output_path = FRONTEND_DIR / "src" / "hooks.generated.ts"
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
     logger.info(f"✓ Hooks generados en {output_path}")
     return output_path
-
 
 
 def manage_service(action: str):
@@ -893,7 +887,7 @@ def main():
                     proc.terminate()
                     proc.wait()
         else:
-             regenerate_frontend_artifacts(backend_port)
+            regenerate_frontend_artifacts(backend_port)
 
     # === FRONT MODE ===
     elif mode == "front":
@@ -904,21 +898,22 @@ def main():
 
     # === VALIDATE MODE ===
     elif mode == "validate":
-         if not is_port_in_use(backend_port):
-             proc = start_backend_temp()
-             if proc:
-                 try:
-                     schema = fetch_openapi_schema(backend_port)
-                     validate_endpoints(schema, backend_port)
-                 finally:
-                     proc.terminate()
-                     proc.wait()
-         else:
-             schema = fetch_openapi_schema(backend_port)
-             validate_endpoints(schema, backend_port)
+        if not is_port_in_use(backend_port):
+            proc = start_backend_temp()
+            if proc:
+                try:
+                    schema = fetch_openapi_schema(backend_port)
+                    validate_endpoints(schema, backend_port)
+                finally:
+                    proc.terminate()
+                    proc.wait()
+        else:
+            schema = fetch_openapi_schema(backend_port)
+            validate_endpoints(schema, backend_port)
 
     logger.info("\n✨ Pipeline Finalizado ✨\n")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

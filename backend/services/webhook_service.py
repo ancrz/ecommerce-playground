@@ -20,6 +20,7 @@ from typing import Any
 
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
@@ -30,9 +31,11 @@ logger = logging.getLogger(__name__)
 
 # ==================== DATA MODELS ====================
 
+
 @dataclass
 class WebhookConfig:
     """Configuración de un webhook registrado."""
+
     id: str
     url: str
     secret: str
@@ -47,6 +50,7 @@ class WebhookConfig:
 @dataclass
 class WebhookDelivery:
     """Registro de un intento de entrega de webhook."""
+
     webhook_id: str
     event_type: str
     payload: dict
@@ -59,8 +63,10 @@ class WebhookDelivery:
 
 # ==================== WEBHOOK EVENTS ====================
 
+
 class WebhookEvents:
     """Tipos de eventos soportados."""
+
     # Productos
     PRODUCT_CREATED = "product.created"
     PRODUCT_UPDATED = "product.updated"
@@ -81,6 +87,7 @@ class WebhookEvents:
 
 
 # ==================== WEBHOOK SERVICE ====================
+
 
 class WebhookService:
     """
@@ -120,28 +127,14 @@ class WebhookService:
         El receptor puede verificar la autenticidad usando esta firma.
         """
         signature = hmac.new(
-            key=secret.encode('utf-8'),
-            msg=payload.encode('utf-8'),
-            digestmod=hashlib.sha256
+            key=secret.encode("utf-8"), msg=payload.encode("utf-8"), digestmod=hashlib.sha256
         ).hexdigest()
         return f"sha256={signature}"
 
-    def register(
-        self,
-        url: str,
-        secret: str,
-        events: list[str],
-        is_active: bool = True
-    ) -> WebhookConfig:
+    def register(self, url: str, secret: str, events: list[str], is_active: bool = True) -> WebhookConfig:
         """Registra un nuevo webhook."""
         webhook_id = self._generate_id()
-        webhook = WebhookConfig(
-            id=webhook_id,
-            url=url,
-            secret=secret,
-            events=events,
-            is_active=is_active
-        )
+        webhook = WebhookConfig(id=webhook_id, url=url, secret=secret, events=events, is_active=is_active)
         self.webhooks[webhook_id] = webhook
         logger.info(f"Webhook registrado: {webhook_id} -> {url} (eventos: {events})")
         return webhook
@@ -156,17 +149,10 @@ class WebhookService:
 
     def get_webhooks_for_event(self, event_type: str) -> list[WebhookConfig]:
         """Obtiene todos los webhooks suscritos a un tipo de evento."""
-        return [
-            wh for wh in self.webhooks.values()
-            if wh.is_active and event_type in wh.events
-        ]
+        return [wh for wh in self.webhooks.values() if wh.is_active and event_type in wh.events]
 
     async def emit(
-        self,
-        event_type: str,
-        payload: dict[str, Any],
-        retry_count: int = 3,
-        retry_delay: float = 1.0
+        self, event_type: str, payload: dict[str, Any], retry_count: int = 3, retry_delay: float = 1.0
     ) -> list[WebhookDelivery]:
         """
         Emite un evento a todos los webhooks suscritos.
@@ -183,36 +169,20 @@ class WebhookService:
             return []
 
         # Preparar payload con metadatos
-        full_payload = {
-            "event": event_type,
-            "timestamp": datetime.now().isoformat(),
-            "data": payload
-        }
+        full_payload = {"event": event_type, "timestamp": datetime.now().isoformat(), "data": payload}
         payload_json = json.dumps(full_payload, default=str)
 
         # Enviar a todos los webhooks en paralelo
-        tasks = [
-            self._deliver(webhook, event_type, payload_json, retry_count, retry_delay)
-            for webhook in webhooks
-        ]
+        tasks = [self._deliver(webhook, event_type, payload_json, retry_count, retry_delay) for webhook in webhooks]
 
         deliveries = await asyncio.gather(*tasks)
         return deliveries
 
     async def _deliver(
-        self,
-        webhook: WebhookConfig,
-        event_type: str,
-        payload_json: str,
-        retry_count: int,
-        retry_delay: float
+        self, webhook: WebhookConfig, event_type: str, payload_json: str, retry_count: int, retry_delay: float
     ) -> WebhookDelivery:
         """Entrega un webhook con reintentos."""
-        delivery = WebhookDelivery(
-            webhook_id=webhook.id,
-            event_type=event_type,
-            payload=json.loads(payload_json)
-        )
+        delivery = WebhookDelivery(webhook_id=webhook.id, event_type=event_type, payload=json.loads(payload_json))
 
         # Generar firma
         signature = self._sign_payload(payload_json, webhook.secret)
@@ -222,7 +192,7 @@ class WebhookService:
             "X-Webhook-Event": event_type,
             "X-Webhook-Signature": signature,
             "X-Webhook-Timestamp": datetime.now().isoformat(),
-            "User-Agent": "Ecommerce-Playground-Webhook/1.0"
+            "User-Agent": "Ecommerce-Playground-Webhook/1.0",
         }
 
         for attempt in range(retry_count):
@@ -230,11 +200,7 @@ class WebhookService:
                 start_time = asyncio.get_event_loop().time()
 
                 async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.post(
-                        webhook.url,
-                        content=payload_json,
-                        headers=headers
-                    )
+                    response = await client.post(webhook.url, content=payload_json, headers=headers)
 
                 end_time = asyncio.get_event_loop().time()
                 delivery.response_time_ms = (end_time - start_time) * 1000
@@ -286,10 +252,10 @@ class WebhookService:
                     "events": wh.events,
                     "is_active": wh.is_active,
                     "delivery_count": wh.delivery_count,
-                    "failure_count": wh.failure_count
+                    "failure_count": wh.failure_count,
                 }
                 for wh in self.webhooks.values()
-            ]
+            ],
         }
 
 
@@ -300,25 +266,14 @@ webhook_service = WebhookService()
 
 # ==================== CONVENIENCE FUNCTIONS ====================
 
+
 async def emit_product_event(event_type: str, product_id: str, product_name: str, **extra):
     """Helper para emitir eventos de productos."""
     await webhook_service.emit(
-        event_type=event_type,
-        payload={
-            "product_id": product_id,
-            "product_name": product_name,
-            **extra
-        }
+        event_type=event_type, payload={"product_id": product_id, "product_name": product_name, **extra}
     )
 
 
 async def emit_sale_event(event_type: str, sale_id: str, total: float, **extra):
     """Helper para emitir eventos de ventas."""
-    await webhook_service.emit(
-        event_type=event_type,
-        payload={
-            "sale_id": sale_id,
-            "total": total,
-            **extra
-        }
-    )
+    await webhook_service.emit(event_type=event_type, payload={"sale_id": sale_id, "total": total, **extra})

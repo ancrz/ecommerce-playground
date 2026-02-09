@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
-from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from sqlmodel import Field, SQLModel
 
 from ..core.config import settings
 
@@ -10,16 +9,14 @@ from ..core.config import settings
 BACKEND_URL = settings.BACKEND_URL
 
 
-class BaseEntity(BaseModel):
-    """Entidad base con funcionalidades comunes"""
+class BaseEntity(SQLModel):
+    """Entidad base con funcionalidades comunes (SQLModel)"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        from_attributes = True  # Permite cargar desde objetos de BD
-        json_encoders = {datetime: lambda v: v.isoformat() + "Z", Decimal: lambda v: float(v)}
+    model_config = {"from_attributes": True}
 
     def update_timestamp(self):
         """Actualizar timestamp de modificación"""

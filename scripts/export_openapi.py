@@ -16,10 +16,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     from backend.main import app
+
     print(f"✅ Successfully imported FastAPI app from {PROJECT_ROOT}")
 except ImportError as e:
     print(f"❌ Error importing backend.main: {e}")
     sys.exit(1)
+
 
 def export_openapi():
     """Generates and saves the OpenAPI JSON schema."""
@@ -33,6 +35,7 @@ def export_openapi():
         json.dump(openapi_schema, f, indent=2)
 
     print("✓ Done.")
+
 
 if __name__ == "__main__":
     export_openapi()

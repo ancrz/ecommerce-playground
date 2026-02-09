@@ -260,6 +260,53 @@ async def seed_products(product_service):
     logger.info(f"  Total: {created} productos creados")
 
 
+async def seed_business_config(db_manager):
+    """Ensure singleton configs exist."""
+
+    logger.info("Verificando configuración de negocio...")
+
+    # Need to access session directly or use a service.
+    # Since we are in a script, we can use the connection from db_manager if we adapt it,
+    # OR better: use SQLModel session if we had one.
+    # Given db_manager uses aiosqlite, we use execute/fetchone.
+
+    # 1. Business Info
+    try:
+        # Check if exists (using raw SQL for speed/simplicity in seed script)
+        row = await db_manager.fetchone("business", "SELECT id FROM business_info WHERE id = 1")
+        if not row:
+            logger.info("  > Creando BusinessInfo por defecto...")
+            # Using SQLModel via INSERT would require a session. We use raw SQL here to match existing pattern.
+            # FIX: Include social_networks default '[]'
+            await db_manager.execute(
+                "business",
+                "INSERT INTO business_info (id, name, social_networks, updated_at) VALUES (1, 'E-Commerce', '[]', CURRENT_TIMESTAMP)",
+            )
+            logger.info("  ✓ BusinessInfo creado")
+    except Exception as e:
+        logger.warning(f"  ⚠️ Error seed BusinessInfo: {e}")
+
+    # 2. Customization
+    try:
+        row = await db_manager.fetchone("customization", "SELECT id FROM customization WHERE id = 1")
+        if not row:
+            logger.info("  > Creando Customization por defecto...")
+            # FIX: Include all required color fields
+            await db_manager.execute(
+                "customization",
+                """
+                INSERT INTO customization (
+                    id, primary_color, secondary_color, accent_color, font_family, updated_at
+                ) VALUES (
+                    1, '#264192', '#ffdd00', '#ffffff', 'Poppins', CURRENT_TIMESTAMP
+                )
+                """,
+            )
+            logger.info("  ✓ Customization creado")
+    except Exception as e:
+        logger.warning(f"  ⚠️ Error seed Customization: {e}")
+
+
 async def main():
     """Main seed function."""
     parser = argparse.ArgumentParser(description="Seed database with initial data")
@@ -311,6 +358,8 @@ async def main():
         await seed_currencies(finance_service)
         print("")
         await seed_tax_config(tax_service)
+        print("")
+        await seed_business_config(db_manager)
         print("")
         await seed_products(product_service)
 
