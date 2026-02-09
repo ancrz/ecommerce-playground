@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from pydantic import field_serializer
 from sqlmodel import Field, SQLModel
 
 from ..core.config import settings
@@ -17,6 +18,10 @@ class BaseEntity(SQLModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_dt(self, dt: datetime, _info):
+        return dt.isoformat()
 
     def update_timestamp(self):
         """Actualizar timestamp de modificación"""

@@ -3,18 +3,10 @@
 Seed Data Script - ecommerce-playground
 =====================================
 Inicializa la base de datos con datos semilla para desarrollo.
-
-Este script:
-1. Crea el usuario administrador por defecto
-2. Crea usuarios de prueba con diferentes roles
-3. Crea monedas de prueba (Bs, USD)
-4. Crea configuración fiscal (región + IVA)
-5. Crea productos de muestra
+IMPLEMENTA IDEMPOTENCIA: Puede ejecutarse múltiples veces sin errores.
 
 Uso:
     python scripts/seed_data.py [--clean]
-
-    --clean: Elimina los archivos .db existentes antes de crear nuevos
 """
 
 import argparse
@@ -22,6 +14,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -37,7 +30,6 @@ logger = logging.getLogger(__name__)
 def load_env():
     """Load environment variables from .env file."""
     env_file = PROJECT_ROOT / ".env"
-
     if env_file.exists():
         with open(env_file, encoding="utf-8") as f:
             for line in f:
@@ -53,10 +45,8 @@ def load_env():
 def clean_database():
     """Remove existing database files."""
     db_path = Path(os.getenv("DB_PATH", "./data/database"))
-
     if not db_path.exists():
         return
-
     db_files = list(db_path.glob("*.db"))
     if db_files:
         logger.info(f"Eliminando {len(db_files)} archivos de base de datos...")
@@ -69,13 +59,17 @@ def clean_database():
 
 
 async def seed_admin_user(user_service):
-    """Create the admin user."""
+    """Create the admin user idempotently."""
     from backend.models.users import UserCreateRequest
 
     admin_username = os.getenv("ADMIN_USERNAME", "admin")
     admin_password = os.getenv("ADMIN_PASSWORD", "admin2024")
 
-    logger.info("Creando usuario administrador...")
+    logger.info("Verificando usuario administrador...")
+    existing = await user_service.get_user_by_username(admin_username)
+    if existing:
+        logger.info(f"  ℹ️ Usuario '{admin_username}' ya existe.")
+        return existing
 
     try:
         admin_dto = UserCreateRequest(
@@ -87,52 +81,30 @@ async def seed_admin_user(user_service):
             is_active=True,
         )
         user = await user_service.create_user(admin_dto)
-        logger.info(f"  ✓ Usuario '{user.username}' creado con roles: {user.roles}")
+        logger.info(f"  ✓ Usuario '{user.username}' creado exitosamente.")
         return user
-    except ValueError as e:
-        if "ya existe" in str(e).lower() or "already exists" in str(e).lower():
-            logger.info(f"  ℹ️ Usuario '{admin_username}' ya existe")
-        else:
-            logger.error(f"  ❌ Error: {e}")
+    except Exception as e:
+        logger.error(f"  ❌ Error creando admin: {e}")
         return None
 
 
 async def seed_test_users(user_service):
-    """Create test users with different roles."""
+    """Create test users idempotently."""
     from backend.models.users import UserCreateRequest
 
     test_password = os.getenv("DUMMY_USER_PASSWORD", "password123")
-
     users_to_create = [
-        {
-            "username": "products_manager",
-            "full_name": "Gerente de Productos",
-            "email": "products@e-commerce.local",
-            "roles": ["products_manager"],
-        },
-        {
-            "username": "sales_manager",
-            "full_name": "Gerente de Ventas",
-            "email": "sales@e-commerce.local",
-            "roles": ["sales_manager"],
-        },
-        {
-            "username": "finance_manager",
-            "full_name": "Gerente de Finanzas",
-            "email": "finance@e-commerce.local",
-            "roles": ["finance_manager"],
-        },
-        {
-            "username": "content_manager",
-            "full_name": "Gerente de Contenido",
-            "email": "content@e-commerce.local",
-            "roles": ["content_manager"],
-        },
+        {"username": "products_manager", "full_name": "Gerente de Productos", "email": "products@e-commerce.local", "roles": ["products_manager"]},
+        {"username": "sales_manager", "full_name": "Gerente de Ventas", "email": "sales@e-commerce.local", "roles": ["sales_manager"]},
+        {"username": "finance_manager", "full_name": "Gerente de Finanzas", "email": "finance@e-commerce.local", "roles": ["finance_manager"]},
+        {"username": "content_manager", "full_name": "Gerente de Contenido", "email": "content@e-commerce.local", "roles": ["content_manager"]},
     ]
 
-    logger.info("Creando usuarios de prueba...")
-
+    logger.info("Sincronizando usuarios de prueba...")
     for user_data in users_to_create:
+        if await user_service.get_user_by_username(user_data["username"]):
+            logger.info(f"  ℹ️ Usuario '{user_data['username']}' ya existe.")
+            continue
         try:
             user_dto = UserCreateRequest(
                 username=user_data["username"],
@@ -142,147 +114,79 @@ async def seed_test_users(user_service):
                 roles=user_data["roles"],
                 is_active=True,
             )
-            user = await user_service.create_user(user_dto)
-            logger.info(f"  ✓ Usuario '{user.username}' creado")
-        except ValueError as e:
-            if "ya existe" in str(e).lower() or "already exists" in str(e).lower():
-                logger.info(f"  ℹ️ Usuario '{user_data['username']}' ya existe")
-            else:
-                logger.warning(f"  ⚠️ Error creando '{user_data['username']}': {e}")
+            await user_service.create_user(user_dto)
+            logger.info(f"  ✓ Usuario '{user_data['username']}' creado.")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Error creando '{user_data['username']}': {e}")
 
 
 async def seed_currencies(finance_service):
-    """Create default currencies."""
-    logger.info("Creando monedas...")
+    """Create default currencies idempotently."""
+    logger.info("Sincronizando monedas...")
+    existing_currencies = await finance_service.get_all_currencies(active_only=False)
+    existing_names = [c.name for c in existing_currencies]
 
-    try:
-        # Base currency (Bolivares)
-        bs = await finance_service.create_currency(name="Bolívares", symbol="Bs.", is_base=True)
-        logger.info(f"  ✓ Moneda base creada: {bs.name} ({bs.symbol})")
-
-        # Secondary currency (USD)
-        default_rate = Decimal(os.getenv("DEFAULT_EXCHANGE_RATE", "36.50"))
-        usd = await finance_service.create_currency(
-            name="Dólares", symbol="$", is_base=False, exchange_rate=default_rate
-        )
-        logger.info(f"  ✓ Moneda secundaria creada: {usd.name} ({usd.symbol}) - Tasa: {usd.exchange_rate}")
-
-        return bs, usd
-    except ValueError as e:
-        logger.warning(f"  ⚠️ Error creando monedas (¿ya existen?): {e}")
-        return None, None
-
-
-async def seed_tax_config(tax_service):
-    """Create default tax region and rates."""
-    logger.info("Creando configuración fiscal...")
-
-    try:
-        # Create default region
-        region = await tax_service.create_region(
-            name="Tienda Principal", country="Venezuela", state="Anzoátegui", city="Anaco"
-        )
-        logger.info(f"  ✓ Región fiscal creada: {region.name}")
-
-        # Create IVA tax rate
-        tax_rate = await tax_service.create_tax_rate(name="IVA 16%", region_id=region.id, rate=Decimal("0.16"))
-        logger.info(f"  ✓ Tasa de impuesto creada: {tax_rate.name} ({float(tax_rate.rate) * 100}%)")
-
-        return region
-    except ValueError as e:
-        logger.warning(f"  ⚠️ Error creando configuración fiscal: {e}")
-        return None
-
-
-async def seed_products(product_service):
-    """Create sample products."""
-    from backend.models.products import Product
-
-    logger.info("Creando productos de muestra...")
-
-    products_data = [
-        {
-            "name": "Paracetamol 500mg",
-            "description": "Caja con 20 tabletas para alivio del dolor y fiebre.",
-            "sku": "PARA-500-20",
-            "price": Decimal("45.00"),
-            "stock": 150,
-            "category": "Analgésicos",
-        },
-        {
-            "name": "Ibuprofeno 400mg",
-            "description": "Caja con 24 cápsulas antiinflamatorias.",
-            "sku": "IBU-400-24",
-            "price": Decimal("65.00"),
-            "stock": 120,
-            "category": "Analgésicos",
-        },
-        {
-            "name": "Amoxicilina 500mg",
-            "description": "Caja con 21 cápsulas antibióticas.",
-            "sku": "AMOX-500-21",
-            "price": Decimal("125.00"),
-            "stock": 80,
-            "category": "Antibióticos",
-        },
-        {
-            "name": "Vitamina C 1000mg",
-            "description": "Frasco con 30 tabletas efervescentes.",
-            "sku": "VITC-1000-30",
-            "price": Decimal("85.00"),
-            "stock": 200,
-            "category": "Vitaminas",
-            "is_featured": True,
-        },
-        {
-            "name": "Omeprazol 20mg",
-            "description": "Caja con 14 cápsulas para problemas digestivos.",
-            "sku": "OME-20-14",
-            "price": Decimal("55.00"),
-            "stock": 100,
-            "category": "Digestivos",
-        },
-    ]
-
-    created = 0
-    for data in products_data:
+    # Base currency
+    if "Bolívares" not in existing_names:
         try:
-            product = Product(**data)
-            await product_service.create_product(product)
-            logger.info(f"  ✓ Producto creado: {product.name}")
-            created += 1
-        except ValueError as e:
-            if "ya existe" in str(e).lower() or "unique" in str(e).lower():
-                logger.info(f"  ℹ️ Producto '{data['name']}' ya existe")
-            else:
-                logger.warning(f"  ⚠️ Error creando '{data['name']}': {e}")
+            bs = await finance_service.create_currency(name="Bolívares", symbol="Bs.", is_base=True)
+            logger.info(f"  ✓ Moneda base creada: {bs.name}")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Fallo al crear Bolívares: {e}")
+    else:
+        logger.info("  ℹ️ Moneda 'Bolívares' ya existe.")
 
-    logger.info(f"  Total: {created} productos creados")
+    # Secondary currency
+    if "Dólares" not in existing_names:
+        try:
+            default_rate = Decimal(os.getenv("DEFAULT_EXCHANGE_RATE", "36.50"))
+            usd = await finance_service.create_currency(name="Dólares", symbol="$", is_base=False, exchange_rate=default_rate)
+            logger.info(f"  ✓ Moneda secundaria creada: {usd.name}")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Fallo al crear Dólares: {e}")
+    else:
+        logger.info("  ℹ️ Moneda 'Dólares' ya existe.")
+
+
+async def seed_tax_config(tax_service, db_manager):
+    """Create default tax region and rates idempotently."""
+    logger.info("Sincronizando configuración fiscal...")
+    
+    # Check if region exists (tax_service might not have a simple list by name method)
+    region_name = "Tienda Principal"
+    row = await db_manager.fetchone("tax", "SELECT id FROM regions WHERE name = ?", (region_name,))
+    
+    if not row:
+        try:
+            region = await tax_service.create_region(name=region_name, country="Venezuela", state="Anzoátegui", city="Anaco")
+            logger.info(f"  ✓ Región fiscal creada: {region.name}")
+            
+            # Create IVA tax rate only if region was just created
+            await tax_service.create_tax_rate(name="IVA 16%", region_id=region.id, rate=Decimal("0.16"))
+            logger.info("  ✓ Tasa de impuesto IVA 16% creada.")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Error creando configuración fiscal: {e}")
+    else:
+        logger.info(f"  ℹ️ Región '{region_name}' ya existe.")
 
 
 async def seed_business_config(db_manager):
-    """Ensure singleton configs exist."""
-
-    logger.info("Verificando configuración de negocio...")
-
-    # Need to access session directly or use a service.
-    # Since we are in a script, we can use the connection from db_manager if we adapt it,
-    # OR better: use SQLModel session if we had one.
-    # Given db_manager uses aiosqlite, we use execute/fetchone.
+    """Ensure singleton configs exist idempotently."""
+    logger.info("Sincronizando configuración de negocio...")
+    now_iso = datetime.now().isoformat()
 
     # 1. Business Info
     try:
-        # Check if exists (using raw SQL for speed/simplicity in seed script)
         row = await db_manager.fetchone("business", "SELECT id FROM business_info WHERE id = 1")
         if not row:
-            logger.info("  > Creando BusinessInfo por defecto...")
-            # Using SQLModel via INSERT would require a session. We use raw SQL here to match existing pattern.
-            # FIX: Include social_networks default '[]'
             await db_manager.execute(
                 "business",
-                "INSERT INTO business_info (id, name, social_networks, updated_at) VALUES (1, 'E-Commerce', '[]', CURRENT_TIMESTAMP)",
+                "INSERT INTO business_info (id, name, social_networks, updated_at) VALUES (?, ?, ?, ?)",
+                (1, "E-Commerce", "[]", now_iso),
             )
-            logger.info("  ✓ BusinessInfo creado")
+            logger.info("  ✓ BusinessInfo inicializado.")
+        else:
+            logger.info("  ℹ️ BusinessInfo ya existe.")
     except Exception as e:
         logger.warning(f"  ⚠️ Error seed BusinessInfo: {e}")
 
@@ -290,90 +194,86 @@ async def seed_business_config(db_manager):
     try:
         row = await db_manager.fetchone("customization", "SELECT id FROM customization WHERE id = 1")
         if not row:
-            logger.info("  > Creando Customization por defecto...")
-            # FIX: Include all required color fields
             await db_manager.execute(
                 "customization",
                 """
-                INSERT INTO customization (
-                    id, primary_color, secondary_color, accent_color, font_family, updated_at
-                ) VALUES (
-                    1, '#264192', '#ffdd00', '#ffffff', 'Poppins', CURRENT_TIMESTAMP
-                )
+                INSERT INTO customization (id, primary_color, secondary_color, accent_color, font_family, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
+                (1, "#264192", "#ffdd00", "#ffffff", "Poppins", now_iso),
             )
-            logger.info("  ✓ Customization creado")
+            logger.info("  ✓ Customization inicializado.")
+        else:
+            logger.info("  ℹ️ Customization ya existe.")
     except Exception as e:
         logger.warning(f"  ⚠️ Error seed Customization: {e}")
 
 
+async def seed_products(product_service, db_manager):
+    """Create sample products idempotently."""
+    from backend.models.products import Product
+    logger.info("Sincronizando productos de muestra...")
+
+    products_data = [
+        {"name": "Paracetamol 500mg", "description": "Caja con 20 tabletas", "sku": "PARA-500-20", "price": Decimal("45.00"), "stock": 150, "category": "Analgésicos"},
+        {"name": "Ibuprofeno 400mg", "description": "Caja con 24 cápsulas", "sku": "IBU-400-24", "price": Decimal("65.00"), "stock": 120, "category": "Analgésicos"},
+        {"name": "Amoxicilina 500mg", "description": "Caja con 21 cápsulas", "sku": "AMOX-500-21", "price": Decimal("125.00"), "stock": 80, "category": "Antibióticos"},
+        {"name": "Vitamina C 1000mg", "description": "Frasco con 30 tabletas", "sku": "VITC-1000-30", "price": Decimal("85.00"), "stock": 200, "category": "Vitaminas", "is_featured": True},
+        {"name": "Omeprazol 20mg", "description": "Caja con 14 cápsulas", "sku": "OME-20-14", "price": Decimal("55.00"), "stock": 100, "category": "Digestivos"},
+    ]
+
+    for data in products_data:
+        # Check SKU existence
+        row = await db_manager.fetchone("products", "SELECT id FROM products WHERE sku = ?", (data["sku"],))
+        if row:
+            logger.info(f"  ℹ️ Producto SKU '{data['sku']}' ya existe.")
+            continue
+        try:
+            product = Product(**data)
+            await product_service.create_product(product)
+            logger.info(f"  ✓ Producto creado: {product.name}")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Error creando '{data['name']}': {e}")
+
+
 async def main():
     """Main seed function."""
-    parser = argparse.ArgumentParser(description="Seed database with initial data")
+    parser = argparse.ArgumentParser(description="Seed database idempotently")
     parser.add_argument("--clean", action="store_true", help="Clean database before seeding")
     args = parser.parse_args()
 
-    print("")
-    print("=" * 60)
-    print("  Seed Data - ecommerce-playground")
-    print("=" * 60)
-    print("")
+    print("\n" + "=" * 60 + "\n  Seed Data Idempotente - ecommerce-playground\n" + "=" * 60 + "\n")
 
-    # Load environment
     load_env()
-
-    # Set DB_TYPE to sqlite
     os.environ["DB_TYPE"] = "sqlite"
 
-    # Clean if requested
     if args.clean:
         clean_database()
 
-    # Import after environment is set
     from backend.database.manager import DatabaseManager
     from backend.services.finance_service import FinanceService
     from backend.services.product_service import ProductService
     from backend.services.tax_service import TaxService
     from backend.services.user_service import UserService
 
-    # Initialize database
-    logger.info("Inicializando base de datos...")
+    logger.info("Inicializando gestor de datos...")
     db_manager = DatabaseManager()
     await db_manager.initialize()
-    logger.info("  ✓ Base de datos lista")
 
     try:
-        # Create services
         user_service = UserService(db_manager)
         finance_service = FinanceService(db_manager)
         tax_service = TaxService(db_manager)
         product_service = ProductService(db_manager)
 
-        # Seed data
-        print("")
         await seed_admin_user(user_service)
-        print("")
         await seed_test_users(user_service)
-        print("")
         await seed_currencies(finance_service)
-        print("")
-        await seed_tax_config(tax_service)
-        print("")
+        await seed_tax_config(tax_service, db_manager)
         await seed_business_config(db_manager)
-        print("")
-        await seed_products(product_service)
+        await seed_products(product_service, db_manager)
 
-        print("")
-        print("=" * 60)
-        logger.info("✅ Seed completado exitosamente")
-        print("=" * 60)
-        print("")
-
-        admin_user = os.getenv("ADMIN_USERNAME", "admin")
-        admin_pass = os.getenv("ADMIN_PASSWORD", "admin2024")
-        logger.info(f"Credenciales Admin: {admin_user} / {admin_pass}")
-        print("")
-
+        print("\n" + "=" * 60 + "\n✅ Proceso de Seed finalizado con éxito.\n" + "=" * 60 + "\n")
     finally:
         await db_manager.close()
 
