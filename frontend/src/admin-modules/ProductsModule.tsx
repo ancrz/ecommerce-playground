@@ -8,7 +8,7 @@
  * - Floating Label Inputs
  * - Clean Tabs & Micro-interactions
  */
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Upload, Save, Plus, Trash2, Image, Edit2, Star, Loader2, Package, Tag, CreditCard, Check } from "lucide-react";
 
 // Importar API y Contexto

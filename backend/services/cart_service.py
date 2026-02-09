@@ -67,10 +67,10 @@ class CartService:
                 INSERT INTO carts (
                     id, customer_name, customer_id, status,
                     region_id, currency_id,
-                    subtotal, tax_amount, total_with_tax,
+                    subtotal, tax_amount, igtf_amount, total_with_tax,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     cart.id,
@@ -79,6 +79,7 @@ class CartService:
                     cart.status,
                     cart.region_id,
                     cart.currency_id,
+                    0,
                     0,
                     0,
                     0,  # Totales iniciales
@@ -192,11 +193,12 @@ class CartService:
         Recalcula el subtotal, llama al TaxService y actualiza el carrito.
         """
 
-        # 1. Obtener la región fiscal del carrito
-        cart_row = await self.db_manager.fetchone("cart", "SELECT region_id FROM carts WHERE id = ?", (cart_id,))
+        # 1. Obtener la región y moneda del carrito
+        cart_row = await self.db_manager.fetchone("cart", "SELECT region_id, currency_id FROM carts WHERE id = ?", (cart_id,))
         if not cart_row:
             raise ValueError("Carrito no encontrado durante el recálculo.")
         region_id = cart_row["region_id"]
+        currency_id = cart_row["currency_id"]
 
         # 2. Calcular Subtotal (Suma de precios base de los items)
         subtotal_row = await self.db_manager.fetchone(
@@ -206,21 +208,29 @@ class CartService:
         subtotal = Decimal(str(subtotal_val or "0.0"))
 
         # 3. Llamar al TaxService para calcular impuestos
-        #    (Aquí ocurre la lógica de Filadelfia 6% + 2%)
-        tax_info = await self.tax_service.calculate_taxes(subtotal, region_id)
+        #    (Aquí ocurre la lógica de IVA + IGTF)
+        tax_info = await self.tax_service.calculate_taxes(subtotal, region_id, currency_id)
 
-        tax_amount = tax_info["tax_amount"]
-        total_with_tax = tax_info["total_with_tax"]
+        tax_amount = tax_info.total_tax
+        igtf_amount = tax_info.igtf_amount
+        total_with_tax = tax_info.total
 
         # 4. Actualizar la tabla 'carts' con los nuevos totales
         await self.db_manager.execute(
             "cart",
             """
             UPDATE carts
-            SET subtotal = ?, tax_amount = ?, total_with_tax = ?, updated_at = ?
+            SET subtotal = ?, tax_amount = ?, igtf_amount = ?, total_with_tax = ?, updated_at = ?
             WHERE id = ?
             """,
-            (float(subtotal), float(tax_amount), float(total_with_tax), datetime.now().isoformat(), cart_id),
+            (
+                float(subtotal),
+                float(tax_amount),
+                float(igtf_amount),
+                float(total_with_tax),
+                datetime.now().isoformat(),
+                cart_id,
+            ),
         )
 
         logger.info(

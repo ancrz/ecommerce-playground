@@ -567,11 +567,17 @@ function POSModal({ onClose, onSaleComplete }: { onClose: () => void, onSaleComp
                     <span className="text-gray-500">Subtotal</span>
                     <span className="font-medium">{formatPrice(cart.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm mb-3">
-                    <span className="text-gray-500">Impuestos</span>
-                    <span className="font-medium text-red-500">+{formatPrice(cart.tax_amount)}</span>
+                <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-500">IVA (Impuesto Regional)</span>
+                    <span className="font-medium text-red-500">+{formatPrice(cart.tax_amount - cart.igtf_amount)}</span>
                 </div>
-                <div className="flex justify-between text-2xl font-black text-gray-900 mb-4">
+                {cart.igtf_amount > 0 && (
+                  <div className="flex justify-between text-sm mb-3 animate-fade-in">
+                      <span className="text-amber-600 font-medium">IGTF (Impuesto Moneda)</span>
+                      <span className="font-medium text-amber-600">+{formatPrice(cart.igtf_amount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-2xl font-black text-gray-900 mb-4 pt-2 border-t border-gray-100">
                     <span>Total</span>
                     <span>{formatPrice(cart.total_with_tax)}</span>
                 </div>

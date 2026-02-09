@@ -82,12 +82,11 @@ export function InvoicePreviewModal({ isOpen, onClose, pdfBlob, isLoading, onRef
                onClick={onRefresh}
                variant="primary"
                className="w-full sm:w-auto"
-               isLoading={isLoading}
-               icon={RefreshCw}
-             >
-               Actualizar Vista Previa
-             </TouchButton>
-          </div>
+                               loading={isLoading}
+                               icon={RefreshCw}
+                             >
+                               Actualizar Vista Previa
+                             </TouchButton>          </div>
         </div>
       </div>
     </div>

@@ -55,6 +55,7 @@ export default function FinanceModule() {
         symbol: data.symbol,
         is_base: data.is_base,
         exchange_rate: parseFloat(data.exchange_rate),
+        tax_rate: parseFloat(data.tax_rate),
       };
       await api.createCurrency(payload);
       await alert('✓ Moneda creada');

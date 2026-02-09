@@ -60,17 +60,18 @@ _SCHEMAS_POSTGRES = {
         """
         CREATE TABLE IF NOT EXISTS business_info (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            name TEXT DEFAULT 'E-Commerce',
+            name TEXT NOT NULL DEFAULT 'E-Commerce',
             rif TEXT,
             contact TEXT,
-            social_networks JSONB,
+            social_networks JSONB DEFAULT '[]',
             logo_url TEXT,
             icon_url TEXT,
             updated_at TIMESTAMPTZ NOT NULL
         );
     """,
         """
-        INSERT INTO business_info (id, updated_at) VALUES (1, CURRENT_TIMESTAMP)
+        INSERT INTO business_info (id, name, social_networks, updated_at) 
+        VALUES (1, 'E-Commerce', '[]', CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO NOTHING;
     """,
     ],
@@ -78,10 +79,10 @@ _SCHEMAS_POSTGRES = {
         """
         CREATE TABLE IF NOT EXISTS customization (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            primary_color TEXT DEFAULT '#264192',
-            secondary_color TEXT DEFAULT '#ffdd00',
-            accent_color TEXT DEFAULT '#ffffff',
-            font_family TEXT DEFAULT 'Poppins',
+            primary_color TEXT NOT NULL DEFAULT '#264192',
+            secondary_color TEXT NOT NULL DEFAULT '#ffdd00',
+            accent_color TEXT NOT NULL DEFAULT '#ffffff',
+            font_family TEXT NOT NULL DEFAULT 'Poppins',
             custom_css TEXT,
             updated_at TIMESTAMPTZ NOT NULL,
             icon_products_url TEXT,
@@ -94,7 +95,8 @@ _SCHEMAS_POSTGRES = {
         );
     """,
         """
-        INSERT INTO customization (id, updated_at) VALUES (1, CURRENT_TIMESTAMP)
+        INSERT INTO customization (id, primary_color, secondary_color, accent_color, font_family, updated_at) 
+        VALUES (1, '#264192', '#ffdd00', '#ffffff', 'Poppins', CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO NOTHING;
     """,
     ],

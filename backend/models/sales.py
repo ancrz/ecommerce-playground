@@ -37,6 +37,7 @@ class Cart(BaseEntity, table=True):
     region_id: str = Field(...)  # REQUERIDO - sincronizado con frontend
     subtotal: Decimal = Field(default=0, max_digits=10, decimal_places=2)
     tax_amount: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+    igtf_amount: Decimal = Field(default=0, max_digits=10, decimal_places=2)
     total_with_tax: Decimal = Field(default=0, max_digits=10, decimal_places=2)
     qr_code: str | None = None
 

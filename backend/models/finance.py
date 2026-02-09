@@ -1,6 +1,6 @@
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import validator
+from pydantic import field_serializer, validator
 from sqlmodel import Field
 
 from .common import BaseEntity
@@ -16,6 +16,10 @@ class Currency(BaseEntity, table=True):
     tax_rate: Decimal = Field(default=Decimal(0), max_digits=5, decimal_places=2)  # Impuesto asociado (IGTF)
     base_currency_id: str | None = None
     is_active: bool = Field(default=True)
+
+    @field_serializer("exchange_rate", "tax_rate")
+    def serialize_decimal(self, v: Decimal, _info):
+        return float(v)
 
     @validator("exchange_rate", pre=True)
     def convert_to_decimal(cls, v):
@@ -61,6 +65,10 @@ class TaxRate(BaseEntity, table=True):
     rate: Decimal = Field(default=0, max_digits=8, decimal_places=6)
     priority: int = Field(default=1)
     is_active: bool = Field(default=True)
+
+    @field_serializer("rate")
+    def serialize_rate(self, v: Decimal, _info):
+        return float(v)
 
     @validator("rate", pre=True)
     def convert_rate_to_decimal(cls, v):

@@ -18,6 +18,7 @@ export const CartSchema = BaseEntitySchema.extend({
   region_id: z.string().uuid(),
   subtotal: z.number(),
   tax_amount: z.number(),
+  igtf_amount: z.number().default(0),
   total_with_tax: z.number(),
   qr_code: z.string().nullable(),
   item_count: z.number().int().optional(),
@@ -45,7 +46,10 @@ export const SaleSchema = BaseEntitySchema.extend({
   region_id: z.string().uuid().nullable(),
   subtotal: z.number(),
   tax_amount: z.number(),
+  igtf_amount: z.number().default(0),
   total_with_tax: z.number(),
+  invoice_status: z.string().default('pending'),
+  invoice_retry_count: z.number().int().default(0),
 });
 
 export const DailyReportSchema = z.object({
