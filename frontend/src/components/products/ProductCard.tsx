@@ -68,7 +68,7 @@ export default function ProductCard({ product, onClick, className = '', showQuic
                     <Tag size={10} /> -{product.discount_percentage}%
                 </span>
             )}
-             {((product as any).stock || 0) <= 0 && (
+             {product.stock <= 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-800 text-white shadow-sm">
                     Agotado
                 </span>
@@ -112,7 +112,7 @@ export default function ProductCard({ product, onClick, className = '', showQuic
             </div>
 
             {/* Quick Add Button */}
-            {showQuickAdd && ((product as any).stock || 0) > 0 && (
+            {showQuickAdd && product.stock > 0 && (
                 <button
                     onClick={handleAddToCart}
                     disabled={isAdding}
