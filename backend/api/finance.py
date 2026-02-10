@@ -4,6 +4,7 @@ REFACTORIZADO: Endpoints de impuestos eliminados y desacoplados.
 Añadida seguridad RBAC (solo 'finance_manager' o 'admin' pueden modificar).
 """
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -18,6 +19,7 @@ from ..services.finance_service import FinanceService
 from ..utils.auth import is_finance_manager
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # --- Dependencia ---
 

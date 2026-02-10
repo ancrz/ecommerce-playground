@@ -4,6 +4,7 @@ API Router para la Administración de Impuestos (Regiones y Tasas).
 Cumple con la lógica de impuestos regionales (Filadelfia 6% + 2%).
 """
 
+import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
@@ -21,6 +22,7 @@ from ..services.tax_service import TaxService
 from ..utils.auth import is_finance_manager
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # --- DTOs de Intención (para PUT/PATCH) ---
 

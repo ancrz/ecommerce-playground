@@ -112,8 +112,23 @@ class BusinessService:
         info = await self.get_business_info()
         social_networks = info.social_networks
 
+        if not social_networks:
+            raise ValueError(
+                "No hay redes sociales configuradas. "
+                "Guarde los datos de la red social antes de cargar el icono."
+            )
+
         if not (0 <= network_index < len(social_networks)):
-            raise ValueError("Índice de red social fuera de rango.")
+            raise ValueError(
+                f"Índice de red social {network_index} fuera de rango "
+                f"(total configuradas: {len(social_networks)})."
+            )
+
+        # Convertir SocialNetwork models a dicts para mutación
+        networks_dicts = [
+            net.model_dump() if hasattr(net, "model_dump") else dict(net)
+            for net in social_networks
+        ]
 
         # Guardar la nueva imagen
         image_url = self.image_service.process_and_save(
@@ -125,15 +140,15 @@ class BusinessService:
         )
 
         # Borrar la imagen anterior si existía
-        old_icon = social_networks[network_index].get("icon")
+        old_icon = networks_dicts[network_index].get("icon")
         if old_icon:
             self.image_service.delete_image(old_icon)
 
         # Actualizar la URL del icono en la lista
-        social_networks[network_index]["icon"] = image_url
+        networks_dicts[network_index]["icon"] = image_url
 
         # Crear el DTO de actualización y guardar
-        update_dto = BusinessInfoUpdate(social_networks=social_networks)
+        update_dto = BusinessInfoUpdate(social_networks=networks_dicts)
         return await self.update_business_info(update_dto)
 
     def _sanitize_url(self, url: str) -> str:

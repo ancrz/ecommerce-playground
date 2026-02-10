@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel, computed_field, validator
+from pydantic import BaseModel, computed_field, field_serializer, validator
 from sqlmodel import Field, SQLModel
 
 from .common import BaseEntity
@@ -15,9 +15,14 @@ class ProductCard(BaseModel):
     price: Decimal
     final_price: Decimal
     image_url: str | None
+    stock: int = 0
     is_featured: bool
     is_discount: bool
     discount_percentage: Decimal
+
+    @field_serializer("price", "final_price", "discount_percentage")
+    def serialize_decimals(self, v: Decimal, _info):
+        return float(v)
 
     model_config = {"from_attributes": True}
 
@@ -43,15 +48,29 @@ class Product(BaseEntity, table=True):
             return Decimal(str(v))
         return v
 
-    @computed_field
+    @field_serializer("price", "discount_percentage")
+    def serialize_decimals(self, v: Decimal, _info):
+        return float(v)
+
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def final_price(self) -> Decimal:
-        """Precio final calculado con descuento aplicado."""
-        if self.is_discount and self.discount_percentage > 0:
-            discount = self.price * (self.discount_percentage / 100)
-            final = self.price - discount
-            return final.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        return self.price
+    def final_price(self) -> float:
+        """Precio final calculado con descuento aplicado.
+
+        Retorna float (no Decimal) porque SQLModel table=True almacena price/discount como float
+        internamente, y @computed_field en SQLModel no aplica field_serializer a Decimal.
+        """
+        price = Decimal(str(self.price)) if not isinstance(self.price, Decimal) else self.price
+        discount_pct = (
+            Decimal(str(self.discount_percentage))
+            if not isinstance(self.discount_percentage, Decimal)
+            else self.discount_percentage
+        )
+        if self.is_discount and discount_pct > 0:
+            discount = price * (discount_pct / 100)
+            final = price - discount
+            return float(final.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return float(price)
 
     def to_card(self) -> "ProductCard":
         final_price = self.final_price
@@ -62,6 +81,7 @@ class Product(BaseEntity, table=True):
             price=self.price,
             final_price=final_price,
             image_url=self.image_url,
+            stock=self.stock,
             is_featured=self.is_featured,
             is_discount=self.is_discount,
             discount_percentage=self.discount_percentage,

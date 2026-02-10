@@ -18,6 +18,7 @@ from .sales import CartItem as CartItem
 from .sales import DailyReport as DailyReport
 from .sales import PaymentDetails as PaymentDetails
 from .sales import Sale as Sale
+from .sales import SalesHistoryResponse as SalesHistoryResponse
 from .users import (
     AdminPasswordResetRequest as AdminPasswordResetRequest,
 )

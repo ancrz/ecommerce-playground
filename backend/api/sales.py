@@ -3,12 +3,13 @@ API Router para Ventas
 REFACTORIZADO: Endpoints desacoplados. Llaman al SalesService.
 """
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 # Importar Modelos DTO
-from ..models import DailyReport, PaymentDetails, Sale
+from ..models import DailyReport, PaymentDetails, Sale, SalesHistoryResponse
 
 # Importar Servicios
 from ..services.sales_service import SalesService
@@ -18,9 +19,37 @@ from ..utils.auth import get_current_user, is_sales_manager
 from ..utils.dependencies import get_sales_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # --- Endpoints de la API de Ventas (Protegidos) ---
+
+
+@router.get("/history", response_model=SalesHistoryResponse, dependencies=[Depends(is_sales_manager)])
+async def get_sales_history(
+    customer_id: str | None = Query(None, description="Cédula o ID del cliente (búsqueda parcial)"),
+    date_from: str | None = Query(None, description="Fecha inicio (YYYY-MM-DD)"),
+    date_to: str | None = Query(None, description="Fecha fin (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0, description="Registros a saltar"),
+    limit: int = Query(20, ge=1, le=100, description="Registros por página"),
+    current_user: dict = Depends(get_current_user),
+    service: SalesService = Depends(get_sales_service),
+):
+    """
+    Consulta paginada del historial de ventas.
+    Permite trazar pedidos en el tiempo filtrando por cédula y rango de fechas.
+    """
+    try:
+        return await service.get_sales_history(
+            customer_id=customer_id,
+            date_from=date_from,
+            date_to=date_to,
+            skip=skip,
+            limit=limit,
+        )
+    except Exception as e:
+        logger.error(f"Error consultando historial de ventas: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{cart_id}/complete", response_model=Sale)

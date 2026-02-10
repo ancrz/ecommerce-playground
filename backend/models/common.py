@@ -21,7 +21,9 @@ class BaseEntity(SQLModel):
 
     @field_serializer("created_at", "updated_at")
     def serialize_dt(self, dt: datetime, _info):
-        return dt.isoformat()
+        # Formato ISO 8601 estricto con "Z" suffix para compatibilidad con Zod z.string().datetime()
+        # timespec="seconds" elimina microsegundos que Zod no acepta por defecto
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def update_timestamp(self):
         """Actualizar timestamp de modificación"""

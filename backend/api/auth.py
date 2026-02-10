@@ -4,7 +4,6 @@ REFACTORIZADO: Expone el UserService (RBAC + Autogestión).
 """
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -131,19 +130,19 @@ async def validate_password_reset(
 
 @router.get("/me", response_model=User)
 async def get_me(
-    current_user: dict[str, Any] = Depends(get_current_user),
-    service: UserService = Depends(get_user_service),  # Inject UserService
+    current_user: User = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
 ):
     """
     Obtiene los datos del usuario actualmente logueado.
     """
-    user_id = current_user.get("sub")  # 'sub' claim holds the user ID
+    user_id = current_user.id
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido: ID de usuario no encontrado."
         )
 
-    user = await service.get_user_by_id(user_id)
+    user = await service.get_user_by_id(str(user_id))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
 
@@ -153,13 +152,13 @@ async def get_me(
 @router.put("/me", response_model=User)
 async def update_me(
     updates: UserUpdateRequest = Body(...),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ):
     """
     Actualiza el perfil del usuario logueado (full_name, email).
     """
-    user_id = current_user.get("id")
+    user_id = current_user.id
 
     if updates.roles is not None or updates.is_active is not None:
         raise HTTPException(
@@ -176,13 +175,13 @@ async def update_me(
 @router.post("/me/password", response_model=dict[str, str])
 async def change_my_password(
     request: PasswordChangeRequest = Body(...),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ):
     """
     Permite al usuario logueado cambiar su propia contraseña.
     """
-    user_id = current_user.get("id")
+    user_id = current_user.id
     try:
         await service.change_password(str(user_id), request.old_password, request.new_password)
         return {"message": "Contraseña cambiada exitosamente."}
