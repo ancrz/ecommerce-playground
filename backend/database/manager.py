@@ -70,7 +70,7 @@ _SCHEMAS_POSTGRES = {
         );
     """,
         """
-        INSERT INTO business_info (id, name, social_networks, updated_at) 
+        INSERT INTO business_info (id, name, social_networks, updated_at)
         VALUES (1, 'E-Commerce', '[]', CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO NOTHING;
     """,
@@ -95,7 +95,7 @@ _SCHEMAS_POSTGRES = {
         );
     """,
         """
-        INSERT INTO customization (id, primary_color, secondary_color, accent_color, font_family, updated_at) 
+        INSERT INTO customization (id, primary_color, secondary_color, accent_color, font_family, updated_at)
         VALUES (1, '#264192', '#ffdd00', '#ffffff', 'Poppins', CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO NOTHING;
     """,

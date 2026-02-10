@@ -50,10 +50,11 @@ from .services.product_service import ProductService
 from .services.sales_service import SalesService
 from .services.tax_service import TaxService
 from .services.user_service import UserService
+from .utils.logging import setup_logs
 
 # Configuración de Logging del Backend (Moved to avoid Import warnings)
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s | %(levelname)-7s | [%(name)s] %(message)s",
     datefmt="%H:%M:%S",
     force=True,
@@ -72,6 +73,10 @@ async def lifespan(app: FastAPI):
     global db_manager
 
     logger.info(f"🚀 Iniciando {settings.APP_NAME} v{settings.VERSION}...")
+
+    # Paso 0: Configurar logs granulares por módulo
+    setup_logs(settings.LOG_LEVEL)
+    logger.info("✓ Logs granulares configurados en data/logs/")
 
     # Paso 1: Inicializar la Base de Datos
     logger.info("Conectando a la Base de Datos (Chunks)...")

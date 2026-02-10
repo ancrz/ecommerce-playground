@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     LOGS_PATH: str = "./data/logs"
     DATABASE_URL: str = "sqlite:///./data/ecommerce.db"
 
+    # Logging
+    LOG_LEVEL: str = Field("INFO", validation_alias="LOG_LEVEL")
+
     # Security (Defaults for dev, override in prod)
     # Security (Defaults for dev, override in prod)
     SECRET_KEY: str = Field("supersecretkey", validation_alias="JWT_SECRET_KEY")

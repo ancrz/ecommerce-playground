@@ -6,6 +6,7 @@ Todos los errores tienen formato consistente para facilitar el manejo en fronten
 Soporta internacionalización automática (ES/EN).
 """
 
+import logging
 from typing import Any
 
 from fastapi import Request, status
@@ -18,6 +19,8 @@ from .config import settings
 
 # Ontological Adaptation: Relative import for ecommerce-playground structure (same directory)
 from .i18n import detect_language, translate
+
+logger = logging.getLogger(__name__)
 
 
 class ProblemDetail:
@@ -131,9 +134,7 @@ async def integrity_exception_handler(request: Request, exc: IntegrityError) -> 
     # Defensive check if exc.orig is None
     error_msg = str(exc.orig).lower() if exc.orig else str(exc).lower()
 
-    # [DEBUG] Log completo del error para diagnóstico
-    print(f"❌ [DB IntegrityError] {error_msg}")
-    print(f"   Path: {request.url.path}")
+    logger.error(f"[DB IntegrityError] {error_msg} | Path: {request.url.path}")
 
     lang = detect_language(request)
     errors = {}
@@ -195,7 +196,6 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         errors=errors,
     )
 
-    # Loguear error completo para debugging
-    print(f"❌ [UNHANDLED ERROR] {type(exc).__name__}: {exc}")
+    logger.exception(f"[UNHANDLED ERROR] {type(exc).__name__}: {exc}")
 
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=problem.to_dict())

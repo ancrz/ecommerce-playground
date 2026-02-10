@@ -3,7 +3,7 @@ name = "ecommerce-playground"
 version = "3.0.0"
 description = "E-Commerce Platform with FastAPI Backend and React Frontend"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Your Name", email = "you@example.com"}
@@ -73,7 +73,7 @@ packages = ["backend"]
 
 # ===== RUFF (Linter) =====
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
@@ -97,7 +97,7 @@ known-first-party = ["backend"]
 
 # ===== MYPY (Type Checking) =====
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = false
 warn_return_any = true
 warn_unused_ignores = true

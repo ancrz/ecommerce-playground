@@ -5,7 +5,7 @@ Setup Script - ecommerce-playground (v4.1)
 Inicializa el entorno de desarrollo completo.
 
 Responsabilidades:
-1. Verifica que Python >= 3.11 esté instalado
+1. Verifica que Python >= 3.12 esté instalado
 2. Crea el entorno virtual (.venv)
 3. Instala dependencias desde pyproject.toml
 4. Instala dependencias del frontend (npm)
@@ -37,7 +37,7 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 DATA_DIR = PROJECT_ROOT / "data"
 DATABASE_DIR = DATA_DIR / "database"
 
-MIN_PYTHON_VERSION = (3, 11)
+MIN_PYTHON_VERSION = (3, 12)
 
 
 def kill_orphan_processes() -> int:
