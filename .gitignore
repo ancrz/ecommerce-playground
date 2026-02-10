@@ -126,3 +126,4 @@ example/
 # Ensure Session Logs are tracked even if docs/ is ignored
 !docs/sessions/
 
+NUL
