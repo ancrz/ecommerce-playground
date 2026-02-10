@@ -1,18 +1,25 @@
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import Field, validator
+from pydantic import field_serializer, validator
+from sqlmodel import Field
 
 from .common import BaseEntity
 
 
-class Currency(BaseEntity):
-    name: str = Field(..., min_length=1)
+class Currency(BaseEntity, table=True):
+    __tablename__ = "currencies"
+
+    name: str = Field(..., min_length=1, unique=True, index=True)
     symbol: str = Field(..., min_length=1, max_length=10)
-    is_base: bool = False
-    exchange_rate: Decimal = Field(default=Decimal("1.0"), gt=0)
-    tax_rate: Decimal = Field(default=Decimal(0), ge=0)  # Impuesto asociado (IGTF)
+    is_base: bool = Field(default=False)
+    exchange_rate: Decimal = Field(default=Decimal("1.0"), max_digits=12, decimal_places=6)
+    tax_rate: Decimal = Field(default=Decimal(0), max_digits=5, decimal_places=2)  # Impuesto asociado (IGTF)
     base_currency_id: str | None = None
-    is_active: bool = True
+    is_active: bool = Field(default=True)
+
+    @field_serializer("exchange_rate", "tax_rate")
+    def serialize_decimal(self, v: Decimal, _info):
+        return float(v)
 
     @validator("exchange_rate", pre=True)
     def convert_to_decimal(cls, v):
@@ -37,24 +44,31 @@ class Currency(BaseEntity):
         return converted.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-class Region(BaseEntity):
-    name: str = Field(..., min_length=1)
+class Region(BaseEntity, table=True):
+    __tablename__ = "regions"
+
+    name: str = Field(..., min_length=1, unique=True, index=True)
     country: str | None = None
     state: str | None = None
     city: str | None = None
     zip_code: str | None = None
-    is_active: bool = True
+    is_active: bool = Field(default=True)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
-class TaxRate(BaseEntity):
+class TaxRate(BaseEntity, table=True):
+    __tablename__ = "tax_rates"
+
     name: str = Field(..., min_length=1)
-    region_id: str = Field(...)
-    rate: Decimal = Field(..., ge=0)  # Tasa como decimal (ej: 0.06 para 6%)
+    region_id: str = Field(foreign_key="regions.id", index=True)
+    rate: Decimal = Field(default=0, max_digits=8, decimal_places=6)
     priority: int = Field(default=1)
-    is_active: bool = True
+    is_active: bool = Field(default=True)
+
+    @field_serializer("rate")
+    def serialize_rate(self, v: Decimal, _info):
+        return float(v)
 
     @validator("rate", pre=True)
     def convert_rate_to_decimal(cls, v):

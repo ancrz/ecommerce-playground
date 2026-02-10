@@ -17,10 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Configuración ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -33,21 +30,22 @@ def load_env():
     if not env_file.exists():
         return
 
-    with open(env_file, encoding='utf-8') as f:
+    with open(env_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, _, value = line.partition('=')
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
                 if key:
                     os.environ[key] = value
 
+
 def is_port_in_use(port: int) -> bool:
     """Verifica si un puerto está en uso."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(('127.0.0.1', port))
+            s.bind(("127.0.0.1", port))
             return False
         except OSError:
             return True

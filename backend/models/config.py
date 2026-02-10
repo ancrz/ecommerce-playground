@@ -1,7 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, validator
+from sqlalchemy import JSON
+from sqlmodel import Field, SQLModel
 
 from .common import BACKEND_URL
 
@@ -14,15 +16,18 @@ class SocialNetwork(BaseModel):
     icon: str | None = None
 
 
-class BusinessInfo(BaseModel):
-    """Información del negocio."""
+class BusinessInfo(SQLModel, table=True):
+    """Información del negocio (Singleton)."""
 
-    name: str = "E-Commerce"
+    __tablename__ = "business_info"
+
+    id: int = Field(default=1, primary_key=True)
+    name: str = Field(default="E-Commerce")
     rif: str | None = None
     address: str | None = None  # Dirección Fiscal
     phone: str | None = None  # Teléfono
     contact: str | None = None
-    social_networks: list[SocialNetwork] = Field(default_factory=list)  # TIPADO FUERTE
+    social_networks: list[SocialNetwork] = Field(default_factory=list, sa_type=JSON)
     logo_url: str | None = None
     icon_url: str | None = None
     banner_url: str | None = None
@@ -35,16 +40,20 @@ class BusinessInfo(BaseModel):
             return f"{BACKEND_URL}{v}"
         return v
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime: lambda v: v.isoformat() + "Z", Decimal: lambda v: float(v)}
+    model_config = {
+        "from_attributes": True,
+        "json_encoders": {datetime: lambda v: v.isoformat() + "Z", Decimal: lambda v: float(v)},
+    }
 
 
-class Customization(BaseModel):
-    primary_color: str = "#264192"
-    secondary_color: str = "#ffdd00"
-    accent_color: str = "#ffffff"
-    font_family: str = "Poppins"
+class Customization(SQLModel, table=True):
+    __tablename__ = "customization"
+
+    id: int = Field(default=1, primary_key=True)
+    primary_color: str = Field(default="#264192")
+    secondary_color: str = Field(default="#ffdd00")
+    accent_color: str = Field(default="#ffffff")
+    font_family: str = Field(default="Poppins")
     custom_css: str | None = None
     updated_at: datetime = Field(default_factory=datetime.now)
     # Fiscal Data
@@ -78,6 +87,7 @@ class Customization(BaseModel):
             return f"{BACKEND_URL}{v}"
         return v
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime: lambda v: v.isoformat() + "Z", Decimal: lambda v: float(v)}
+    model_config = {
+        "from_attributes": True,
+        "json_encoders": {datetime: lambda v: v.isoformat() + "Z", Decimal: lambda v: float(v)},
+    }

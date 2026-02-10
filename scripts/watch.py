@@ -25,11 +25,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 # Configuración
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%H:%M:%S'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("Watcher")
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -37,6 +33,7 @@ BACKEND_DIR = PROJECT_ROOT / "backend"
 
 # Tiempo de espera para agrupar cambios y permitir reinicio de backend (segundos)
 DEBOUNCE_SECONDS = 3.0
+
 
 class ChangeHandler(FileSystemEventHandler):
     def __init__(self):
@@ -49,11 +46,11 @@ class ChangeHandler(FileSystemEventHandler):
             return
 
         # Filtrar solo archivos relevantes
-        filename = getattr(event, 'src_path', '')
-        if not filename.endswith('.py'):
+        filename = getattr(event, "src_path", "")
+        if not filename.endswith(".py"):
             return
 
-        if '__pycache__' in filename or '.pytest_cache' in filename:
+        if "__pycache__" in filename or ".pytest_cache" in filename:
             return
 
         # Registrar cambio
@@ -118,6 +115,7 @@ def main():
 
     observer.join()
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

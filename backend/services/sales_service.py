@@ -103,19 +103,23 @@ class SalesService:
             "sales",
             """
             INSERT INTO sales (
-                id, cart_id, customer_name, customer_id, items, currency_id,
+                id, created_at, updated_at,
+                cart_id, customer_name, customer_id, items, currency_id,
                 payment_details, status, completed_by, completed_at,
-                region_id, subtotal, tax_amount, igtf_amount, total_with_tax
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                region_id, subtotal, tax_amount, igtf_amount, total_with_tax,
+                invoice_status, invoice_retry_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 sale.id,
+                sale.created_at.isoformat(),
+                sale.updated_at.isoformat(),
                 sale.cart_id,
                 sale.customer_name,
                 sale.customer_id,
-                json.dumps([item.model_dump() for item in sale.items]),  # Serializar items
+                json.dumps([item.model_dump(mode="json") for item in sale.items]),
                 sale.currency_id,
-                sale.payment_details.model_dump_json(),  # Serializar detalles de pago
+                sale.payment_details.model_dump_json(),
                 sale.status,
                 sale.completed_by,
                 sale.completed_at.isoformat(),
@@ -124,6 +128,8 @@ class SalesService:
                 float(sale.tax_amount),
                 float(sale.igtf_amount),
                 float(sale.total_with_tax),
+                "pending",  # invoice_status
+                0,  # invoice_retry_count
             ),
         )
 
@@ -184,11 +190,81 @@ class SalesService:
             (today,),
         )
 
-        sales_list = [Sale.model_validate(row) for row in rows]
+        sales_list = []
+        for row in rows:
+            row_data = dict(row)
+            if isinstance(row_data.get("items"), str):
+                row_data["items"] = json.loads(row_data["items"])
+            if isinstance(row_data.get("payment_details"), str):
+                row_data["payment_details"] = json.loads(row_data["payment_details"])
+            sales_list.append(Sale.model_validate(row_data))
 
         total = sum(sale.total_with_tax for sale in sales_list)
 
         return DailyReport(date=today, sales_count=len(sales_list), total=total, sales=sales_list)
+
+    async def get_sales_history(
+        self,
+        customer_id: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Consulta paginada de ventas históricas con filtros opcionales.
+        Permite trazar pedidos en el tiempo por cédula del cliente.
+        """
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if customer_id:
+            conditions.append("customer_id LIKE ?")
+            params.append(f"%{customer_id}%")
+        if date_from:
+            conditions.append("DATE(completed_at) >= ?")
+            params.append(date_from)
+        if date_to:
+            conditions.append("DATE(completed_at) <= ?")
+            params.append(date_to)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        # Total count (para paginación)
+        count_row = await self.db_manager.fetchone(
+            "sales",
+            f"SELECT COUNT(*) as total FROM sales WHERE {where_clause}",
+            tuple(params),
+        )
+        total = count_row["total"] if count_row else 0
+
+        # Paged query
+        rows = await self.db_manager.fetchall(
+            "sales",
+            f"""
+            SELECT * FROM sales
+            WHERE {where_clause}
+            ORDER BY completed_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (*params, limit, skip),
+        )
+
+        sales_list = []
+        for row in rows:
+            row_data = dict(row)
+            if isinstance(row_data.get("items"), str):
+                row_data["items"] = json.loads(row_data["items"])
+            if isinstance(row_data.get("payment_details"), str):
+                row_data["payment_details"] = json.loads(row_data["payment_details"])
+            sales_list.append(Sale.model_validate(row_data))
+
+        return {
+            "items": sales_list,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
 
     async def close_day_report(self, closed_by: str) -> dict[str, Any]:
         """

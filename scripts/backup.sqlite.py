@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # --- Configuración de Rutas ---
@@ -21,6 +21,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 SOURCE_DIR = PROJECT_ROOT / "data"
 BACKUP_DIR = PROJECT_ROOT / "_backups"
 # --- Fin Configuración ---
+
 
 def zip_directory(path: Path, zip_handle: zipfile.ZipFile, root_dir: Path):
     """Añade recursivamente un directorio a un archivo zip."""
@@ -31,6 +32,7 @@ def zip_directory(path: Path, zip_handle: zipfile.ZipFile, root_dir: Path):
             archive_path = file_path.relative_to(root_dir)
             logger.info(f"  + Comprimiendo {archive_path}")
             zip_handle.write(file_path, archive_path)
+
 
 def create_backup():
     logger.info("--- Iniciando Proceso de Backup (Modo Local/SQLite) ---")
@@ -58,7 +60,7 @@ def create_backup():
     try:
         # Importante: root_dir es SOURCE_DIR.parent (la raíz del proyecto)
         # para que el zip contenga la carpeta 'data/'
-        with zipfile.ZipFile(backup_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(backup_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
             zip_directory(SOURCE_DIR, zipf, SOURCE_DIR.parent)
 
         logger.info("✅ Backup (SQLite) completado exitosamente.")
@@ -69,11 +71,12 @@ def create_backup():
     except Exception as e:
         logger.error(f"❌ Error fatal durante la compresión: {e}", exc_info=True)
         try:
-            os.remove(backup_filepath) # Eliminar archivo corrupto si falló
+            os.remove(backup_filepath)  # Eliminar archivo corrupto si falló
         except OSError:
             pass
         return False
 
+
 if __name__ == "__main__":
     if not create_backup():
-        sys.exit(1) # Terminar con código de error si el backup falló
+        sys.exit(1)  # Terminar con código de error si el backup falló

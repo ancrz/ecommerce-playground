@@ -18,23 +18,27 @@ security = HTTPBearer()
 
 # --- Inyección de Dependencias de Servicio ---
 
+
 def get_user_service(request: Request) -> UserService:
     """Inyector para el servicio de usuarios"""
     if not hasattr(request.app.state, "user_service") or not request.app.state.user_service:
         raise HTTPException(status_code=503, detail="Servicio de usuarios no inicializado.")
     return request.app.state.user_service
 
+
 # --- Dependencia de Verificación de Token ---
 
+
 def verify_token_dependency(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    service: UserService = Depends(get_user_service)
+    credentials: HTTPAuthorizationCredentials = Depends(security), service: UserService = Depends(get_user_service)
 ) -> dict[str, Any]:
     """
     Dependencia de FastAPI que verifica el token.
     Llamada por get_current_user.
     """
-    logger.debug(f"verify_token_dependency: Received credentials: {credentials.credentials[:10]}...") # Log first 10 chars of token
+    logger.debug(
+        f"verify_token_dependency: Received credentials: {credentials.credentials[:10]}..."
+    )  # Log first 10 chars of token
     token = credentials.credentials
     user_data = service.verify_token(token)
 
@@ -45,11 +49,11 @@ def verify_token_dependency(
     logger.debug(f"verify_token_dependency: Token verified, user_data: {user_data}")
     return user_data
 
+
 # --- Dependencia de Usuario Básico ---
 
-async def get_current_user(
-    user_data: dict[str, Any] = Depends(verify_token_dependency)
-) -> dict[str, Any]:
+
+async def get_current_user(user_data: dict[str, Any] = Depends(verify_token_dependency)) -> dict[str, Any]:
     """
     Obtiene los datos del usuario actual (username, roles, etc.)
     desde el token verificado.
@@ -57,13 +61,16 @@ async def get_current_user(
     logger.debug(f"get_current_user: User data from token: {user_data}")
     return user_data
 
+
 # --- Lógica de RBAC (Control de Acceso Basado en Roles) ---
+
 
 class RoleChecker:
     """
     Clase decoradora (Dependencia de FastAPI) que verifica si el usuario
     actual tiene *alguno* de los roles permitidos.
     """
+
     def __init__(self, allowed_roles: list[str]):
         if "admin" not in allowed_roles:
             allowed_roles.append("admin")
@@ -81,15 +88,15 @@ class RoleChecker:
         logger.debug(f"RoleChecker: allowed_roles: {self.allowed_roles}")
 
         if not self.allowed_roles.intersection(user_roles):
-            logger.warning(f"Acceso denegado para {user_data.get('username')}. "
-                           f"Requiere: {self.allowed_roles}, Tiene: {user_roles}")
+            logger.warning(
+                f"Acceso denegado para {user_data.get('username')}. Requiere: {self.allowed_roles}, Tiene: {user_roles}"
+            )
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permisos suficientes para esta acción."
+                status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos suficientes para esta acción."
             )
         return True
 
-    def __or__(self, other: 'RoleChecker') -> 'RoleChecker':
+    def __or__(self, other: "RoleChecker") -> "RoleChecker":
         """
         Permite combinar dos RoleCheckers con el operador `|`.
         Devuelve un nuevo RoleChecker con la unión de los roles.
@@ -99,6 +106,7 @@ class RoleChecker:
 
         combined_roles = self.allowed_roles.union(other.allowed_roles)
         return RoleChecker(list(combined_roles))
+
 
 # --- Inyectores de Roles Específicos ---
 

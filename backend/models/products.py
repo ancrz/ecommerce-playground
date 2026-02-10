@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel, Field, computed_field, validator
+from pydantic import BaseModel, computed_field, field_serializer, validator
+from sqlmodel import Field, SQLModel
 
 from .common import BaseEntity
 
@@ -14,26 +15,31 @@ class ProductCard(BaseModel):
     price: Decimal
     final_price: Decimal
     image_url: str | None
+    stock: int = 0
     is_featured: bool
     is_discount: bool
     discount_percentage: Decimal
 
-    class Config:
-        json_encoders = {Decimal: lambda v: float(v)}
-        from_attributes = True
+    @field_serializer("price", "final_price", "discount_percentage")
+    def serialize_decimals(self, v: Decimal, _info):
+        return float(v)
+
+    model_config = {"from_attributes": True}
 
 
-class Product(BaseEntity):
-    name: str = Field(..., min_length=1, max_length=200)
+class Product(BaseEntity, table=True):
+    __tablename__ = "products"
+
+    name: str = Field(..., min_length=1, max_length=200, index=True)
     description: str | None = None
-    sku: str | None = None
-    price: Decimal = Field(..., gt=0)  # Precio Base (Asumido en Moneda Base)
+    sku: str | None = Field(default=None, unique=True, index=True)
+    price: Decimal = Field(default=0, max_digits=10, decimal_places=2)  # Precio Base
     stock: int = Field(default=0, ge=0)
-    category: str | None = None
+    category: str | None = Field(default=None, index=True)
     image_url: str | None = None
     is_featured: bool = False
     is_discount: bool = False
-    discount_percentage: Decimal = Field(default=0, ge=0, le=100)
+    discount_percentage: Decimal = Field(default=0, max_digits=5, decimal_places=2)
     banner_assignment: str = Field(default="main")
 
     @validator("price", "discount_percentage", pre=True)
@@ -42,15 +48,29 @@ class Product(BaseEntity):
             return Decimal(str(v))
         return v
 
-    @computed_field
+    @field_serializer("price", "discount_percentage")
+    def serialize_decimals(self, v: Decimal, _info):
+        return float(v)
+
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def final_price(self) -> Decimal:
-        """Precio final calculado con descuento aplicado."""
-        if self.is_discount and self.discount_percentage > 0:
-            discount = self.price * (self.discount_percentage / 100)
-            final = self.price - discount
-            return final.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        return self.price
+    def final_price(self) -> float:
+        """Precio final calculado con descuento aplicado.
+
+        Retorna float (no Decimal) porque SQLModel table=True almacena price/discount como float
+        internamente, y @computed_field en SQLModel no aplica field_serializer a Decimal.
+        """
+        price = Decimal(str(self.price)) if not isinstance(self.price, Decimal) else self.price
+        discount_pct = (
+            Decimal(str(self.discount_percentage))
+            if not isinstance(self.discount_percentage, Decimal)
+            else self.discount_percentage
+        )
+        if self.is_discount and discount_pct > 0:
+            discount = price * (discount_pct / 100)
+            final = price - discount
+            return float(final.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return float(price)
 
     def to_card(self) -> "ProductCard":
         final_price = self.final_price
@@ -61,20 +81,23 @@ class Product(BaseEntity):
             price=self.price,
             final_price=final_price,
             image_url=self.image_url,
+            stock=self.stock,
             is_featured=self.is_featured,
             is_discount=self.is_discount,
             discount_percentage=self.discount_percentage,
         )
 
 
-class ProductImage(BaseModel):
+class ProductImage(SQLModel, table=True):
     """
     Imagen asociada a un producto.
     Soporta múltiples imágenes por producto con una imagen principal (is_main).
     """
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    product_id: str = Field(...)
+    __tablename__ = "product_images"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    product_id: str = Field(foreign_key="products.id", index=True)
     image_url: str = Field(...)
     thumbnail_url: str | None = None
     is_main: bool = Field(default=False)
@@ -82,9 +105,7 @@ class ProductImage(BaseModel):
     alt_text: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
-    class Config:
-        from_attributes = True
-        json_encoders = {datetime: lambda v: v.isoformat() + "Z"}
+    model_config = {"from_attributes": True}
 
 
 class ProductCreate(BaseModel):

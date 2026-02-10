@@ -3,6 +3,8 @@ from .common import BaseEntity as BaseEntity
 from .config import BusinessInfo as BusinessInfo
 from .config import Customization as Customization
 from .config import SocialNetwork as SocialNetwork
+from .customers import Customer as Customer
+from .customers import CustomerCreate as CustomerCreate
 from .finance import Currency as Currency
 from .finance import Region as Region
 from .finance import TaxRate as TaxRate
@@ -16,6 +18,7 @@ from .sales import CartItem as CartItem
 from .sales import DailyReport as DailyReport
 from .sales import PaymentDetails as PaymentDetails
 from .sales import Sale as Sale
+from .sales import SalesHistoryResponse as SalesHistoryResponse
 from .users import (
     AdminPasswordResetRequest as AdminPasswordResetRequest,
 )

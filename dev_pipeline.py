@@ -220,31 +220,69 @@ def restart_backend():
         logger.info("No se encontró backend/main.py para forzar reload.")
 
 
+def run_linting():
+    """Ejecuta linting en backend y frontend."""
+    logger.info(">>> EJECUTANDO LINTING (CALIDAD DE CÓDIGO) <<<")
+    python_exe = get_venv_python()
+
+    # 1. Backend Linting (Ruff)
+    logger.info("Revisando Backend (Ruff)...")
+    try:
+        run_command([python_exe, "-m", "ruff", "check", "."], cwd=PROJECT_ROOT)
+        run_command([python_exe, "-m", "ruff", "format", "."], cwd=PROJECT_ROOT)
+        logger.info("✓ Backend limpio.")
+    except Exception:
+        logger.warning("⚠️ Se encontraron problemas de estilo en el Backend.")
+
+    # 2. Frontend Linting (ESLint)
+    logger.info("Revisando Frontend (ESLint)...")
+    try:
+        run_command([NPM_CMD, "run", "lint"], cwd=FRONTEND_DIR)
+        logger.info("✓ Frontend limpio.")
+    except Exception:
+        logger.warning("⚠️ Se encontraron problemas de estilo en el Frontend.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Dev Pipeline (Homologado)")
     parser.add_argument("--hard", action="store_true", help="Reset total de DB")
     parser.add_argument("--soft", action="store_true", help="Smart migration")
+    parser.add_argument("--migrate", action="store_true", help="Upgrade head only")
     parser.add_argument("--front", action="store_true", help="Regenerar frontend")
     parser.add_argument("--back", action="store_true", help="Reiniciar/Reload Backend")
-    parser.add_argument("--full", action="store_true", help="Full reset (Hard + Front)")
+    parser.add_argument("--lint", action="store_true", help="Ejecutar linting")
+    parser.add_argument("--full", action="store_true", help="Full reset (Hard + Front + Lint)")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation for hard reset")
 
     global args
     args = parser.parse_args()
 
-    # Cargar .env para saber puertos
-    if (PROJECT_ROOT / ".env").exists():
-        from dotenv import load_dotenv
+    # Verificación de VENV
+    if not VENV_PATH.exists():
+        logger.error(f"❌ No se encontró el entorno virtual en {VENV_PATH}")
+        logger.error("Ejecute 'setup.py' primero.")
+        sys.exit(1)
 
-        load_dotenv(PROJECT_ROOT / ".env")
+    # Cargar .env
+    if (PROJECT_ROOT / ".env").exists():
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(PROJECT_ROOT / ".env")
+        except ImportError:
+            # Si falla el import, intentamos usar el python del venv para cargarlo o seguimos
+            pass
 
     mode_selected = False
+
+    if args.lint:
+        run_linting()
+        mode_selected = True
 
     if args.hard:
         rebuild_schema_hard()
         mode_selected = True
 
-    if args.soft:
+    if args.soft or args.migrate:
         sync_soft()
         mode_selected = True
 
@@ -257,6 +295,7 @@ def main():
         mode_selected = True
 
     if args.full:
+        run_linting()
         rebuild_schema_hard()
         regenerate_frontend()
         mode_selected = True

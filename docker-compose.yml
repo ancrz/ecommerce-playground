@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  postgres_app:
+    image: postgres:15-alpine
+    container_name: ecommerce_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASS:-admin2024}
+      POSTGRES_DB: ${DB_NAME:-ecommerce_unified}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-ecommerce_unified}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce_net
+
+networks:
+  ecommerce_net:
+    driver: bridge
+
+volumes:
+  postgres_data:

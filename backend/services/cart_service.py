@@ -65,20 +65,22 @@ class CartService:
                 "cart",
                 """
                 INSERT INTO carts (
-                    id, customer_name, customer_id, status,
+                    id, customer_name, customer_id, items, status,
                     region_id, currency_id,
-                    subtotal, tax_amount, total_with_tax,
+                    subtotal, tax_amount, igtf_amount, total_with_tax,
                     created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     cart.id,
                     cart.customer_name,
                     cart.customer_id,
+                    "[]",  # Empty items JSON array
                     cart.status,
                     cart.region_id,
                     cart.currency_id,
+                    0,
                     0,
                     0,
                     0,  # Totales iniciales
@@ -94,33 +96,29 @@ class CartService:
 
     async def get_cart(self, cart_id: str) -> Cart | None:
         """
-        Obtiene el carrito y sus items.
-        REFACTOR: Los totales ya están calculados y se leen desde la DB.
+        Obtiene el carrito con sus items (almacenados como JSON en la columna 'items').
         """
         cart_row = await self.db_manager.fetchone("cart", "SELECT * FROM carts WHERE id = ?", (cart_id,))
         if not cart_row:
             return None
 
-        items_rows = await self.db_manager.fetchall(
-            "cart", "SELECT * FROM cart_items WHERE cart_id = ? ORDER BY product_name", (cart_id,)
-        )
+        # SQLite devuelve 'items' como string JSON; parsearlo antes de model_validate
+        row_data = dict(cart_row)
+        if isinstance(row_data.get("items"), str):
+            row_data["items"] = json.loads(row_data["items"])
 
-        # Convertir filas a modelos DTO
-        cart = Cart.model_validate(cart_row)
-        cart.items = [CartItem.model_validate(item_row) for item_row in items_rows]
-
+        cart = Cart.model_validate(row_data)
         return cart
 
     async def add_item(self, cart_id: str, product_id: str, quantity: int) -> Cart:
         """
         Añade un item al carrito.
-        REFACTORIZADO: Lógica de precios y seguridad.
+        Items se almacenan como JSON en la columna 'items' de la tabla 'carts'.
         """
         if quantity <= 0:
             raise ValueError("La cantidad debe ser positiva.")
 
         # 1. Obtener el producto y su PRECIO REAL desde el ProductService
-        #    Esto previene que el frontend manipule el precio.
         product = await self.product_service.get_product(product_id)
         if not product:
             raise ValueError(f"Producto {product_id} no encontrado.")
@@ -128,118 +126,116 @@ class CartService:
         if product.stock < quantity:
             raise ValueError(f"Stock insuficiente para {product.name} (Stock: {product.stock})")
 
-        # 2. Obtener el precio final (con descuentos)
-        item_price = product.final_price  # Ej: 45.00
+        # 2. Leer items actuales del carrito (JSON)
+        cart = await self.get_cart(cart_id)
+        if not cart:
+            raise ValueError("Carrito no encontrado.")
+
+        items = list(cart.items)
+        item_price = product.final_price
         item_name = product.name
 
-        # 3. Insertar o actualizar el item en la DB
-        existing_item = await self.db_manager.fetchone(
-            "cart", "SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ?", (cart_id, product_id)
-        )
+        # 3. Buscar si el producto ya existe en el carrito
+        existing_idx = next((i for i, item in enumerate(items) if item.product_id == product_id), None)
 
-        if existing_item:
-            new_quantity = existing_item["quantity"] + quantity
-            # Validar stock de nuevo
+        if existing_idx is not None:
+            new_quantity = items[existing_idx].quantity + quantity
             if product.stock < new_quantity:
                 raise ValueError(
                     f"Stock insuficiente para {product.name} (Solicitado: {new_quantity}, Stock: {product.stock})"
                 )
-
-            await self.db_manager.execute(
-                "cart",
-                "UPDATE cart_items SET quantity = ?, price = ? WHERE cart_id = ? AND product_id = ?",
-                (new_quantity, float(item_price), cart_id, product_id),
-            )
+            items[existing_idx].quantity = new_quantity
+            items[existing_idx].price = Decimal(str(item_price))
         else:
-            await self.db_manager.execute(
-                "cart",
-                "INSERT INTO cart_items (cart_id, product_id, product_name, quantity, price) VALUES (?, ?, ?, ?, ?)",
-                (cart_id, product_id, item_name, quantity, float(item_price)),
+            items.append(
+                CartItem(
+                    product_id=product_id,
+                    product_name=item_name,
+                    quantity=quantity,
+                    price=Decimal(str(item_price)),
+                )
             )
 
-        # 4. Recalcular todos los totales del carrito (Subtotal + Impuestos)
-        return await self._update_cart_totals(cart_id)
+        # 4. Guardar items actualizados y recalcular totales
+        await self._save_items_and_recalculate(cart_id, items)
+        return await self.get_cart(cart_id)  # type: ignore[return-value]
 
     async def remove_item(self, cart_id: str, product_id: str) -> Cart:
-        """¡NUEVO! Elimina un item del carrito"""
-        await self.db_manager.execute(
-            "cart", "DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?", (cart_id, product_id)
-        )
-        return await self._update_cart_totals(cart_id)
+        """Elimina un item del carrito (JSON items)"""
+        cart = await self.get_cart(cart_id)
+        if not cart:
+            raise ValueError("Carrito no encontrado.")
+
+        items = [item for item in cart.items if item.product_id != product_id]
+        await self._save_items_and_recalculate(cart_id, items)
+        return await self.get_cart(cart_id)  # type: ignore[return-value]
 
     async def update_item_quantity(self, cart_id: str, product_id: str, new_quantity: int) -> Cart:
-        """¡NUEVO! Actualiza la cantidad de un item"""
+        """Actualiza la cantidad de un item (JSON items)"""
         if new_quantity <= 0:
             return await self.remove_item(cart_id, product_id)
 
-        # Validar stock
         product = await self.product_service.get_product(product_id)
         if not product:
             raise ValueError(f"Producto {product_id} no encontrado.")
         if product.stock < new_quantity:
             raise ValueError(f"Stock insuficiente para {product.name} (Stock: {product.stock})")
 
-        await self.db_manager.execute(
-            "cart",
-            "UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND product_id = ?",
-            (new_quantity, cart_id, product_id),
-        )
-        return await self._update_cart_totals(cart_id)
+        cart = await self.get_cart(cart_id)
+        if not cart:
+            raise ValueError("Carrito no encontrado.")
 
-    async def _update_cart_totals(self, cart_id: str) -> Cart:
-        """
-        ¡NUEVO MÉTODO PRIVADO! (El Motor de Cálculo)
-        Recalcula el subtotal, llama al TaxService y actualiza el carrito.
-        """
+        items = list(cart.items)
+        for item in items:
+            if item.product_id == product_id:
+                item.quantity = new_quantity
+                break
 
-        # 1. Obtener la región fiscal del carrito
-        cart_row = await self.db_manager.fetchone("cart", "SELECT region_id FROM carts WHERE id = ?", (cart_id,))
+        await self._save_items_and_recalculate(cart_id, items)
+        return await self.get_cart(cart_id)  # type: ignore[return-value]
+
+    async def _save_items_and_recalculate(self, cart_id: str, items: list[CartItem]) -> None:
+        """
+        Guarda los items como JSON y recalcula totales (subtotal + impuestos).
+        Fuente única de verdad para la persistencia de items.
+        """
+        # 1. Obtener región y moneda del carrito
+        cart_row = await self.db_manager.fetchone("cart", "SELECT region_id, currency_id FROM carts WHERE id = ?", (cart_id,))
         if not cart_row:
             raise ValueError("Carrito no encontrado durante el recálculo.")
         region_id = cart_row["region_id"]
+        currency_id = cart_row["currency_id"]
 
-        # 2. Calcular Subtotal (Suma de precios base de los items)
-        subtotal_row = await self.db_manager.fetchone(
-            "cart", "SELECT SUM(price * quantity) as subtotal FROM cart_items WHERE cart_id = ?", (cart_id,)
-        )
-        subtotal_val = subtotal_row["subtotal"] if subtotal_row else 0.0
-        subtotal = Decimal(str(subtotal_val or "0.0"))
+        # 2. Calcular subtotal desde los items
+        subtotal = sum(Decimal(str(item.price)) * item.quantity for item in items)
 
-        # 3. Llamar al TaxService para calcular impuestos
-        #    (Aquí ocurre la lógica de Filadelfia 6% + 2%)
-        tax_info = await self.tax_service.calculate_taxes(subtotal, region_id)
+        # 3. Calcular impuestos via TaxService
+        tax_info = await self.tax_service.calculate_taxes(subtotal, region_id, currency_id)
 
-        tax_amount = tax_info["tax_amount"]
-        total_with_tax = tax_info["total_with_tax"]
+        # 4. Serializar items a JSON
+        items_json = json.dumps([item.model_dump(mode="json") for item in items])
 
-        # 4. Actualizar la tabla 'carts' con los nuevos totales
+        # 5. Actualizar carts con items + totales
         await self.db_manager.execute(
             "cart",
             """
             UPDATE carts
-            SET subtotal = ?, tax_amount = ?, total_with_tax = ?, updated_at = ?
+            SET items = ?, subtotal = ?, tax_amount = ?, igtf_amount = ?, total_with_tax = ?, updated_at = ?
             WHERE id = ?
             """,
-            (float(subtotal), float(tax_amount), float(total_with_tax), datetime.now().isoformat(), cart_id),
+            (
+                items_json,
+                float(subtotal),
+                float(tax_info.total_tax),
+                float(tax_info.igtf_amount),
+                float(tax_info.total),
+                datetime.now().isoformat(),
+                cart_id,
+            ),
         )
 
         logger.info(
-            f"Carrito {cart_id} recalculado: Subtotal={subtotal}, Impuestos={tax_amount}, Total={total_with_tax}"
-        )
-
-        # 5. Devolver el DTO del carrito actualizado
-        return await self.get_cart(cart_id) or Cart(  # Fallback seguro, aunque debería existir
-            id=cart_id,
-            customer_name="",
-            customer_id="",
-            region_id="",
-            currency_id="",
-            subtotal=Decimal(0),
-            tax_amount=Decimal(0),
-            total_with_tax=Decimal(0),
-            status="pending",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            f"Carrito {cart_id} recalculado: Subtotal={subtotal}, Impuestos={tax_info.total_tax}, Total={tax_info.total}"
         )
 
     async def generate_qr(self, cart_id: str) -> str:
@@ -289,13 +285,13 @@ class CartService:
             (limit, skip),
         )
 
-        # Convertir filas a DTOs
+        # Convertir filas a DTOs (parseando items JSON)
         carts = []
         for row in rows:
-            cart = Cart.model_validate(row)
-            # (Opcional) Cargar items para cada uno si es necesario
-            # items_rows = await self.db_manager.fetchall("cart", "...", (cart.id,))
-            # cart.items = [CartItem.model_validate(r) for r in items_rows]
+            row_data = dict(row)
+            if isinstance(row_data.get("items"), str):
+                row_data["items"] = json.loads(row_data["items"])
+            cart = Cart.model_validate(row_data)
             carts.append(cart)
 
         return carts

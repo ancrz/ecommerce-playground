@@ -21,12 +21,32 @@ from alembic import context
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlmodel import SQLModel
+# Import all models to register them with SQLModel.metadata
+from backend.models.users import User
+from backend.models.products import Product, ProductImage
+from backend.models.sales import Sale, Cart
+from backend.models.finance import Currency, Region, TaxRate
+from backend.models.customers import Customer
+from backend.models.roles import Role
+from backend.models.config import BusinessInfo, Customization
+
 # this is the Alembic Config object
 config = context.config
 
-# Override sqlalchemy.url from environment if available
-db_path = os.getenv("DB_PATH", "./data/database")
-db_url = f"sqlite:///{db_path}/main.db"
+# MIGRATION STRATEGY: Detect DB_TYPE and configure accordingly
+db_type = os.getenv("DB_TYPE", "sqlite")
+if db_type == "postgres":
+    user = os.getenv("DB_USER", "admin")
+    password = os.getenv("DB_PASS", "admin2024")
+    host = os.getenv("DB_HOST", "localhost")
+    port = os.getenv("DB_PORT", "5432")
+    name = os.getenv("DB_NAME", "ecommerce_unified")
+    db_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+else:
+    db_path = os.getenv("DB_PATH", "./data/database")
+    db_url = f"sqlite:///{db_path}/ecommerce.db"
+
 config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
@@ -34,8 +54,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Add your model's MetaData object here for 'autogenerate' support
-
-target_metadata = MetaData()
+target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:

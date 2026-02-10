@@ -4,6 +4,7 @@ REFACTORIZADO: Expone el CartService con lógica de impuestos y seguridad.
 HOMOLOGACIÓN: Endpoint /guest para inicialización de carritos anónimos.
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -18,6 +19,7 @@ from ..services.cart_service import CartService
 # Importar el validador de token
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # --- Modelos de Request (DTOs de Entrada) ---
 

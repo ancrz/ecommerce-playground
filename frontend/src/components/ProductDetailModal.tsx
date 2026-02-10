@@ -16,6 +16,7 @@ import { useApp } from '../App';
 import * as api from '../api';
 import type { Product, ProductCard, ProductImage } from '../types';
 import { useStockUpdates } from '../hooks/useStockUpdates';
+import { config } from '../config';
 
 // Importar subcomponentes refactorizados (Stitch)
 import { ProductGallery } from './products/ProductGallery';
@@ -222,7 +223,7 @@ export default function ProductDetailModal({ isOpen, onClose, product: initialPr
                             <Check size={16} className="text-green-500" /> Disponibilidad inmediata
                         </li>
                         <li className="flex items-center gap-2">
-                            <Check size={16} className="text-green-500" /> Garantía Farmalux
+                            <Check size={16} className="text-green-500" /> Garantía {config.appName}
                         </li>
                         <li className="flex items-center gap-2">
                             <Check size={16} className="text-green-500" /> Envío seguro

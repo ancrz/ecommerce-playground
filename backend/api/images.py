@@ -254,6 +254,59 @@ async def upload_business_banner(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+# --- Endpoints de Eliminación de Imágenes de Negocio ---
+
+
+@router.delete("/business/logo", response_model=BusinessInfo)
+async def delete_business_logo(
+    image_service: ImageService = Depends(get_image_service),
+    business_service: BusinessService = Depends(get_business_service),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Elimina el logo del negocio:
+    1. Borra el archivo físico (usando ImageService).
+    2. Pone 'logo_url' a None en la DB (usando BusinessService).
+    """
+    info = await business_service.get_business_info()
+    if not info.logo_url:
+        return info  # No hay logo para borrar
+
+    try:
+        image_service.delete_image(info.logo_url)
+    except Exception as e:
+        logger.warning(f"No se pudo borrar archivo de logo: {e}")
+
+    update_dto = BusinessInfoUpdate(logo_url=None)
+    updated_info = await business_service.update_business_info(update_dto)
+    return updated_info
+
+
+@router.delete("/business/icon", response_model=BusinessInfo)
+async def delete_business_icon(
+    image_service: ImageService = Depends(get_image_service),
+    business_service: BusinessService = Depends(get_business_service),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Elimina el icono del negocio:
+    1. Borra el archivo físico (usando ImageService).
+    2. Pone 'icon_url' a None en la DB (usando BusinessService).
+    """
+    info = await business_service.get_business_info()
+    if not info.icon_url:
+        return info  # No hay icono para borrar
+
+    try:
+        image_service.delete_image(info.icon_url)
+    except Exception as e:
+        logger.warning(f"No se pudo borrar archivo de icono: {e}")
+
+    update_dto = BusinessInfoUpdate(icon_url=None)
+    updated_info = await business_service.update_business_info(update_dto)
+    return updated_info
+
+
 # --- Endpoints de Galería de Imágenes de Producto ---
 
 

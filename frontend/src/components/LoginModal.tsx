@@ -8,11 +8,13 @@
  * - Micro-interactions
  */
 
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, X, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as api from '../api';
-import type { TokenResponse } from '../types';
+import type { TokenResponse, BusinessInfo } from '../types';
+import { config, getImageUrl } from '../config';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -21,12 +23,33 @@ interface LoginModalProps {
   onRegisterClick: () => void;
 }
 
-export default function LoginModal({ isOpen, onClose, onLogin, onRegisterClick }: LoginModalProps) {
-  // ... (state remains same)
+export default function LoginModal({ isOpen, onClose, onLogin, onRegisterClick: _onRegisterClick }: LoginModalProps) {
+  // Config State
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
+  const [appName, setAppName] = useState<string>(config.appName);
+
+  // Form State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Validar si es "invitado" (solo empleados)
+  // El usuario indica que este login es SOLO para empleados.
+
+  useEffect(() => {
+    if (isOpen) {
+        // Cargar info del negocio al abrir
+        api.getBusinessInfo()
+            .then(info => {
+                setBusinessInfo(info);
+                if (info.name) setAppName(info.name);
+            })
+            .catch(() => {
+                // Fallback silencioso a config.appName
+            });
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +86,23 @@ export default function LoginModal({ isOpen, onClose, onLogin, onRegisterClick }
         <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-scale-in">
             
             {/* Header / Brand */}
-            <div className="bg-linear-to-r from-blue-600 to-blue-800 p-8 text-center relative overflow-hidden">
+            <div className="bg-linear-to-r from-blue-600 to-blue-800 p-8 text-center relative overflow-hidden transition-all duration-500">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                <div className="relative z-10">
-                    <h2 className="text-3xl font-bold text-white tracking-tight">Farmalux</h2>
-                    <p className="text-blue-100 text-sm mt-2">Bienvenido de nuevo</p>
+                <div className="relative z-10 flex flex-col items-center justify-center min-h-[100px]">
+                    {businessInfo?.logo_url ? (
+                        <div className="w-full flex justify-center mb-2">
+                             <img 
+                                src={getImageUrl(businessInfo.logo_url) || ''} 
+                                alt={appName} 
+                                className="h-20 max-w-[280px] object-contain drop-shadow-md"
+                             />
+                        </div>
+                    ) : (
+                        <h2 className="text-3xl font-bold text-white tracking-tight break-words max-w-full">
+                            {appName}
+                        </h2>
+                    )}
+                    <p className="text-blue-100 text-sm mt-2 font-medium">Bienvenido de nuevo</p>
                 </div>
                 <button 
                     onClick={onClose}
@@ -132,20 +167,14 @@ export default function LoginModal({ isOpen, onClose, onLogin, onRegisterClick }
                         {loading ? <Loader2 className="animate-spin" /> : <>Ingresar <ArrowRight size={20} /></>}
                     </button>
                 </form>
-
-                <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-                    <p className="text-sm text-gray-500">
-                        ¿No tienes cuenta?{' '}
-                        <button 
-                            onClick={onRegisterClick}
-                            className="font-bold text-blue-600 hover:text-blue-800 transition"
-                        >
-                            Regístrate gratis
-                        </button>
-                    </p>
-                </div>
+                
+                {/* 
+                 * NOTA: Se ha removido el enlace de registro para invitados.
+                 * Este login es exclusivo para empleados/administradores.
+                 */}
             </div>
         </div>
     </div>
   );
 }
+

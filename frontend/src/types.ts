@@ -9,7 +9,7 @@
  * estén siempre 100% sincronizados.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   ProductSchema,
   ProductCardSchema,
@@ -36,8 +36,9 @@ import {
   PasswordChangeRequestSchema,
   PasswordResetRequestSchema,
   PasswordResetValidateSchema,
-  ProductImageSchema
-} from './schemas'; // Asumiendo que todos los esquemas están en schemas.ts
+  ProductImageSchema,
+  SalesHistoryResponseSchema,
+} from "./schemas"; // Asumiendo que todos los esquemas están en schemas.ts
 
 // ==================== MODELOS BASE (DTOs) ====================
 
@@ -52,6 +53,7 @@ export type Cart = z.infer<typeof CartSchema>;
 export type Sale = z.infer<typeof SaleSchema>;
 export type PaymentDetails = z.infer<typeof PaymentDetailsSchema>;
 export type DailyReport = z.infer<typeof DailyReportSchema>;
+export type SalesHistoryResponse = z.infer<typeof SalesHistoryResponseSchema>;
 export type SocialNetwork = z.infer<typeof SocialNetworkSchema>;
 export type BusinessInfo = z.infer<typeof BusinessInfoSchema>;
 export type Customization = z.infer<typeof CustomizationSchema>;

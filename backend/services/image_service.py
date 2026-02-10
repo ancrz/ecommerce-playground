@@ -15,6 +15,7 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
+
 class ImageService:
     """
     Servicio para procesar, validar y guardar imágenes.
@@ -23,14 +24,14 @@ class ImageService:
 
     # Configuración de procesamiento
     DEFAULT_MAX_SIZE = (1200, 1200)  # Imagen full para landing/detalle
-    THUMBNAIL_SIZE = (300, 300)      # Thumbnail para lista de productos
-    LOGO_MAX_SIZE = (400, 200)       # Rectangular
-    ICON_MAX_SIZE = (256, 256)       # Cuadrado
+    THUMBNAIL_SIZE = (300, 300)  # Thumbnail para lista de productos
+    LOGO_MAX_SIZE = (400, 200)  # Rectangular
+    ICON_MAX_SIZE = (256, 256)  # Cuadrado
     MODULE_ICON_MAX_SIZE = (64, 64)  # Cuadrado pequeño
 
-    DEFAULT_QUALITY = 85    # Calidad JPEG full
+    DEFAULT_QUALITY = 85  # Calidad JPEG full
     THUMBNAIL_QUALITY = 75  # Calidad JPEG thumbnail (menor tamaño)
-    ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
     def __init__(self, upload_path: str = "./data/uploads"):
         """
@@ -70,7 +71,7 @@ class ImageService:
         self,
         file_data: bytes,
         max_size: tuple[int, int],
-        fit_contain: bool = True # True = Contain (Logos), False = Cover (Products)
+        fit_contain: bool = True,  # True = Contain (Logos), False = Cover (Products)
     ) -> Image.Image:
         """
         Procesa la imagen: la convierte a RGB y la redimensiona.
@@ -78,22 +79,22 @@ class ImageService:
         image = Image.open(BytesIO(file_data))
 
         # Convertir RGBA/LA/P a RGB (para guardar como JPEG)
-        if image.mode in ('RGBA', 'LA', 'P'):
+        if image.mode in ("RGBA", "LA", "P"):
             # Crear fondo blanco
-            background = Image.new('RGB', image.size, (255, 255, 255))
+            background = Image.new("RGB", image.size, (255, 255, 255))
 
-            if image.mode == 'P':
-                image = image.convert('RGBA')
+            if image.mode == "P":
+                image = image.convert("RGBA")
 
-            if image.mode in ('RGBA', 'LA'):
+            if image.mode in ("RGBA", "LA"):
                 mask = image.split()[-1]
                 background.paste(image, mask=mask)
             else:
                 background.paste(image)
 
             image = background
-        elif image.mode != 'RGB':
-            image = image.convert('RGB')
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
 
         # Redimensionar
         if fit_contain:
@@ -111,7 +112,7 @@ class ImageService:
         original_filename: str,
         folder: str,
         save_filename: str | None = None,
-        max_size: tuple[int, int] | None = None
+        max_size: tuple[int, int] | None = None,
     ) -> str:
         """
         Función principal: Valida, procesa y guarda una imagen en la carpeta
@@ -125,7 +126,7 @@ class ImageService:
         if folder == "products":
             target_path = self.products_path
             max_size = max_size or self.DEFAULT_MAX_SIZE
-            fit_contain = False # Cortar para que sean uniformes
+            fit_contain = False  # Cortar para que sean uniformes
         elif folder == "logos":
             target_path = self.logos_path
             max_size = max_size or self.LOGO_MAX_SIZE
@@ -150,13 +151,7 @@ class ImageService:
         filepath = target_path / final_filename
 
         try:
-            image.save(
-                filepath,
-                'JPEG',
-                quality=self.DEFAULT_QUALITY,
-                optimize=True,
-                progressive=True
-            )
+            image.save(filepath, "JPEG", quality=self.DEFAULT_QUALITY, optimize=True, progressive=True)
         except Exception as e:
             logger.error(f"Error al guardar imagen en disco: {e}", exc_info=True)
             raise OSError(f"No se pudo guardar la imagen: {e}") from e
@@ -167,11 +162,7 @@ class ImageService:
         return url_path
 
     def process_and_save_multi_size(
-        self,
-        file_data: bytes,
-        original_filename: str,
-        save_filename: str,
-        folder: str = "products"
+        self, file_data: bytes, original_filename: str, save_filename: str, folder: str = "products"
     ) -> str:
         """
         Procesa y guarda una imagen en múltiples tamaños:
@@ -193,18 +184,18 @@ class ImageService:
         image = Image.open(BytesIO(file_data))
 
         # Convertir a RGB si es necesario
-        if image.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', image.size, (255, 255, 255))
-            if image.mode == 'P':
-                image = image.convert('RGBA')
-            if image.mode in ('RGBA', 'LA'):
+        if image.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            if image.mode == "P":
+                image = image.convert("RGBA")
+            if image.mode in ("RGBA", "LA"):
                 mask = image.split()[-1]
                 background.paste(image, mask=mask)
             else:
                 background.paste(image)
             image = background
-        elif image.mode != 'RGB':
-            image = image.convert('RGB')
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
 
         # 3. Generar y guardar FULL SIZE (1200x1200)
         full_image = ImageOps.fit(image.copy(), self.DEFAULT_MAX_SIZE, Image.Resampling.LANCZOS)
@@ -212,13 +203,7 @@ class ImageService:
         full_path = target_path / full_filename
 
         try:
-            full_image.save(
-                full_path,
-                'JPEG',
-                quality=self.DEFAULT_QUALITY,
-                optimize=True,
-                progressive=True
-            )
+            full_image.save(full_path, "JPEG", quality=self.DEFAULT_QUALITY, optimize=True, progressive=True)
             logger.info(f"Imagen FULL guardada: {full_path}")
         except Exception as e:
             logger.error(f"Error guardando imagen full: {e}", exc_info=True)
@@ -230,12 +215,7 @@ class ImageService:
         thumb_path = target_path / thumb_filename
 
         try:
-            thumb_image.save(
-                thumb_path,
-                'JPEG',
-                quality=self.THUMBNAIL_QUALITY,
-                optimize=True
-            )
+            thumb_image.save(thumb_path, "JPEG", quality=self.THUMBNAIL_QUALITY, optimize=True)
             logger.info(f"Thumbnail guardado: {thumb_path}")
         except Exception as e:
             logger.error(f"Error guardando thumbnail: {e}", exc_info=True)
@@ -250,14 +230,14 @@ class ImageService:
         """
         Elimina una imagen del sistema de archivos usando su URL relativa.
         """
-        if not image_url or not image_url.startswith('/uploads/'):
+        if not image_url or not image_url.startswith("/uploads/"):
             logger.warning(f"Intento de eliminar URL de imagen no válida: {image_url}")
             return False
 
         try:
             # Convertir URL (ej: /uploads/products/abc.jpg)
             # a ruta de disco (ej: ./data/uploads/products/abc.jpg)
-            relative_path = image_url.lstrip('/')
+            relative_path = image_url.lstrip("/")
             filepath = self.upload_path.parent / relative_path
 
             if filepath.exists():

@@ -4,6 +4,7 @@ from pathlib import Path
 # Configuración
 DB_DIR = Path("./data/database")
 
+
 def audit_db(db_path):
     print("--- Auditing: " + db_path.name + " ---")
     try:
@@ -15,7 +16,7 @@ def audit_db(db_path):
         journal_mode = cursor.fetchone()[0]
         print("Journal Mode: " + str(journal_mode).upper())
 
-        if str(journal_mode).upper() != 'WAL':
+        if str(journal_mode).upper() != "WAL":
             print("  WARNING: Not in WAL mode. High risk of 'database is locked' errors.")
 
         # 2. Check Integrity
@@ -34,6 +35,7 @@ def audit_db(db_path):
     except Exception as e:
         print("Error auditing " + db_path.name + ": " + str(e))
 
+
 def main():
     if not DB_DIR.exists():
         print("Database directory " + str(DB_DIR) + " does not exist.")
@@ -47,6 +49,7 @@ def main():
     print("Found " + str(len(db_files)) + " database chunks.")
     for db_file in db_files:
         audit_db(db_file)
+
 
 if __name__ == "__main__":
     main()

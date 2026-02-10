@@ -9,6 +9,7 @@
 
 import React, { useState } from 'react';
 import { User, Lock, Mail, ArrowRight, Loader2, X } from 'lucide-react';
+import { config } from '../config';
 // import * as api from '../api';
 // import type { TokenResponse } from '../types';
 
@@ -80,7 +81,7 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }: Registe
                     <User size={32} />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900">Crear Cuenta</h2>
-                <p className="text-gray-500 text-sm mt-1 mb-6">Únete a Farmalux y disfruta de beneficios exclusivos.</p>
+                <p className="text-gray-500 text-sm mt-1 mb-6">Únete a {config.appName} y disfruta de beneficios exclusivos.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 pt-6 space-y-4">

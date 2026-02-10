@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..database.manager import DatabaseManager
@@ -7,6 +9,7 @@ from ..services.role_service import RoleService
 from .deps import is_admin
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_role_service():

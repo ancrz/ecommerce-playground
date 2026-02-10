@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from sqlalchemy import JSON
+from sqlmodel import Field
 
 from .common import BaseEntity
 
@@ -13,25 +15,27 @@ class LoginRequest(BaseModel):
     guest_cart_id: str | None = None
 
 
-class User(BaseEntity):
+class User(BaseEntity, table=True):
     """
     Usuario del sistema (Admin).
     REFACTOR: 'role' es ahora 'roles' (una lista) para RBAC.
     """
 
-    username: str = Field(..., min_length=3, max_length=50)
+    __tablename__ = "users"
+
+    username: str = Field(..., min_length=3, max_length=50, unique=True, index=True)
     password_hash: str
     full_name: str | None = None  # Para el "Panel de Usuario"
-    email: str | None = Field(None)  # Para recuperación
-    role_id: str | None = Field(default=None)  # FK a roles.id
+    email: str | None = Field(None, unique=True, index=True)  # Para recuperación
+    role_id: str | None = Field(default=None, foreign_key="roles.id")  # FK a roles.id
     is_active: bool = True
     is_deleted: bool = False  # Soft delete
 
     # Deprecated: 'roles' list (legacy support until migration complete)
-    roles: list[str] = Field(default_factory=list)
+    # Using JSON field for storage in SQLite/Postgres
+    roles: list[str] = Field(default_factory=list, sa_type=JSON)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class UserPublic(BaseModel):
@@ -46,8 +50,7 @@ class UserPublic(BaseModel):
     roles: list[str] = Field(default_factory=list)
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class TokenResponse(BaseModel):
@@ -106,8 +109,7 @@ class PasswordResetToken(BaseEntity):
     expires_at: datetime = Field(default_factory=lambda: datetime.now() + timedelta(minutes=15))  # 15 min de expiración
     is_used: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class PasswordResetRequest(BaseModel):

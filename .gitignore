@@ -60,6 +60,7 @@ data/database/*.db
 
 # ===== Logs & Temp =====
 logs/
+docs/
 *.log
 tmp/
 temp/
@@ -125,3 +126,4 @@ example/
 # Ensure Session Logs are tracked even if docs/ is ignored
 !docs/sessions/
 
+NUL

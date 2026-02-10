@@ -1,24 +1,27 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from sqlalchemy import JSON
+from sqlmodel import Field
 
 from .common import BaseEntity
 
 
-class Role(BaseEntity):
+class Role(BaseEntity, table=True):
     """
     Modelo de Rol (RBAC Dinámico).
     """
 
-    name: str = Field(..., unique=True, min_length=3, max_length=50)
+    __tablename__ = "roles"
+
+    name: str = Field(..., unique=True, min_length=3, max_length=50, index=True)
     description: str | None = None
     permissions: dict[str, int] = Field(
-        default_factory=dict, description="Mapa de {modulo: nivel_acceso}. Ej: {'sales': 7}"
+        default_factory=dict, sa_type=JSON, description="Mapa de {modulo: nivel_acceso}. Ej: {'sales': 7}"
     )
     is_system: bool = Field(default=False, description="Si es True, no se puede borrar ni editar nombre.")
-    is_active: bool = True
-    is_deleted: bool = False
+    is_active: bool = Field(default=True)
+    is_deleted: bool = Field(default=False)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class RoleCreate(BaseModel):

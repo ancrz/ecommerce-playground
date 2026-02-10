@@ -38,6 +38,6 @@ for table_name_tuple in tables:
 
     for row in rows:
         row_dict = dict(zip(column_names, row, strict=False))
-        print(json.dumps(row_dict, indent=2, default=str)) # default=str to handle datetime objects
+        print(json.dumps(row_dict, indent=2, default=str))  # default=str to handle datetime objects
 
 conn.close()

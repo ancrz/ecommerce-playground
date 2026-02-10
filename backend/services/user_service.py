@@ -165,8 +165,8 @@ class UserService:
         await self.db_manager.execute(
             "users",
             """
-            INSERT INTO users (id, username, password_hash, full_name, email, roles, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, username, password_hash, full_name, email, roles, is_active, is_deleted, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user.id,
@@ -176,6 +176,7 @@ class UserService:
                 user.email,
                 self._serialize_roles(user.roles),  # Guardar como JSON
                 user.is_active,
+                user.is_deleted,  # FIX: Include is_deleted explicitly
                 user.created_at.isoformat(),
                 user.updated_at.isoformat(),
             ),

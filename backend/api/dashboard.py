@@ -52,7 +52,7 @@ async def get_dashboard_stats(request: Request):
 
         # A. Sales Data (Completed)
         sales_rows = await db.fetchall(
-            "sales", "SELECT id, total_with_tax, items, created_at FROM sales WHERE status = 'completed'"
+            "sales", "SELECT id, total_with_tax, items, completed_at FROM sales WHERE status = 'completed'"
         )
 
         # B. Pending Orders (New Orders)
@@ -107,7 +107,7 @@ async def get_dashboard_stats(request: Request):
         # Sort for recent activity logic
         def get_sort_key(x):
             try:
-                val = x.get("created_at", "")
+                val = x.get("completed_at", "")
                 return str(val) if val else ""
             except Exception:
                 return ""
@@ -121,7 +121,7 @@ async def get_dashboard_stats(request: Request):
 
             # 2. Monthly Stats
             try:
-                created_at_raw = sale.get("created_at")
+                created_at_raw = sale.get("completed_at")
                 created_at = None
                 if isinstance(created_at_raw, str):
                     created_at = datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))

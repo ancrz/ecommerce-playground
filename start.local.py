@@ -1,6 +1,6 @@
 """
-start.local.py - Inicio Inteligente del Ecosistema (v2.0)
-==========================================================
+start.local.py - Inicio Inteligente del Ecosistema (v3.0 - Concurrente)
+=========================================================================
 
 FEATURES:
 - Sistema de .lock para comunicación con stop.local.py
@@ -8,6 +8,7 @@ FEATURES:
 - Bootstrap automático si es primera ejecución
 - Health checks con reintentos
 - Logging estructurado
+- ThreadPoolExecutor (4 workers) para bootstrap y lanzamiento paralelo
 
 Uso:
     python start.local.py [--skip-migrations] [--backend-only] [--frontend-only] [--force]
@@ -24,6 +25,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO, cast
@@ -34,6 +36,7 @@ if sys.platform == "win32":
 # fcntl is imported locally in methods for Linux/Unix to avoid static analysis type conflicts
 
 # --- Configuración ---
+MAX_WORKERS = 4  # Threads concurrentes para bootstrap y lanzamiento
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -209,7 +212,7 @@ class SystemDetector:
         return bool(self.os_type == "darwin")
 
     def find_python(self) -> str | None:
-        """Encuentra el ejecutable de Python 3.11+."""
+        """Encuentra el ejecutable de Python 3.12+."""
         candidates = []
 
         # Primero verificar venv
@@ -222,16 +225,16 @@ class SystemDetector:
         # Buscar en el sistema
         if self.is_windows():
             candidates = [
-                "py -3.11",
                 "py -3.12",
+                "py -3.13",
                 "py -3",
                 "python",
                 "python3",
             ]
         else:
             candidates = [
-                "python3.11",
                 "python3.12",
+                "python3.13",
                 "python3",
                 "python",
             ]
@@ -242,8 +245,8 @@ class SystemDetector:
                 result = subprocess.run(parts + ["--version"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     version_str = result.stdout.strip()
-                    # Verificar que sea 3.11+
-                    if "3.11" in version_str or "3.12" in version_str or "3.13" in version_str:
+                    # Verificar que sea 3.12+
+                    if "3.12" in version_str or "3.13" in version_str or "3.14" in version_str:
                         return cmd
             except Exception:
                 continue
@@ -273,14 +276,24 @@ class SystemDetector:
         return None
 
     def get_report(self) -> dict[str, Any]:
-        """Genera un reporte del sistema."""
+        """Genera un reporte del sistema (detecciones en paralelo)."""
+        # Ejecutar detección de python, node, npm en paralelo
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            f_python = executor.submit(self.find_python)
+            f_node = executor.submit(self.find_node)
+            f_npm = executor.submit(self.find_npm)
+
+            python_cmd = f_python.result()
+            node_cmd = f_node.result()
+            npm_cmd = f_npm.result()
+
         return {
             "os": self.os_type,
             "os_version": self.os_version,
             "python_version": self.python_version,
-            "python_cmd": self.find_python(),
-            "node_cmd": self.find_node(),
-            "npm_cmd": self.find_npm(),
+            "python_cmd": python_cmd,
+            "node_cmd": node_cmd,
+            "npm_cmd": npm_cmd,
             "venv_exists": VENV_PATH.exists(),
             "node_modules_exists": (FRONTEND_DIR / "node_modules").exists(),
         }
@@ -352,13 +365,13 @@ def run_bootstrap(detector: SystemDetector) -> bool:
 
     # Verificar Python
     if not report["python_cmd"]:
-        logger.error("❌ Python 3.11+ no encontrado")
+        logger.error("❌ Python 3.12+ no encontrado")
         if detector.is_windows():
             logger.error("   Instala desde: https://www.python.org/downloads/")
-            logger.error("   O usa: winget install Python.Python.3.11")
+            logger.error("   O usa: winget install Python.Python.3.12")
         else:
-            logger.error("   Instala con: sudo apt install python3.11 (Ubuntu)")
-            logger.error("   O: brew install python@3.11 (Mac)")
+            logger.error("   Instala con: sudo apt install python3.12 (Ubuntu)")
+            logger.error("   O: brew install python@3.12 (Mac)")
         return False
 
     # Verificar Node.js
@@ -660,20 +673,34 @@ def main():
         except AttributeError:
             pass
 
-    # Iniciar servicios
-
-    # Iniciar servicios
+    # Iniciar servicios (en PARALELO cuando ambos están habilitados)
     sanitize_logs()
 
-    if not args.frontend_only:
-        backend_info = start_backend(detector)
+    start_backend_flag = not args.frontend_only
+    start_frontend_flag = not args.backend_only
+
+    if start_backend_flag and start_frontend_flag:
+        # Lanzar backend y frontend en paralelo
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_backend = executor.submit(start_backend, detector)
+            f_frontend = executor.submit(start_frontend, detector)
+
+            backend_info = f_backend.result()
+            frontend_info = f_frontend.result()
+
         if backend_info:
             processes.append(backend_info)
-
-    if not args.backend_only:
-        frontend_info = start_frontend(detector)
         if frontend_info:
             processes.append(frontend_info)
+    else:
+        if start_backend_flag:
+            backend_info = start_backend(detector)
+            if backend_info:
+                processes.append(backend_info)
+        if start_frontend_flag:
+            frontend_info = start_frontend(detector)
+            if frontend_info:
+                processes.append(frontend_info)
 
     # Iniciar Watcher (si no se deshabilita)
     if not args.no_watch and not args.frontend_only and not args.backend_only:

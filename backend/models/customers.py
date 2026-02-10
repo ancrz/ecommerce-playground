@@ -1,28 +1,30 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from sqlmodel import Field
 
 from .common import BaseEntity
 
 
-class Customer(BaseEntity):
+class Customer(BaseEntity, table=True):
     """
     Identidad Transaccional del Cliente.
     Usada para Billing/Compliance.
     """
 
+    __tablename__ = "customers"
+
     # La cédula/RIF es el identificador único fiscal
-    cedula: str = Field(..., description="Documento de Identidad Fiscal (PK)")
-    name: str = Field(..., description="Razón Social o Nombre Completo")
-    address: str | None = Field(None, description="Dirección Fiscal")
-    phone: str | None = Field(None, description="Teléfono de contacto")
-    email: str | None = Field(None, description="Correo para envío de factura")
+    cedula: str = Field(..., description="Documento de Identidad Fiscal", unique=True, index=True)
+    name: str = Field(..., description="Razón Social o Nombre Completo", index=True)
+    address: str | None = Field(default=None, description="Dirección Fiscal")
+    phone: str | None = Field(default=None, description="Teléfono de contacto")
+    email: str | None = Field(default=None, description="Correo para envío de factura", index=True)
 
     # Metadatos de auditoría
     last_purchase: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class CustomerCreate(BaseModel):

@@ -50,7 +50,7 @@ export default function Footer() {
             <div className="flex justify-center gap-4 mt-4" data-testid="footer-social-links">
               {businessInfo.social_networks.map((network, i) => {
                 if (!network.icon) {
-                  const Icon = iconMap[network.name.toLowerCase()] || iconMap.default;
+                  const Icon = (iconMap as any)[network.name.toLowerCase()] || iconMap.default;
                   return (
                     <a 
                       key={i} 

@@ -22,7 +22,7 @@ from backend.services.tax_service import TaxService  # noqa: E402
 from backend.services.user_service import UserService  # noqa: E402
 
 # --- Configuración ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +61,7 @@ async def main():
         products = await product_service.get_all_products()
         if products:
             logger.info(f"✓ Éxito: Se encontraron {len(products)} productos.")
-            for p in products[:2]: # Mostrar los primeros 2
+            for p in products[:2]:  # Mostrar los primeros 2
                 logger.info(f"  - Producto: {p.name}, Precio: {p.price}")
         else:
             logger.error("❌ Error: No se encontraron productos.")

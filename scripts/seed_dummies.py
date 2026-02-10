@@ -32,11 +32,12 @@ except ImportError as e:
     sys.exit(1)
 
 # Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") <-- Eliminado
+
 
 def get_hash(password: str) -> str:
     """
@@ -45,12 +46,13 @@ def get_hash(password: str) -> str:
     """
     salt = secrets.token_bytes(16)
     hashed_bytes = hashlib.pbkdf2_hmac(
-        'sha256',
-        password.encode('utf-8'),
+        "sha256",
+        password.encode("utf-8"),
         salt,
-        100000 # Iteraciones
+        100000,  # Iteraciones
     )
     return f"{salt.hex()}${hashed_bytes.hex()}"
+
 
 async def insert(db, chunk, table, data):
     """Helper para insertar diccionarios en SQL"""
@@ -64,6 +66,7 @@ async def insert(db, chunk, table, data):
 
     sql = f"INSERT INTO {table} ({col_str}) VALUES ({val_str})"
     await db.execute(chunk, sql, tuple(data.values()))
+
 
 async def main():
     logger.info("⚠️  INICIANDO SEED DUMMIES (SQLite Reset) ⚠️")
@@ -79,18 +82,21 @@ async def main():
     logger.info("🧹 Limpiando tablas existentes...")
     tables = [
         ("products", "products"),
-        ("cart", "cart_items"), ("cart", "carts"),
-        ("sales", "sales"), ("sales", "daily_closures"),
+        ("cart", "cart_items"),
+        ("cart", "carts"),
+        ("sales", "sales"),
+        ("sales", "daily_closures"),
         ("finance", "currencies"),
         ("users", "users"),
-        ("tax", "tax_rates"), ("tax", "regions"),
-        ("password_tokens", "password_reset_tokens")
+        ("tax", "tax_rates"),
+        ("tax", "regions"),
+        ("password_tokens", "password_reset_tokens"),
         # No borramos business/customization para conservar IDs 1 (se hará update)
     ]
 
     for chunk, table in tables:
         try:
-            await db.execute(chunk, f"DELETE FROM {table}") # DELETE para limpiar datos
+            await db.execute(chunk, f"DELETE FROM {table}")  # DELETE para limpiar datos
         except Exception as e:
             logger.warning(f"No se pudo limpiar tabla {table}: {e}")
 
@@ -108,10 +114,10 @@ async def main():
                 "password_hash": get_hash("admin2024"),
                 "full_name": "System Administrator",
                 "email": "admin@example.com",
-                "roles": json.dumps(["admin"]), # JSON as string for SQLite
+                "roles": json.dumps(["admin"]),  # JSON as string for SQLite
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
+                "updated_at": now_str,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -122,8 +128,8 @@ async def main():
                 "roles": json.dumps(["client"]),
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
-            }
+                "updated_at": now_str,
+            },
         ]
         for u in users:
             await insert(db, "users", "users", u)
@@ -142,7 +148,7 @@ async def main():
                 "exchange_rate": 1.0,
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
+                "updated_at": now_str,
             },
             {
                 "id": eur_id,
@@ -152,8 +158,8 @@ async def main():
                 "exchange_rate": 0.92,
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
-            }
+                "updated_at": now_str,
+            },
         ]
         for c in currencies:
             await insert(db, "finance", "currencies", c)
@@ -170,7 +176,7 @@ async def main():
                 "country": "International",
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
+                "updated_at": now_str,
             },
             {
                 "id": reg_eu_id,
@@ -178,23 +184,28 @@ async def main():
                 "country": "Europe",
                 "is_active": True,
                 "created_at": now_str,
-                "updated_at": now_str
-            }
+                "updated_at": now_str,
+            },
         ]
         for r in regions:
             await insert(db, "tax", "regions", r)
 
         # Tax Rates
-        await insert(db, "tax", "tax_rates", {
-            "id": str(uuid.uuid4()),
-            "name": "VAT Standard",
-            "region_id": reg_eu_id,
-            "rate": 0.20,
-            "priority": 1,
-            "is_active": True,
-            "created_at": now_str,
-            "updated_at": now_str
-        })
+        await insert(
+            db,
+            "tax",
+            "tax_rates",
+            {
+                "id": str(uuid.uuid4()),
+                "name": "VAT Standard",
+                "region_id": reg_eu_id,
+                "rate": 0.20,
+                "priority": 1,
+                "is_active": True,
+                "created_at": now_str,
+                "updated_at": now_str,
+            },
+        )
 
         # 6. Business Info (Sobrescribir ID 1)
         # Nota: manager.py ya hace un INSERT OR IGNORE al inicio para business con ID 1.
@@ -202,11 +213,21 @@ async def main():
         logger.info("🏢 Configurando negocio (E-Commerce Core)...")
         # El schema de business usa JSONB para social_networks, lo serializamos.
         socials = [
-            {"name": "Instagram", "url": "https://instagram.com/ecommerce_core", "icon": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg"},
-            {"name": "Twitter", "url": "https://twitter.com/ecommerce_core", "icon": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Logo_of_Twitter.svg"}
+            {
+                "name": "Instagram",
+                "url": "https://instagram.com/ecommerce_core",
+                "icon": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg",
+            },
+            {
+                "name": "Twitter",
+                "url": "https://twitter.com/ecommerce_core",
+                "icon": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Logo_of_Twitter.svg",
+            },
         ]
 
-        await db.execute("business", """
+        await db.execute(
+            "business",
+            """
             UPDATE business_info SET
                 name = ?,
                 rif = ?,
@@ -215,7 +236,9 @@ async def main():
                 logo_url = ?,
                 updated_at = ?
             WHERE id = 1
-        """, ("E-Commerce Core", "J-00000000-0", "+1 555-0123", json.dumps(socials), "/logo.png", now_str))
+        """,
+            ("E-Commerce Core", "J-00000000-0", "+1 555-0123", json.dumps(socials), "/logo.png", now_str),
+        )
 
         # 7. Productos
         logger.info("📦 Insertando productos...")
@@ -226,7 +249,7 @@ async def main():
                 "category": "Electronics",
                 "tags": "main",
                 "img": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60",
-                "desc": "Premium sound quality with active noise cancellation."
+                "desc": "Premium sound quality with active noise cancellation.",
             },
             {
                 "name": "Ergonomic Office Chair",
@@ -234,7 +257,7 @@ async def main():
                 "category": "Furniture",
                 "tags": "featured",
                 "img": "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=500&auto=format&fit=crop&q=60",
-                 "desc": "Comfortable chair for long working hours."
+                "desc": "Comfortable chair for long working hours.",
             },
             {
                 "name": "Smart Watch Series 5",
@@ -243,7 +266,7 @@ async def main():
                 "tags": "discount",
                 "discount_pct": 15.0,
                 "img": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=60",
-                "desc": "Track your fitness metrics with precision."
+                "desc": "Track your fitness metrics with precision.",
             },
             {
                 "name": "Mechanical Gaming Keyboard",
@@ -251,7 +274,7 @@ async def main():
                 "category": "Electronics",
                 "tags": "main",
                 "img": "https://images.unsplash.com/photo-1587829741301-dc798b91add1?w=500&auto=format&fit=crop&q=60",
-                "desc": "Tactile switches for the ultimate gaming experience."
+                "desc": "Tactile switches for the ultimate gaming experience.",
             },
             {
                 "name": "Minimalist Desk Lamp",
@@ -259,7 +282,7 @@ async def main():
                 "category": "Home",
                 "tags": "featured",
                 "img": "https://images.unsplash.com/photo-1507473883581-c04586154589?w=500&auto=format&fit=crop&q=60",
-                "desc": "Modern lighting for your workspace."
+                "desc": "Modern lighting for your workspace.",
             },
             {
                 "name": "Portable SSD 1TB",
@@ -268,8 +291,8 @@ async def main():
                 "tags": "discount",
                 "discount_pct": 10.0,
                 "img": "https://images.unsplash.com/photo-1597872252721-24654ba9ac9e?w=500&auto=format&fit=crop&q=60",
-                "desc": "Fast and reliable storage on the go."
-            }
+                "desc": "Fast and reliable storage on the go.",
+            },
         ]
 
         for p in products:
@@ -287,7 +310,7 @@ async def main():
                 "is_discount": (p.get("discount_pct") is not None),
                 "discount_percentage": p.get("discount_pct", 0.0),
                 "created_at": now_str,
-                "updated_at": now_str
+                "updated_at": now_str,
             }
             await insert(db, "products", "products", p_data)
 
@@ -297,6 +320,7 @@ async def main():
         logger.error(f"❌ Error en seed: {e}", exc_info=True)
     finally:
         await db.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

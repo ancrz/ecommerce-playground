@@ -1,11 +1,11 @@
-
 import logging
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter()
-logger = logging.getLogger(__name__) # Mapeado a 'client.log' en utils/logging.py
+logger = logging.getLogger(__name__)  # Mapeado a 'client.log' en utils/logging.py
+
 
 class LogEntry(BaseModel):
     level: str
@@ -13,6 +13,7 @@ class LogEntry(BaseModel):
     timestamp: str | None = None
     stack: str | None = None
     url: str | None = None
+
 
 @router.post("/", status_code=202)
 async def log_client_event(entry: LogEntry):
@@ -28,11 +29,11 @@ async def log_client_event(entry: LogEntry):
 
     # Mapear niveles JS a Python Logging
     lvl = entry.level.lower()
-    if lvl == 'error':
+    if lvl == "error":
         logger.error(log_msg)
-    elif lvl == 'warn' or lvl == 'warning':
+    elif lvl == "warn" or lvl == "warning":
         logger.warning(log_msg)
-    elif lvl == 'debug':
+    elif lvl == "debug":
         logger.debug(log_msg)
     else:
         logger.info(log_msg)

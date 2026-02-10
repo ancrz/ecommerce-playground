@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-stop.local.py - Detención Inteligente del Ecosistema (v2.0)
-============================================================
+stop.local.py - Detención Inteligente del Ecosistema (v3.0 - Concurrente)
+===========================================================================
 
 FEATURES:
 - Lee el archivo .lock creado por start.local.py
-- Mata los procesos exactos registrados
+- Mata procesos en PARALELO usando ThreadPoolExecutor (4 workers)
 - Fallback a detección por puerto si no hay .lock
 - Limpieza del .lock al terminar
+- Orphan killer concurrente
 
 Uso:
     python stop.local.py [--force] [--backend-only] [--frontend-only]
@@ -22,6 +23,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,6 +31,7 @@ from typing import Any, cast
 SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 # --- Configuración ---
+MAX_WORKERS = 4  # Threads concurrentes para operaciones de kill
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -52,10 +55,6 @@ def cleanup_logs(keep_count: int = 5):
 
     deleted_count = 0
 
-    # Agrupar por 'base' para no mezclar tipos (ej: backend vs frontend)
-    # Estrategia simplificada: Listar todos los rotados, agrupar por prefijo
-    # Pero dado el formato, mejor iterar archivos y decidir.
-
     try:
         files: list[Path] = []
         for pat in patterns:
@@ -64,8 +63,6 @@ def cleanup_logs(keep_count: int = 5):
         # Agrupar archivos por su prefijo (ej: "backend.", "frontend.")
         groups: dict[str, list[Path]] = {}
         for f in files:
-            # backend.2025... -> backend
-            # client.log.1 -> client
             parts = f.name.split(".")
             prefix = parts[0]
             if prefix not in groups:
@@ -73,10 +70,7 @@ def cleanup_logs(keep_count: int = 5):
             groups[prefix].append(f)
 
         for _, file_list in groups.items():
-            # Ordenar por fecha de modificación (más reciente al final)
             file_list.sort(key=lambda x: x.stat().st_mtime)
-
-            # Si hay más de 'keep_count', borrar los antiguos
             if len(file_list) > keep_count:
                 to_delete = file_list[:-keep_count]
                 for f in to_delete:
@@ -115,7 +109,6 @@ class LockFile:
         if not self.path.exists():
             return False
         try:
-            # Intentar abrir en modo exclusivo
             with open(self.path, "a") as f:
                 if is_windows():
                     import msvcrt
@@ -123,11 +116,10 @@ class LockFile:
                     try:
                         msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
                         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-                        return False  # No está bloqueado
+                        return False
                     except OSError:
-                        return True  # Está bloqueado
+                        return True
                 else:
-                    # Unix/Linux: usar fcntl (importado dinámicamente)
                     import importlib
 
                     fcntl = importlib.import_module("fcntl")
@@ -138,7 +130,7 @@ class LockFile:
                     except OSError:
                         return True
         except (OSError, PermissionError):
-            return True  # Error al abrir = probablemente bloqueado
+            return True
 
     def delete(self):
         """Elimina el archivo .lock."""
@@ -157,15 +149,12 @@ class LockFile:
 def kill_lock_owner() -> bool:
     """
     Intenta matar el proceso que tiene el lock file bloqueado (Windows 11).
-
-    Usa PowerShell para buscar procesos python con el path del proyecto en su línea de comandos,
-    ya que no tenemos handle.exe de Sysinternals por defecto.
+    Usa PowerShell para buscar procesos python con start.local en su línea de comandos.
     """
     if not is_windows():
         return False
 
     try:
-        # Buscar procesos python que tengan "start.local" en su comando
         result = subprocess.run(
             [
                 "powershell",
@@ -189,14 +178,30 @@ def kill_lock_owner() -> bool:
         if isinstance(processes, dict):
             processes = [processes]
 
+        # Matar masters en paralelo
         killed = False
-        for proc in processes:
-            pid = proc.get("ProcessId")
-            if pid:
-                logger.info(f"🔐 Matando proceso master (start.local.py): PID {pid}")
-                subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=10)
-                killed = True
-                time.sleep(1)  # Dar tiempo al SO para liberar el lock
+
+        def _kill_master(pid: int) -> bool:
+            logger.info(f"🔐 Matando proceso master (start.local.py): PID {pid}")
+            subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=10)
+            return True
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = []
+            for proc in processes:
+                pid = proc.get("ProcessId")
+                if pid:
+                    futures.append(executor.submit(_kill_master, pid))
+
+            for future in as_completed(futures):
+                try:
+                    if future.result():
+                        killed = True
+                except Exception:
+                    pass
+
+        if killed:
+            time.sleep(1)  # Esperar a que SO libere recursos
 
         return killed
 
@@ -226,6 +231,7 @@ def load_env():
                 if key:
                     os.environ[key] = value
 
+
 def is_port_in_use(port: int) -> bool:
     """Verifica si un puerto está en uso."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -250,32 +256,28 @@ def is_process_running(pid: int) -> bool:
 def kill_process(pid: int, force: bool = False) -> bool:
     """Mata un proceso por PID."""
     if not is_process_running(pid):
-        return True  # Ya está muerto
+        return True
 
     try:
         if is_windows():
-            # En Windows, usar taskkill
             cmd = ["taskkill"]
             if force:
                 cmd.append("/F")
-            cmd.extend(["/PID", str(pid), "/T"])  # /T = kill tree
+            cmd.extend(["/PID", str(pid), "/T"])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             return result.returncode == 0 or "not found" in result.stderr.lower()
         else:
-            # En Unix, usar señales
             if force:
                 os.kill(pid, SIGKILL)
             else:
                 os.kill(pid, signal.SIGTERM)
 
-            # Esperar a que termine
             for _ in range(10):
                 if not is_process_running(pid):
                     return True
                 time.sleep(0.5)
 
-            # Si no termina, forzar
             if is_process_running(pid):
                 os.kill(pid, SIGKILL)
                 time.sleep(1)
@@ -290,11 +292,9 @@ def kill_process(pid: int, force: bool = False) -> bool:
 def kill_by_port_windows(port: int) -> bool:
     """Mata proceso por puerto en Windows usando netstat + taskkill."""
     try:
-        # Encontrar PID usando netstat
         result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=10)
 
         for line in result.stdout.split("\n"):
-            # Buscar líneas con nuestro puerto en estado LISTENING
             if f":{port}" in line and "LISTENING" in line:
                 parts = line.split()
                 if parts:
@@ -341,46 +341,67 @@ def kill_by_port_unix(port: int) -> bool:
         return False
 
 
+def _kill_single_process(proc_info: dict[str, Any], force: bool) -> tuple[str, bool]:
+    """Worker: mata un proceso individual. Retorna (tipo, éxito)."""
+    proc_type = proc_info.get("type", "unknown")
+    pid = proc_info.get("pid")
+    port = proc_info.get("port")
+
+    if not pid:
+        return (proc_type, False)
+
+    logger.info(f"🛑 Deteniendo {proc_type} (PID: {pid}, Puerto: {port})")
+
+    if kill_process(pid, force):
+        logger.info(f"   ✓ {proc_type} detenido")
+        return (proc_type, True)
+
+    logger.warning("   ⚠️ No se pudo detener por PID, intentando por puerto...")
+
+    if port and is_port_in_use(port):
+        kill_func = kill_by_port_windows if is_windows() else kill_by_port_unix
+        if kill_func(port):
+            logger.info(f"   ✓ {proc_type} detenido (vía puerto)")
+            return (proc_type, True)
+
+    return (proc_type, False)
+
+
 def stop_from_lock(lock_data: dict[str, Any], stop_backend: bool, stop_frontend: bool, force: bool) -> int:
-    """Detiene procesos usando información del .lock."""
+    """Detiene procesos usando información del .lock, en PARALELO."""
     killed = 0
     processes = lock_data.get("processes", [])
     pid_master = lock_data.get("pid_master")
 
-    # 1. Detener servicios hijos
+    # 1. Filtrar procesos a detener
+    to_kill = []
     for proc_info in processes:
         proc_type = proc_info.get("type", "unknown")
-        pid = proc_info.get("pid")
-        port = proc_info.get("port")
-
-        # Filtrar por tipo
         if proc_type == "backend" and not stop_backend:
             continue
         if proc_type == "frontend" and not stop_frontend:
             continue
+        to_kill.append(proc_info)
 
-        if pid:
-            logger.info(f"🛑 Deteniendo {proc_type} (PID: {pid}, Puerto: {port})")
-
-            if kill_process(pid, force):
-                logger.info(f"   ✓ {proc_type} detenido")
-                killed += 1
-            else:
-                logger.warning("   ⚠️ No se pudo detener por PID, intentando por puerto...")
-
-                # Fallback: matar por puerto
-                if port and is_port_in_use(port):
-                    kill_func = kill_by_port_windows if is_windows() else kill_by_port_unix
-                    if kill_func(port):
-                        logger.info(f"   ✓ {proc_type} detenido (vía puerto)")
+    # 2. Matar todos los hijos en PARALELO
+    if to_kill:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(_kill_single_process, proc, force): proc for proc in to_kill
+            }
+            for future in as_completed(futures):
+                try:
+                    _, success = future.result()
+                    if success:
                         killed += 1
+                except Exception as e:
+                    logger.debug(f"Error en worker de kill: {e}")
 
-    # 2. Detener Master (start.local.py) si estamos deteniendo todo
+    # 3. Detener Master (start.local.py) si estamos deteniendo todo
     if stop_backend and stop_frontend and pid_master:
         logger.info(f"🛑 Deteniendo proceso maestro (PID: {pid_master})")
         if kill_process(pid_master, force):
             logger.info("   ✓ Maestro detenido")
-            # Esperar un momento a que el SO libere el lock file
             time.sleep(1)
         else:
             logger.warning("   ⚠️ No se pudo detener el maestro (¿ya cerrado?)")
@@ -389,21 +410,34 @@ def stop_from_lock(lock_data: dict[str, Any], stop_backend: bool, stop_frontend:
 
 
 def stop_by_ports(backend_port: int, frontend_port: int, stop_backend: bool, stop_frontend: bool) -> int:
-    """Fallback: detiene procesos por puerto."""
-    killed = 0
+    """Fallback: detiene procesos por puerto, en PARALELO."""
     kill_func = kill_by_port_windows if is_windows() else kill_by_port_unix
+    killed = 0
 
-    if stop_backend and is_port_in_use(backend_port):
-        logger.info(f"🛑 Deteniendo proceso en puerto {backend_port} (backend)")
-        if kill_func(backend_port):
-            killed += 1
-            logger.info("   ✓ Backend detenido")
+    def _kill_port(port: int, label: str) -> tuple[str, bool]:
+        if is_port_in_use(port):
+            logger.info(f"🛑 Deteniendo proceso en puerto {port} ({label})")
+            if kill_func(port):
+                logger.info(f"   ✓ {label} detenido")
+                return (label, True)
+        return (label, False)
 
-    if stop_frontend and is_port_in_use(frontend_port):
-        logger.info(f"🛑 Deteniendo proceso en puerto {frontend_port} (frontend)")
-        if kill_func(frontend_port):
-            killed += 1
-            logger.info("   ✓ Frontend detenido")
+    tasks = []
+    if stop_backend:
+        tasks.append((backend_port, "backend"))
+    if stop_frontend:
+        tasks.append((frontend_port, "frontend"))
+
+    if tasks:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(_kill_port, port, label): label for port, label in tasks}
+            for future in as_completed(futures):
+                try:
+                    _, success = future.result()
+                    if success:
+                        killed += 1
+                except Exception:
+                    pass
 
     return killed
 
@@ -411,18 +445,13 @@ def stop_by_ports(backend_port: int, frontend_port: int, stop_backend: bool, sto
 def kill_orphan_processes() -> int:
     """
     Limpieza agresiva de procesos huérfanos de python/node del proyecto.
-
-    Busca procesos que coincidan con el CWD del proyecto y los mata.
-    Esta es una salvaguarda final para cuando el lock está corrupto o
-    start.local.py crasheó sin liberar sus hijos.
+    Usa ThreadPoolExecutor para matar múltiples orphans en paralelo.
     """
     killed = 0
     project_path = str(PROJECT_ROOT).lower()
 
     if is_windows():
         try:
-            # Usar WMIC para obtener procesos con su línea de comandos
-            # Alternativa más robusta: PowerShell Get-WmiObject
             result = subprocess.run(
                 [
                     "powershell",
@@ -444,10 +473,11 @@ def kill_orphan_processes() -> int:
 
             processes = json_mod.loads(result.stdout)
 
-            # PowerShell puede devolver un objeto si es uno solo, o lista si son varios
             if isinstance(processes, dict):
                 processes = [processes]
 
+            # Filtrar procesos del proyecto (excluyendo stop.local.py actual)
+            orphans: list[tuple[int, str]] = []
             for proc in processes:
                 cmd_line = (proc.get("CommandLine") or "").lower()
                 pid = proc.get("ProcessId")
@@ -456,18 +486,35 @@ def kill_orphan_processes() -> int:
                 if not pid or not cmd_line:
                     continue
 
-                # Verificar si el proceso pertenece a nuestro proyecto
                 if project_path in cmd_line:
-                    # Excluir el proceso actual (stop.local.py)
                     if str(os.getpid()) == str(pid):
                         continue
+                    orphans.append((pid, name))
 
+            # Matar orphans en paralelo
+            if orphans:
+
+                def _kill_orphan(pid: int, name: str) -> bool:
                     logger.info(f"🧹 Matando proceso huérfano: {name} (PID: {pid})")
                     try:
-                        subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=10)
-                        killed += 1
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", str(pid), "/T"],
+                            capture_output=True,
+                            timeout=10,
+                        )
+                        return True
                     except Exception as e:
                         logger.debug(f"   Error matando {pid}: {e}")
+                        return False
+
+                with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                    futures = [executor.submit(_kill_orphan, pid, name) for pid, name in orphans]
+                    for future in as_completed(futures):
+                        try:
+                            if future.result():
+                                killed += 1
+                        except Exception:
+                            pass
 
         except Exception as e:
             logger.debug(f"Error en kill_orphan_processes: {e}")
@@ -477,25 +524,27 @@ def kill_orphan_processes() -> int:
         try:
             result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=10)
 
+            orphans_unix: list[int] = []
             for line in result.stdout.split("\n"):
                 line_lower = line.lower()
 
-                # Buscar procesos python o node del proyecto
                 if ("python" in line_lower or "node" in line_lower) and project_path in line_lower:
                     parts = line.split()
                     if len(parts) >= 2:
                         try:
                             pid = int(parts[1])
-
-                            # Excluir el proceso actual
-                            if pid == os.getpid():
-                                continue
-
-                            logger.info(f"🧹 Matando proceso huérfano: PID {pid}")
-                            os.kill(pid, SIGKILL)
-                            killed += 1
-                        except (ValueError, ProcessLookupError):
+                            if pid != os.getpid():
+                                orphans_unix.append(pid)
+                        except ValueError:
                             continue
+
+            for pid in orphans_unix:
+                try:
+                    logger.info(f"🧹 Matando proceso huérfano: PID {pid}")
+                    os.kill(pid, SIGKILL)
+                    killed += 1
+                except ProcessLookupError:
+                    continue
 
         except Exception as e:
             logger.debug(f"Error en kill_orphan_processes: {e}")
@@ -507,16 +556,28 @@ def kill_orphan_processes() -> int:
 
 
 def verify_stopped(backend_port: int, frontend_port: int, stop_backend: bool, stop_frontend: bool) -> bool:
-    """Verifica que los puertos estén libres."""
-    time.sleep(2)  # Dar tiempo a que los sockets se liberen
+    """Verifica que los puertos estén libres (verificación paralela)."""
+    time.sleep(2)
 
     issues = []
 
-    if stop_backend and is_port_in_use(backend_port):
-        issues.append(f"Puerto {backend_port} (backend) aún en uso")
+    def _check_port(port: int, label: str) -> str | None:
+        if is_port_in_use(port):
+            return f"Puerto {port} ({label}) aún en uso"
+        return None
 
-    if stop_frontend and is_port_in_use(frontend_port):
-        issues.append(f"Puerto {frontend_port} (frontend) aún en uso")
+    checks = []
+    if stop_backend:
+        checks.append((backend_port, "backend"))
+    if stop_frontend:
+        checks.append((frontend_port, "frontend"))
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(_check_port, port, label): label for port, label in checks}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                issues.append(result)
 
     if issues:
         logger.warning("⚠️ Algunos puertos siguen ocupados:")
@@ -540,8 +601,8 @@ def main():
 
     print("\n>>> Deteniendo ecommerce-playground <<<\n")
 
-    # Limpieza de logs n-1 (Primero lo que hará)
-    cleanup_logs(keep_count=3)  # Mantener 3 últimos por tipo
+    # Limpieza de logs n-1
+    cleanup_logs(keep_count=3)
 
     # Cargar configuración
     load_env()
@@ -556,21 +617,21 @@ def main():
     lock = LockFile(LOCK_FILE)
     lock_data = lock.read()
 
-    # Verificar si hay algo que detener
-    backend_running = is_port_in_use(backend_port)
-    frontend_running = is_port_in_use(frontend_port)
+    # Verificar si hay algo que detener (en paralelo)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_backend = executor.submit(is_port_in_use, backend_port)
+        f_frontend = executor.submit(is_port_in_use, frontend_port)
+        backend_running = f_backend.result()
+        frontend_running = f_frontend.result()
 
-    # PASO 1: Siempre intentar matar el proceso master (start.local.py) primero
-    # Esto es lo más importante porque el master tiene el lock y spawna los hijos
+    # PASO 1: Siempre intentar matar el proceso master primero
     master_killed = kill_lock_owner()
     if master_killed:
-        time.sleep(2)  # Dar tiempo al SO para liberar recursos
-        lock_data = lock.read()  # Re-leer por si ahora podemos
+        time.sleep(2)
+        lock_data = lock.read()
 
-    # Si no hay nada corriendo y no había master, salir temprano
     if not backend_running and not frontend_running and not lock_data and not master_killed:
         logger.info("ℹ️ El sistema no parece estar corriendo")
-        # Aún así, limpiar huérfanos por seguridad
         kill_orphan_processes()
         lock.delete()
         return 0
@@ -590,12 +651,12 @@ def main():
 
     killed = 0
 
-    # PASO 2: Usar información del .lock para matar procesos registrados
+    # PASO 2: Usar información del .lock para matar procesos (PARALELO)
     if lock_data:
         logger.info("Usando información del lock file...")
         killed = stop_from_lock(lock_data, stop_backend, stop_frontend, args.force)
 
-    # PASO 3: Fallback por puerto (si quedaron procesos)
+    # PASO 3: Fallback por puerto (PARALELO)
     if not verify_stopped(backend_port, frontend_port, stop_backend, stop_frontend):
         logger.info("Usando detección por puerto...")
         killed += stop_by_ports(backend_port, frontend_port, stop_backend, stop_frontend)
@@ -603,7 +664,7 @@ def main():
     # Limpiar .lock
     lock.delete()
 
-    # PASO 4: Limpieza final de huérfanos
+    # PASO 4: Limpieza final de huérfanos (PARALELO internamente)
     orphan_killed = kill_orphan_processes()
     killed += orphan_killed
 

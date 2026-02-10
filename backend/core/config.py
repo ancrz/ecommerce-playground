@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     LOGS_PATH: str = "./data/logs"
     DATABASE_URL: str = "sqlite:///./data/ecommerce.db"
 
+    # Logging
+    LOG_LEVEL: str = Field("INFO", validation_alias="LOG_LEVEL")
+
     # Security (Defaults for dev, override in prod)
     # Security (Defaults for dev, override in prod)
     SECRET_KEY: str = Field("supersecretkey", validation_alias="JWT_SECRET_KEY")
@@ -58,11 +61,11 @@ class Settings(BaseSettings):
             self.CORS_ORIGINS = [
                 f"http://localhost:{self.FRONTEND_PORT}",
                 f"http://127.0.0.1:{self.FRONTEND_PORT}",
-                "http://localhost:5173", # Fallback común
+                "http://localhost:5173",  # Fallback común
             ]
         # Sincronizar BACKEND_URL si el puerto cambió pero la URL no
         if f":{self.PORT}" not in self.BACKEND_URL and "localhost" in self.BACKEND_URL:
-             self.BACKEND_URL = f"http://localhost:{self.PORT}"
+            self.BACKEND_URL = f"http://localhost:{self.PORT}"
 
         # Sincronizar API_DOMAIN
         if "localhost" in self.API_DOMAIN and f":{self.PORT}" not in self.API_DOMAIN:

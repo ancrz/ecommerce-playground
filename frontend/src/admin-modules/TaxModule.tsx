@@ -12,7 +12,7 @@ import { Plus, Edit2 } from 'lucide-react';
 // Importar API y Contexto
 import * as api from '../api';
 import { useUI } from '../components/UIContext';
-import type { Region, TaxRate } from '../../types';
+import type { Region, TaxRate } from '../types';
 
 // Importar componentes reutilizables
 import { ResponsiveModal } from '../components/common/ResponsiveModal';
@@ -173,9 +173,14 @@ export default function TaxModule() {
         </div>
         
         <div className="md:col-span-2 bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-4">
-            Tasas de Impuesto {selectedRegion ? `para "${selectedRegion.name}"` : ''}
-          </h2>
+          <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold">
+                Tasas de Impuesto {selectedRegion ? `para "${selectedRegion.name}"` : ''}
+              </h2>
+              <div className="bg-amber-50 border border-amber-100 p-2 rounded-lg text-[10px] text-amber-800 max-w-[200px]">
+                  <strong>Nota IGTF:</strong> El impuesto a la moneda (3%) se configura en el módulo de <strong>Finanzas</strong> por cada divisa.
+              </div>
+          </div>
           {selectedRegion ? (
             <>
               {/* REFACTOR FASE 4: Botón Primario */}

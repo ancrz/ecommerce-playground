@@ -5,6 +5,7 @@ Sustituye a 'utils/auth.py' progresivamente.
 """
 
 import logging
+from datetime import UTC
 from typing import cast
 
 from fastapi import Depends, HTTPException, Request, status
@@ -59,29 +60,19 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Convert dict to User model to standardize the dependency return type
-    # Handle explicit 'id' vs 'sub' mismatch if necessary
-    try:
-        # Assuming user_data is a dict consistent with User model
-        # If 'roles' is a list, make sure it's handled.
-        return User(**user_data)
-    except Exception as e:
-        logger.error(f"Error converting user payload to Model: {e}")
-        # Fallback: return user_data as is if it creates issues,
-        # but type hint says User.
-        # For safety in this transition, let's reconstruct a minimal User
-        from datetime import datetime
+    # JWT payload has 'sub' (user UUID), not 'id'. Map it for User model.
+    from datetime import datetime
 
-        return User(
-            id=str(user_data.get("id", "")),  # Force string
-            username=str(user_data.get("username", "unknown")),
-            email=str(user_data.get("email", "unknown")),
-            roles=list(user_data.get("roles", [])),
-            is_active=True,
-            password_hash="***",
-            created_at=datetime.utcnow(),  # Provide valid dummy datetime
-            updated_at=datetime.utcnow(),
-        )
+    return User(
+        id=str(user_data.get("sub", "")),
+        username=str(user_data.get("username", "unknown")),
+        email=str(user_data.get("email", "")),
+        roles=list(user_data.get("roles", [])),
+        is_active=True,
+        password_hash="***",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
 
 
 # ==============================================================================

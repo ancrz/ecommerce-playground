@@ -24,10 +24,12 @@ interface CurrencyFormData {
 import { ResponsiveModal } from '../components/common/ResponsiveModal';
 import { Input, Checkbox } from '../components/FormControls';
 import { TouchButton } from '../components/common/TouchButton';
+import { FiscalDataTab } from './components/FiscalDataTab';
 
 // --- Componente Principal del Módulo ---
 export default function FinanceModule() {
   const { alert, confirm, prompt } = useUI();
+  const [activeTab, setActiveTab] = useState<'currencies' | 'fiscal'>('currencies');
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -41,8 +43,10 @@ export default function FinanceModule() {
   }, [alert]);
   
   useEffect(() => {
-    void loadCurrencies();
-  }, [loadCurrencies]);
+    if (activeTab === 'currencies') {
+        void loadCurrencies();
+    }
+  }, [loadCurrencies, activeTab]);
   
   const handleSave = async (data: any) => {
     try {
@@ -51,6 +55,7 @@ export default function FinanceModule() {
         symbol: data.symbol,
         is_base: data.is_base,
         exchange_rate: parseFloat(data.exchange_rate),
+        tax_rate: parseFloat(data.tax_rate),
       };
       await api.createCurrency(payload);
       await alert('✓ Moneda creada');
@@ -118,91 +123,119 @@ export default function FinanceModule() {
   
   return (
     <>
-      <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Gestión de Monedas</h2>
-        {/* REFACTOR FASE 4: Botón Primario */}
-        <TouchButton 
-          onClick={() => setShowForm(true)} 
-          variant="primary"
-          icon={Plus}
-          data-testid="finance-add-currency-btn"
-        >
-          Nueva Moneda
-        </TouchButton>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Finanzas y Configuración</h2>
+        
+        {/* Tabs */}
+        <div className="flex space-x-4 mt-4 border-b border-gray-200">
+            <button
+                className={`py-2 px-4 border-b-2 font-medium text-sm focus:outline-none ${activeTab === 'currencies' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                onClick={() => setActiveTab('currencies')}
+            >
+                Monedas y Tasas
+            </button>
+            <button
+                className={`py-2 px-4 border-b-2 font-medium text-sm focus:outline-none ${activeTab === 'fiscal' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                onClick={() => setActiveTab('fiscal')}
+            >
+                Datos Fiscales
+            </button>
+        </div>
       </div>
       
-      {showForm && (
-        <ResponsiveModal title="Nueva Moneda" isOpen={showForm} onClose={() => setShowForm(false)} size="md" icon={<Plus className="w-6 h-6" />}>
-          <CurrencyForm onSave={handleSave} onCancel={() => setShowForm(false)} currencies={currencies} />
-        </ResponsiveModal>
-      )}
-      
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Nombre</th>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Tasa (1 [Moneda] = X [Base])</th>
-              <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">IGTF (%)</th>
-              <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              <tr><td colSpan={4} className="text-center p-8 text-gray-500">Cargando monedas...</td></tr>
-            ) : (
-              currencies.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50" data-testid={`currency-row-${c.id}`}>
-                  <td className="p-3">
-                    <div className="font-semibold">{c.name} ({c.symbol})</div>
-                    {c.is_base && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">BASE</span>}
-                  </td>
-                  <td className="p-3">{c.exchange_rate.toFixed(4)}</td>
-                  <td className="p-3">{(c.tax_rate * 100).toFixed(2)}%</td>
-                  <td className="p-3 text-center space-x-2 whitespace-nowrap">
-                    {/* REFACTOR FASE 4: Botones de Enlace */}
-                    <TouchButton 
-                      onClick={() => handleUpdateRate(c.id, c.name, c.is_base)} 
-                      variant="ghost" 
-                      className="text-blue-600 disabled:text-gray-400" 
-                      disabled={c.is_base}
-                      data-testid={`update-rate-btn-${c.id}`}
-                    >
-                      Tasa
-                    </TouchButton>
-                    <TouchButton 
-                      onClick={() => handleUpdateTaxRate(c.id, c.name)} 
-                      variant="ghost" 
-                      className="text-blue-600" 
-                      data-testid={`update-tax-btn-${c.id}`}
-                    >
-                      Tax
-                    </TouchButton>
-                    <TouchButton 
-                      onClick={() => handleSetBase(c.id, c.name)} 
-                      variant="ghost" 
-                      className="text-green-600 disabled:text-gray-400" 
-                      disabled={c.is_base}
-                      data-testid={`set-base-btn-${c.id}`}
-                    >
-                      Hacer Base
-                    </TouchButton>
-                    <TouchButton 
-                      onClick={() => handleDelete(c.id, c.name, c.is_base)} 
-                      variant="ghost" 
-                      className="text-red-600 disabled:text-gray-400" 
-                      disabled={c.is_base}
-                      data-testid={`delete-currency-btn-${c.id}`}
-                    >
-                      Desactivar
-                    </TouchButton>
-                  </td>
-                </tr>
-              ))
+      {activeTab === 'currencies' && (
+        <>
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Gestión de Divisas</h3>
+                {/* REFACTOR FASE 4: Botón Primario */}
+                <TouchButton 
+                onClick={() => setShowForm(true)} 
+                variant="primary"
+                icon={Plus}
+                data-testid="finance-add-currency-btn"
+                >
+                Nueva Moneda
+                </TouchButton>
+            </div>
+            
+            {showForm && (
+                <ResponsiveModal title="Nueva Moneda" isOpen={showForm} onClose={() => setShowForm(false)} size="md" icon={<Plus className="w-6 h-6" />}>
+                <CurrencyForm onSave={handleSave} onCancel={() => setShowForm(false)} currencies={currencies} />
+                </ResponsiveModal>
             )}
-          </tbody>
-        </table>
-      </div>
+            
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                    <tr>
+                    <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Nombre</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">Tasa (1 [Moneda] = X [Base])</th>
+                    <th className="p-3 text-left text-xs font-semibold uppercase text-gray-600">IGTF (%)</th>
+                    <th className="p-3 text-center text-xs font-semibold uppercase text-gray-600">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                    {loading ? (
+                    <tr><td colSpan={4} className="text-center p-8 text-gray-500">Cargando monedas...</td></tr>
+                    ) : (
+                    currencies.map(c => (
+                        <tr key={c.id} className="hover:bg-gray-50" data-testid={`currency-row-${c.id}`}>
+                        <td className="p-3">
+                            <div className="font-semibold">{c.name} ({c.symbol})</div>
+                            {c.is_base && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">BASE</span>}
+                        </td>
+                        <td className="p-3">{c.exchange_rate.toFixed(4)}</td>
+                        <td className="p-3">{(c.tax_rate * 100).toFixed(2)}%</td>
+                        <td className="p-3 text-center space-x-2 whitespace-nowrap">
+                            {/* REFACTOR FASE 4: Botones de Enlace */}
+                            <TouchButton 
+                            onClick={() => handleUpdateRate(c.id, c.name, c.is_base)} 
+                            variant="ghost" 
+                            className="text-blue-600 disabled:text-gray-400" 
+                            disabled={c.is_base}
+                            data-testid={`update-rate-btn-${c.id}`}
+                            >
+                            Tasa
+                            </TouchButton>
+                            <TouchButton 
+                            onClick={() => handleUpdateTaxRate(c.id, c.name)} 
+                            variant="ghost" 
+                            className="text-blue-600" 
+                            data-testid={`update-tax-btn-${c.id}`}
+                            >
+                            Tax
+                            </TouchButton>
+                            <TouchButton 
+                            onClick={() => handleSetBase(c.id, c.name)} 
+                            variant="ghost" 
+                            className="text-green-600 disabled:text-gray-400" 
+                            disabled={c.is_base}
+                            data-testid={`set-base-btn-${c.id}`}
+                            >
+                            Hacer Base
+                            </TouchButton>
+                            <TouchButton 
+                            onClick={() => handleDelete(c.id, c.name, c.is_base)} 
+                            variant="ghost" 
+                            className="text-red-600 disabled:text-gray-400" 
+                            disabled={c.is_base}
+                            data-testid={`delete-currency-btn-${c.id}`}
+                            >
+                            Desactivar
+                            </TouchButton>
+                        </td>
+                        </tr>
+                    ))
+                    )}
+                </tbody>
+                </table>
+            </div>
+        </>
+      )}
+
+      {activeTab === 'fiscal' && (
+        <FiscalDataTab />
+      )}
     </>
   );
 }
