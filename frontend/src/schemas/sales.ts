@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { BaseEntitySchema } from './common';
+import { z } from "zod";
+import { BaseEntitySchema } from "./common";
 
 export const CartItemSchema = z.object({
   product_id: z.string().uuid(),
@@ -26,11 +26,11 @@ export const CartSchema = BaseEntitySchema.extend({
 
 export const PaymentDetailsSchema = z.object({
   payment_method: z.string(),
-  payment_type: z.string().optional(),
-  reference: z.string().optional(),
-  bank: z.string().optional(),
-  phone: z.string().optional(),
-  customer_id: z.string().optional(),
+  payment_type: z.string().nullable().optional(),
+  reference: z.string().nullable().optional(),
+  bank: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  customer_id: z.string().nullable().optional(),
 });
 
 export const SaleSchema = BaseEntitySchema.extend({
@@ -48,7 +48,7 @@ export const SaleSchema = BaseEntitySchema.extend({
   tax_amount: z.number(),
   igtf_amount: z.number().default(0),
   total_with_tax: z.number(),
-  invoice_status: z.string().default('pending'),
+  invoice_status: z.string().default("pending"),
   invoice_retry_count: z.number().int().default(0),
 });
 
@@ -57,4 +57,11 @@ export const DailyReportSchema = z.object({
   sales_count: z.number().int(),
   total: z.number(),
   sales: z.array(SaleSchema),
+});
+
+export const SalesHistoryResponseSchema = z.object({
+  items: z.array(SaleSchema),
+  total: z.number().int(),
+  skip: z.number().int(),
+  limit: z.number().int(),
 });

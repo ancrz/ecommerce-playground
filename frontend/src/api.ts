@@ -9,32 +9,59 @@
  * está roto), se lanza un error.
  * 4. Usa variables de entorno a través de config.ts
  */
-import { z, ZodType } from 'zod';
-import type { 
-  Product, ProductCard, ProductCreate, ProductUpdate,
-  Currency, Region, TaxRate, RegionUpdate,
-  Cart, PaymentDetails, DailyReport, Sale,
-  BusinessInfo, BusinessInfoUpdate, Customization,
-  User, TokenResponse, 
-  UserCreateRequest, UserUpdateRequest, 
-  PasswordChangeRequest, PasswordResetRequest, PasswordResetValidate,
-  ProductImage
-} from './types';
+import { z, ZodType } from "zod";
+import type {
+  Product,
+  ProductCard,
+  ProductCreate,
+  ProductUpdate,
+  Currency,
+  Region,
+  TaxRate,
+  RegionUpdate,
+  Cart,
+  PaymentDetails,
+  DailyReport,
+  Sale,
+  SalesHistoryResponse,
+  BusinessInfo,
+  BusinessInfoUpdate,
+  Customization,
+  User,
+  TokenResponse,
+  UserCreateRequest,
+  UserUpdateRequest,
+  PasswordChangeRequest,
+  PasswordResetRequest,
+  PasswordResetValidate,
+  ProductImage,
+} from "./types";
 
 // Importar los esquemas (la nueva "fuente de verdad")
 import {
-  ProductSchema, ProductCardSchema,
-  CurrencySchema, RegionSchema, TaxRateSchema,
-  CartSchema, SaleSchema, DailyReportSchema,
-  BusinessInfoSchema, CustomizationSchema,
-  UserPublicSchema, TokenResponseSchema,
-  MessageResponseSchema, ProductImageSchema, // Un esquema genérico para { message: "..." }
-  DashboardStatsSchema, type DashboardStats,
-  CustomerSchema, SMTPCheckResponseSchema // Nuevo
-} from './schemas';
+  ProductSchema,
+  ProductCardSchema,
+  CurrencySchema,
+  RegionSchema,
+  TaxRateSchema,
+  CartSchema,
+  SaleSchema,
+  DailyReportSchema,
+  SalesHistoryResponseSchema,
+  BusinessInfoSchema,
+  CustomizationSchema,
+  UserPublicSchema,
+  TokenResponseSchema,
+  MessageResponseSchema,
+  ProductImageSchema, // Un esquema genérico para { message: "..." }
+  DashboardStatsSchema,
+  type DashboardStats,
+  CustomerSchema,
+  SMTPCheckResponseSchema, // Nuevo
+} from "./schemas";
 
 // Importar configuración centralizada
-import { config } from './config';
+import { config } from "./config";
 
 // URL base del API desde configuración (variable de entorno VITE_API_URL)
 const API_URL = config.apiUrl;
@@ -42,7 +69,7 @@ const API_URL = config.apiUrl;
 // --- Wrapper de Fetch (Manejo de Errores y Token) ---
 
 const getAuthToken = (): string | null => {
-  return localStorage.getItem('token');
+  return localStorage.getItem("token");
 };
 
 /**
@@ -50,27 +77,27 @@ const getAuthToken = (): string | null => {
  * REFACTORIZADO: Acepta un 'schema' de Zod para validar la respuesta.
  */
 export const authFetch = async <T>(
-  endpoint: string, 
+  endpoint: string,
   options: RequestInit = {},
-  schema: ZodType<T, any, any> // Output, Def, Input (permite que Input sea opcional si hay defaults)
+  schema: ZodType<T, any, any>, // Output, Def, Input (permite que Input sea opcional si hay defaults)
 ): Promise<T> => {
   const token = getAuthToken();
-  
+
   // Build headers safely
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
-  
+
   // Copy existing headers if present
   if (options.headers) {
     const existingHeaders = options.headers as Record<string, string>;
-    Object.keys(existingHeaders).forEach(key => {
+    Object.keys(existingHeaders).forEach((key) => {
       headers[key] = existingHeaders[key];
     });
   }
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
@@ -90,7 +117,7 @@ export const authFetch = async <T>(
   }
 
   if (response.status === 204) {
-    return true as T; 
+    return true as T;
   }
 
   const data = await response.json();
@@ -104,7 +131,9 @@ export const authFetch = async <T>(
   } catch (validationError: unknown) {
     // El "contrato" está roto. El backend envió datos inesperados.
     console.error(`Error de Validación Zod para ${endpoint}:`, validationError);
-    throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
+    throw new Error(
+      `Error de Contrato: Datos inválidos recibidos del servidor.`,
+    );
   }
 };
 
@@ -112,197 +141,307 @@ export const authFetch = async <T>(
  * Wrapper para enviar FORM DATA (archivos).
  */
 export const authFetchForm = async <T>(
-  endpoint: string, 
+  endpoint: string,
   formData: FormData,
-  schema: ZodType<T, any, any>
+  schema: ZodType<T, any, any>,
 ): Promise<T> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {};
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
-    method: 'POST',
+    method: "POST",
     body: formData,
-    headers, 
+    headers,
   });
 
   if (!response.ok) {
     const errorJson = await response.json();
-    throw new Error(errorJson.detail || 'Error al subir el archivo');
+    throw new Error(errorJson.detail || "Error al subir el archivo");
   }
-  
+
   const data = await response.json();
 
   try {
     return schema.parse(data);
   } catch (validationError: unknown) {
-    console.error(`Error de Validación Zod para ${endpoint} (Form):`, validationError);
-    throw new Error(`Error de Contrato: Datos inválidos recibidos del servidor.`);
+    console.error(
+      `Error de Validación Zod para ${endpoint} (Form):`,
+      validationError,
+    );
+    throw new Error(
+      `Error de Contrato: Datos inválidos recibidos del servidor.`,
+    );
   }
 };
 
 // ==================== API de Autenticación (Pública) ====================
 
-export const apiLogin = (username: string, password: string, guest_cart_id?: string): Promise<TokenResponse> => {
-  return authFetch<TokenResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password, guest_cart_id }),
-  }, TokenResponseSchema); // <-- Validar
+export const apiLogin = (
+  username: string,
+  password: string,
+  guest_cart_id?: string,
+): Promise<TokenResponse> => {
+  return authFetch<TokenResponse>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password, guest_cart_id }),
+    },
+    TokenResponseSchema,
+  ); // <-- Validar
 };
 
-export const requestPasswordReset = (email: string, captcha_token: string): Promise<{ message: string }> => {
+export const requestPasswordReset = (
+  email: string,
+  captcha_token: string,
+): Promise<{ message: string }> => {
   const request: PasswordResetRequest = { email, captcha_token };
-  return authFetch('/auth/request-password-reset', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  }, MessageResponseSchema); // <-- Validar
+  return authFetch(
+    "/auth/request-password-reset",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
-export const validatePasswordReset = (email: string, token: string, new_password: string): Promise<{ message: string }> => {
+export const validatePasswordReset = (
+  email: string,
+  token: string,
+  new_password: string,
+): Promise<{ message: string }> => {
   const request: PasswordResetValidate = { email, token, new_password };
-  return authFetch('/auth/validate-password-reset', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  }, MessageResponseSchema); // <-- Validar
+  return authFetch(
+    "/auth/validate-password-reset",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 // ==================== API de Autenticación (Protegida) ====================
 
 export const apiLogout = (): Promise<void> => {
-  return authFetch<void>('/auth/logout', { method: 'POST' }, z.any()); // z.any() para respuestas vacías/simples
+  return authFetch<void>("/auth/logout", { method: "POST" }, z.any()); // z.any() para respuestas vacías/simples
 };
 
 export const getMe = (): Promise<User> => {
-  return authFetch<User>('/auth/me', { method: 'GET' }, UserPublicSchema); // <-- Validar
+  return authFetch<User>("/auth/me", { method: "GET" }, UserPublicSchema); // <-- Validar
 };
 
 export const updateMe = (updates: UserUpdateRequest): Promise<User> => {
-  return authFetch<User>('/auth/me', {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, UserPublicSchema); // <-- Validar
+  return authFetch<User>(
+    "/auth/me",
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    UserPublicSchema,
+  ); // <-- Validar
 };
 
-export const changeMyPassword = (request: PasswordChangeRequest): Promise<{ message: string }> => {
-  return authFetch('/auth/me/password', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  }, MessageResponseSchema); // <-- Validar
+export const changeMyPassword = (
+  request: PasswordChangeRequest,
+): Promise<{ message: string }> => {
+  return authFetch(
+    "/auth/me/password",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 // ==================== API de Admin: Usuarios (RBAC) ====================
 
 export const getAllUsers = (skip?: number, limit?: number): Promise<User[]> => {
   const params = new URLSearchParams();
-  if (skip !== undefined) params.append('skip', String(skip));
-  if (limit !== undefined) params.append('limit', String(limit));
-  return authFetch<User[]>(`/admin/users?${params.toString()}`, { method: 'GET' }, z.array(UserPublicSchema)); // <-- Validar
+  if (skip !== undefined) params.append("skip", String(skip));
+  if (limit !== undefined) params.append("limit", String(limit));
+  return authFetch<User[]>(
+    `/admin/users?${params.toString()}`,
+    { method: "GET" },
+    z.array(UserPublicSchema),
+  ); // <-- Validar
 };
 
 export const createNewUser = (data: UserCreateRequest): Promise<User> => {
-  return authFetch<User>('/admin/users', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }, UserPublicSchema); // <-- Validar
+  return authFetch<User>(
+    "/admin/users",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+    UserPublicSchema,
+  ); // <-- Validar
 };
 
-export const updateUser = (userId: string, updates: UserUpdateRequest): Promise<User> => {
-  return authFetch<User>(`/admin/users/${userId}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, UserPublicSchema); // <-- Validar
+export const updateUser = (
+  userId: string,
+  updates: UserUpdateRequest,
+): Promise<User> => {
+  return authFetch<User>(
+    `/admin/users/${userId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    UserPublicSchema,
+  ); // <-- Validar
 };
 
-export const adminResetPassword = (userId: string, new_password: string): Promise<{ message: string }> => {
-  return authFetch('/admin/users/reset-password', {
-    method: 'POST',
-    body: JSON.stringify({ user_id: userId, new_password }),
-  }, MessageResponseSchema); // <-- Validar
+export const adminResetPassword = (
+  userId: string,
+  new_password: string,
+): Promise<{ message: string }> => {
+  return authFetch(
+    "/admin/users/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, new_password }),
+    },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 // ==================== API Pública (Productos, Tienda) ====================
 
-export const getAllProducts = (skip?: number, limit?: number): Promise<Product[]> => {
+export const getAllProducts = (
+  skip?: number,
+  limit?: number,
+): Promise<Product[]> => {
   const params = new URLSearchParams();
-  if (skip !== undefined) params.append('skip', String(skip));
-  if (limit !== undefined) params.append('limit', String(limit));
-  
-  return authFetch<Product[]>(`/products/?${params.toString()}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
+  if (skip !== undefined) params.append("skip", String(skip));
+  if (limit !== undefined) params.append("limit", String(limit));
+
+  return authFetch<Product[]>(
+    `/products/?${params.toString()}`,
+    { method: "GET" },
+    z.array(ProductSchema),
+  ); // <-- Validar
 };
 
 export const searchProducts = (query: string): Promise<Product[]> => {
-  return authFetch<Product[]>(`/products/search?q=${encodeURIComponent(query)}`, { method: 'GET' }, z.array(ProductSchema)); // <-- Validar
+  return authFetch<Product[]>(
+    `/products/search?q=${encodeURIComponent(query)}`,
+    { method: "GET" },
+    z.array(ProductSchema),
+  ); // <-- Validar
 };
 
 // (Moved to Gallery Section at the end)
 
-export const getSliderProducts = (type: 'main' | 'featured' | 'discount'): Promise<ProductCard[]> => {
-  return authFetch<ProductCard[]>(`/products/slider/${type}`, { method: 'GET' }, z.array(ProductCardSchema)); // <-- Validar
+export const getSliderProducts = (
+  type: "main" | "featured" | "discount",
+): Promise<ProductCard[]> => {
+  return authFetch<ProductCard[]>(
+    `/products/slider/${type}`,
+    { method: "GET" },
+    z.array(ProductCardSchema),
+  ); // <-- Validar
 };
 
 export const getBusinessInfo = (): Promise<BusinessInfo> => {
   // Endpoint público, no necesita token
-  return authFetch<BusinessInfo>('/business/info', { method: 'GET' }, BusinessInfoSchema);
+  return authFetch<BusinessInfo>(
+    "/business/info",
+    { method: "GET" },
+    BusinessInfoSchema,
+  );
 };
 
-export const updateBusinessInfo = (updates: BusinessInfoUpdate): Promise<BusinessInfo> => {
+export const updateBusinessInfo = (
+  updates: BusinessInfoUpdate,
+): Promise<BusinessInfo> => {
   // Endpoint de admin, necesita token
-  return authFetch<BusinessInfo>('/admin/business/info', {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, BusinessInfoSchema);
+  return authFetch<BusinessInfo>(
+    "/business/info",
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    BusinessInfoSchema,
+  );
 };
 
-export const previewInvoice = async (updates: BusinessInfoUpdate): Promise<Blob> => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}/business/preview-invoice`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(updates),
-    });
+export const previewInvoice = async (
+  updates: BusinessInfoUpdate,
+): Promise<Blob> => {
+  const token = localStorage.getItem("token");
+  const response = await fetch(`${API_URL}/business/preview-invoice`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(updates),
+  });
 
-    if (!response.ok) {
-        let errorDetail = "Error generando vista previa";
-        try {
-            const errorJson = await response.json();
-            errorDetail = errorJson.detail || JSON.stringify(errorJson);
-        } catch (e) {
-            // Fallback if response is not JSON
-            errorDetail = "Error de red o formato inválido";
-        }
-        throw new Error(errorDetail);
+  if (!response.ok) {
+    let errorDetail = "Error generando vista previa";
+    try {
+      const errorJson = await response.json();
+      errorDetail = errorJson.detail || JSON.stringify(errorJson);
+    } catch (e) {
+      // Fallback if response is not JSON
+      errorDetail = "Error de red o formato inválido";
     }
-    return await response.blob();
+    throw new Error(errorDetail);
+  }
+  return await response.blob();
 };
 
 export const getCustomization = (): Promise<Customization> => {
-  return authFetch<Customization>('/admin/customization/', { method: 'GET' }, CustomizationSchema);
+  return authFetch<Customization>(
+    "/admin/customization/",
+    { method: "GET" },
+    CustomizationSchema,
+  );
 };
 
 // ==================== API de Admin: Productos ====================
 
 export const createProduct = (data: ProductCreate): Promise<Product> => {
-  return authFetch<Product>('/products/', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }, ProductSchema); // <-- Validar
+  return authFetch<Product>(
+    "/products/",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+    ProductSchema,
+  ); // <-- Validar
 };
 
-export const updateProduct = (productId: string, updates: ProductUpdate): Promise<Product> => {
-  return authFetch<Product>(`/products/${productId}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, ProductSchema); // <-- Validar
+export const updateProduct = (
+  productId: string,
+  updates: ProductUpdate,
+): Promise<Product> => {
+  return authFetch<Product>(
+    `/products/${productId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    ProductSchema,
+  ); // <-- Validar
 };
 
-export const deleteProduct = (productId: string): Promise<{ message: string }> => {
-  return authFetch(`/products/${productId}`, { method: 'DELETE' }, MessageResponseSchema); // <-- Validar
+export const deleteProduct = (
+  productId: string,
+): Promise<{ message: string }> => {
+  return authFetch(
+    `/products/${productId}`,
+    { method: "DELETE" },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 /**
@@ -311,293 +450,574 @@ export const deleteProduct = (productId: string): Promise<{ message: string }> =
  */
 export const createProductWithImage = async (
   data: ProductCreate,
-  file?: File
+  file?: File,
 ): Promise<Product> => {
   const formData = new FormData();
-  
+
   // Añadir campos del producto
-  formData.append('name', data.name);
-  formData.append('price', String(data.price));
-  formData.append('description', data.description || '');
-  formData.append('sku', data.sku || '');
-  formData.append('stock', String(data.stock || 0));
-  formData.append('category', data.category || '');
-  formData.append('is_featured', String(data.is_featured || false));
-  formData.append('is_discount', String(data.is_discount || false));
-  formData.append('discount_percentage', String(data.discount_percentage || 0));
-  formData.append('banner_assignment', data.banner_assignment || 'main');
-  
+  formData.append("name", data.name);
+  formData.append("price", String(data.price));
+  formData.append("description", data.description || "");
+  formData.append("sku", data.sku || "");
+  formData.append("stock", String(data.stock || 0));
+  formData.append("category", data.category || "");
+  formData.append("is_featured", String(data.is_featured || false));
+  formData.append("is_discount", String(data.is_discount || false));
+  formData.append("discount_percentage", String(data.discount_percentage || 0));
+  formData.append("banner_assignment", data.banner_assignment || "main");
+
   // Añadir archivo si existe
   if (file) {
-    formData.append('file', file);
+    formData.append("file", file);
   }
-  
-  return authFetchForm<Product>('/products/with-image', formData, ProductSchema);
+
+  return authFetchForm<Product>(
+    "/products/with-image",
+    formData,
+    ProductSchema,
+  );
 };
 
 // ==================== API de Admin: Imágenes (Orquestador) ====================
 
-export const uploadProductImage = (productId: string, file: File): Promise<Product> => {
+export const uploadProductImage = (
+  productId: string,
+  file: File,
+): Promise<Product> => {
   const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<Product>(`/images/products/${productId}/upload`, formData, ProductSchema); // <-- Validar
+  formData.append("file", file);
+  return authFetchForm<Product>(
+    `/images/products/${productId}/upload`,
+    formData,
+    ProductSchema,
+  ); // <-- Validar
 };
 
 export const uploadBusinessLogo = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/images/business/logo', formData, BusinessInfoSchema); // <-- Validar
+  formData.append("file", file);
+  return authFetchForm<BusinessInfo>(
+    "/images/business/logo",
+    formData,
+    BusinessInfoSchema,
+  ); // <-- Validar
 };
 
 export const uploadBusinessIcon = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/images/business/icon', formData, BusinessInfoSchema); // <-- Validar
+  formData.append("file", file);
+  return authFetchForm<BusinessInfo>(
+    "/images/business/icon",
+    formData,
+    BusinessInfoSchema,
+  ); // <-- Validar
 };
 
 export const uploadBusinessBanner = (file: File): Promise<BusinessInfo> => {
   const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<BusinessInfo>('/images/business/banner', formData, BusinessInfoSchema); // <-- Validar
+  formData.append("file", file);
+  return authFetchForm<BusinessInfo>(
+    "/images/business/banner",
+    formData,
+    BusinessInfoSchema,
+  ); // <-- Validar
 };
 
-export const uploadModuleIcon = (moduleName: string, file: File): Promise<Customization> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<Customization>(`/admin/customization/icon/${moduleName}`, formData, CustomizationSchema); // <-- Validar
+export const deleteBusinessLogo = (): Promise<BusinessInfo> => {
+  return authFetch<BusinessInfo>(
+    "/images/business/logo",
+    { method: "DELETE" },
+    BusinessInfoSchema,
+  );
 };
 
-export const uploadSocialNetworkIcon = (networkIndex: number, file: File): Promise<BusinessInfo> => {
+export const deleteBusinessIcon = (): Promise<BusinessInfo> => {
+  return authFetch<BusinessInfo>(
+    "/images/business/icon",
+    { method: "DELETE" },
+    BusinessInfoSchema,
+  );
+};
+
+export const uploadModuleIcon = (
+  moduleName: string,
+  file: File,
+): Promise<Customization> => {
   const formData = new FormData();
-  formData.append('file', file);
-  return authFetchForm<BusinessInfo>(`/admin/business/social-icon/${networkIndex}`, formData, BusinessInfoSchema);
+  formData.append("file", file);
+  return authFetchForm<Customization>(
+    `/admin/customization/icon/${moduleName}`,
+    formData,
+    CustomizationSchema,
+  ); // <-- Validar
+};
+
+export const uploadSocialNetworkIcon = (
+  networkIndex: number,
+  file: File,
+): Promise<BusinessInfo> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return authFetchForm<BusinessInfo>(
+    `/business/social-icon/${networkIndex}`,
+    formData,
+    BusinessInfoSchema,
+  );
 };
 
 // ==================== API de Admin: Contenido y Tema ====================
 
-export const updateCustomization = (updates: Partial<Customization>): Promise<Customization> => {
-  return authFetch<Customization>('/admin/customization/', {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, CustomizationSchema); // <-- Validar
+export const updateCustomization = (
+  updates: Partial<Customization>,
+): Promise<Customization> => {
+  return authFetch<Customization>(
+    "/admin/customization/",
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    CustomizationSchema,
+  ); // <-- Validar
 };
 
 // ==================== API de Admin: Finanzas ====================
 
-export const getCurrencies = (active_only: boolean = true): Promise<Currency[]> => {
-  return authFetch<Currency[]>(`/finance/currencies?active_only=${active_only}`, { method: 'GET' }, z.array(CurrencySchema)); // <-- Validar
+export const getCurrencies = (
+  active_only: boolean = true,
+): Promise<Currency[]> => {
+  return authFetch<Currency[]>(
+    `/finance/currencies?active_only=${active_only}`,
+    { method: "GET" },
+    z.array(CurrencySchema),
+  ); // <-- Validar
 };
 
-export const createCurrency = (data: { name: string, symbol: string, is_base: boolean, exchange_rate: number, tax_rate?: number }): Promise<Currency> => {
+export const createCurrency = (data: {
+  name: string;
+  symbol: string;
+  is_base: boolean;
+  exchange_rate: number;
+  tax_rate?: number;
+}): Promise<Currency> => {
   const params = new URLSearchParams();
-  params.append('name', data.name);
-  params.append('symbol', data.symbol);
-  params.append('is_base', String(data.is_base));
-  params.append('exchange_rate', String(data.exchange_rate));
-  if (data.tax_rate !== undefined) params.append('tax_rate', String(data.tax_rate));
-  return authFetch<Currency>(`/finance/currencies?${params.toString()}`, { method: 'POST' }, CurrencySchema); // <-- Validar
+  params.append("name", data.name);
+  params.append("symbol", data.symbol);
+  params.append("is_base", String(data.is_base));
+  params.append("exchange_rate", String(data.exchange_rate));
+  if (data.tax_rate !== undefined)
+    params.append("tax_rate", String(data.tax_rate));
+  return authFetch<Currency>(
+    `/finance/currencies?${params.toString()}`,
+    { method: "POST" },
+    CurrencySchema,
+  ); // <-- Validar
 };
 
-export const updateCurrencyRate = (id: string, new_rate: number): Promise<Currency> => {
-  return authFetch<Currency>(`/finance/currencies/${id}/rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema); // <-- Validar
+export const updateCurrencyRate = (
+  id: string,
+  new_rate: number,
+): Promise<Currency> => {
+  return authFetch<Currency>(
+    `/finance/currencies/${id}/rate?new_rate=${new_rate}`,
+    { method: "PUT" },
+    CurrencySchema,
+  ); // <-- Validar
 };
 
-export const updateCurrencyTaxRate = (id: string, new_rate: number): Promise<Currency> => {
-  return authFetch<Currency>(`/finance/currencies/${id}/tax-rate?new_rate=${new_rate}`, { method: 'PUT' }, CurrencySchema);
+export const updateCurrencyTaxRate = (
+  id: string,
+  new_rate: number,
+): Promise<Currency> => {
+  return authFetch<Currency>(
+    `/finance/currencies/${id}/tax-rate?new_rate=${new_rate}`,
+    { method: "PUT" },
+    CurrencySchema,
+  );
 };
 
 export const setBaseCurrency = (id: string): Promise<{ message: string }> => {
-  return authFetch(`/finance/currencies/${id}/set-base`, { method: 'PUT' }, MessageResponseSchema); // <-- Validar
+  return authFetch(
+    `/finance/currencies/${id}/set-base`,
+    { method: "PUT" },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 export const deleteCurrency = (id: string): Promise<{ message: string }> => {
-  return authFetch(`/finance/currencies/${id}`, { method: 'DELETE' }, MessageResponseSchema); // <-- Validar
+  return authFetch(
+    `/finance/currencies/${id}`,
+    { method: "DELETE" },
+    MessageResponseSchema,
+  ); // <-- Validar
 };
 
 // ==================== API de Admin: Impuestos (Regional) ====================
 
 export const getRegions = (active_only: boolean = true): Promise<Region[]> => {
-  return authFetch<Region[]>(`/admin/tax/regions?active_only=${active_only}`, { method: 'GET' }, z.array(RegionSchema)); // <-- Validar
+  return authFetch<Region[]>(
+    `/admin/tax/regions?active_only=${active_only}`,
+    { method: "GET" },
+    z.array(RegionSchema),
+  ); // <-- Validar
 };
 
 export const createRegion = (data: Partial<Region>): Promise<Region> => {
   const params = new URLSearchParams();
-  params.append('name', data.name!);
-  if (data.country) params.append('country', data.country);
-  if (data.state) params.append('state', data.state);
-  return authFetch<Region>(`/admin/tax/regions?${params.toString()}`, { method: 'POST' }, RegionSchema); // <-- Validar
+  params.append("name", data.name!);
+  if (data.country) params.append("country", data.country);
+  if (data.state) params.append("state", data.state);
+  return authFetch<Region>(
+    `/admin/tax/regions?${params.toString()}`,
+    { method: "POST" },
+    RegionSchema,
+  ); // <-- Validar
 };
 
-export const updateRegion = (id: string, updates: RegionUpdate): Promise<Region> => {
-    return authFetch<Region>(`/admin/tax/regions/${id}`, { 
-    method: 'PUT', 
-    body: JSON.stringify(updates) 
-  }, RegionSchema); // <-- Validar
+export const updateRegion = (
+  id: string,
+  updates: RegionUpdate,
+): Promise<Region> => {
+  return authFetch<Region>(
+    `/admin/tax/regions/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    RegionSchema,
+  ); // <-- Validar
 };
 
 export const getTaxRatesForRegion = (regionId: string): Promise<TaxRate[]> => {
-  return authFetch<TaxRate[]>(`/admin/tax/regions/${regionId}/tax-rates`, { method: 'GET' }, z.array(TaxRateSchema)); // <-- Validar
+  return authFetch<TaxRate[]>(
+    `/admin/tax/regions/${regionId}/tax-rates`,
+    { method: "GET" },
+    z.array(TaxRateSchema),
+  ); // <-- Validar
 };
 
-export const createTaxRate = (data: { name: string, region_id: string, rate: number, priority: number }): Promise<TaxRate> => {
+export const createTaxRate = (data: {
+  name: string;
+  region_id: string;
+  rate: number;
+  priority: number;
+}): Promise<TaxRate> => {
   const params = new URLSearchParams();
-  params.append('name', data.name);
-  params.append('region_id', data.region_id);
-  params.append('rate', String(data.rate));
-  params.append('priority', String(data.priority));
-  return authFetch<TaxRate>(`/admin/tax/tax-rates?${params.toString()}`, { method: 'POST' }, TaxRateSchema); // <-- Validar
+  params.append("name", data.name);
+  params.append("region_id", data.region_id);
+  params.append("rate", String(data.rate));
+  params.append("priority", String(data.priority));
+  return authFetch<TaxRate>(
+    `/admin/tax/tax-rates?${params.toString()}`,
+    { method: "POST" },
+    TaxRateSchema,
+  ); // <-- Validar
 };
 
 // ==================== API de Carrito y Ventas (POS) ====================
 
 export const getCart = (cartId: string): Promise<Cart> => {
-  return authFetch<Cart>(`/cart/${cartId}`, { method: 'GET' }, CartSchema);
+  return authFetch<Cart>(`/cart/${cartId}`, { method: "GET" }, CartSchema);
 };
 
 /**
  * HOMOLOGACIÓN: Crear carrito para usuario invitado.
  * Usa el nuevo endpoint /cart/guest que genera automáticamente el ID del invitado.
  */
-export const createGuestCart = (region_id: string, currency_id: string): Promise<Cart> => {
+export const createGuestCart = (
+  region_id: string,
+  currency_id: string,
+): Promise<Cart> => {
   const params = new URLSearchParams();
-  params.append('region_id', region_id);
-  params.append('currency_id', currency_id);
-  return authFetch<Cart>(`/cart/guest?${params.toString()}`, { method: 'POST' }, CartSchema);
+  params.append("region_id", region_id);
+  params.append("currency_id", currency_id);
+  return authFetch<Cart>(
+    `/cart/guest?${params.toString()}`,
+    { method: "POST" },
+    CartSchema,
+  );
 };
 
-export const createCart = (customer_name: string, customer_id: string, region_id: string, currency_id: string): Promise<Cart> => {
+export const createCart = (
+  customer_name: string,
+  customer_id: string,
+  region_id: string,
+  currency_id: string,
+): Promise<Cart> => {
   const params = new URLSearchParams();
-  params.append('customer_name', customer_name);
-  params.append('customer_id', customer_id);
-  params.append('region_id', region_id);
-  params.append('currency_id', currency_id);
-  return authFetch<Cart>(`/cart/?${params.toString()}`, { method: 'POST' }, CartSchema);
+  params.append("customer_name", customer_name);
+  params.append("customer_id", customer_id);
+  params.append("region_id", region_id);
+  params.append("currency_id", currency_id);
+  return authFetch<Cart>(
+    `/cart/?${params.toString()}`,
+    { method: "POST" },
+    CartSchema,
+  );
 };
 
-export const addItem = (cartId: string, productId: string, quantity: number): Promise<Cart> => {
-  return authFetch<Cart>(`/cart/${cartId}/items`, {
-    method: 'POST',
-    body: JSON.stringify({ product_id: productId, quantity }),
-  }, CartSchema); // <-- Validar
+export const addItem = (
+  cartId: string,
+  productId: string,
+  quantity: number,
+): Promise<Cart> => {
+  return authFetch<Cart>(
+    `/cart/${cartId}/items`,
+    {
+      method: "POST",
+      body: JSON.stringify({ product_id: productId, quantity }),
+    },
+    CartSchema,
+  ); // <-- Validar
 };
 
-export const removeItem = (cartId: string, productId: string): Promise<Cart> => {
-  return authFetch<Cart>(`/cart/${cartId}/items/${productId}`, {
-    method: 'DELETE',
-  }, CartSchema);
+export const removeItem = (
+  cartId: string,
+  productId: string,
+): Promise<Cart> => {
+  return authFetch<Cart>(
+    `/cart/${cartId}/items/${productId}`,
+    {
+      method: "DELETE",
+    },
+    CartSchema,
+  );
 };
 
-export const updateItemQuantity = (cartId: string, productId: string, quantity: number): Promise<Cart> => {
-  return authFetch<Cart>(`/cart/${cartId}/items/${productId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ quantity }),
-  }, CartSchema);
+export const updateItemQuantity = (
+  cartId: string,
+  productId: string,
+  quantity: number,
+): Promise<Cart> => {
+  return authFetch<Cart>(
+    `/cart/${cartId}/items/${productId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ quantity }),
+    },
+    CartSchema,
+  );
 };
 
-export const completeSale = (cartId: string, paymentDetails: PaymentDetails): Promise<Sale> => {
-  return authFetch<Sale>(`/sales/${cartId}/complete`, {
-    method: 'POST',
-    body: JSON.stringify(paymentDetails),
-  }, SaleSchema);
+export const completeSale = (
+  cartId: string,
+  paymentDetails: PaymentDetails,
+): Promise<Sale> => {
+  return authFetch<Sale>(
+    `/sales/${cartId}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify(paymentDetails),
+    },
+    SaleSchema,
+  );
 };
 
 export const cancelSale = (cartId: string): Promise<{ message: string }> => {
-  return authFetch(`/sales/${cartId}/cancel`, { method: 'POST' }, MessageResponseSchema);
+  return authFetch(
+    `/sales/${cartId}/cancel`,
+    { method: "POST" },
+    MessageResponseSchema,
+  );
 };
 
 export const getDailySales = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/sales/daily', { method: 'GET' }, DailyReportSchema);
+  return authFetch<DailyReport>(
+    "/sales/daily",
+    { method: "GET" },
+    DailyReportSchema,
+  );
 };
 
 export const closeDay = (): Promise<DailyReport> => {
-  return authFetch<DailyReport>('/sales/close-day', { method: 'POST' }, DailyReportSchema);
+  return authFetch<DailyReport>(
+    "/sales/close-day",
+    { method: "POST" },
+    DailyReportSchema,
+  );
 };
 
 export const getMyOrders = (): Promise<Sale[]> => {
-  return authFetch<Sale[]>('/sales/me', { method: 'GET' }, z.array(SaleSchema));
+  return authFetch<Sale[]>("/sales/me", { method: "GET" }, z.array(SaleSchema));
 };
 
-export const getPendingCarts = (skip?: number, limit?: number): Promise<Cart[]> => {
+export const getSalesHistory = (params: {
+  customer_id?: string;
+  date_from?: string;
+  date_to?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<SalesHistoryResponse> => {
+  const searchParams = new URLSearchParams();
+  if (params.customer_id)
+    searchParams.append("customer_id", params.customer_id);
+  if (params.date_from) searchParams.append("date_from", params.date_from);
+  if (params.date_to) searchParams.append("date_to", params.date_to);
+  if (params.skip !== undefined)
+    searchParams.append("skip", String(params.skip));
+  if (params.limit !== undefined)
+    searchParams.append("limit", String(params.limit));
+  return authFetch<SalesHistoryResponse>(
+    `/sales/history?${searchParams.toString()}`,
+    { method: "GET" },
+    SalesHistoryResponseSchema,
+  );
+};
+
+export const getPendingCarts = (
+  skip?: number,
+  limit?: number,
+): Promise<Cart[]> => {
   const params = new URLSearchParams();
-  if (skip !== undefined) params.append('skip', String(skip));
-  if (limit !== undefined) params.append('limit', String(limit));
-  return authFetch<Cart[]>(`/cart/?${params.toString()}`, { method: 'GET' }, z.array(CartSchema));
+  if (skip !== undefined) params.append("skip", String(skip));
+  if (limit !== undefined) params.append("limit", String(limit));
+  return authFetch<Cart[]>(
+    `/cart/?${params.toString()}`,
+    { method: "GET" },
+    z.array(CartSchema),
+  );
 };
 
 // ==================== HOMOLOGACIÓN: Funciones faltantes ====================
 
 /** Obtener un producto por ID */
 export const getProductById = (productId: string): Promise<Product> => {
-  return authFetch<Product>(`/products/${productId}`, { method: 'GET' }, ProductSchema);
+  return authFetch<Product>(
+    `/products/${productId}`,
+    { method: "GET" },
+    ProductSchema,
+  );
 };
 
 /** Obtener la moneda base del sistema */
 export const getBaseCurrency = (): Promise<Currency> => {
-  return authFetch<Currency>('/finance/currencies/base', { method: 'GET' }, CurrencySchema);
+  return authFetch<Currency>(
+    "/finance/currencies/base",
+    { method: "GET" },
+    CurrencySchema,
+  );
 };
 
 /** Eliminar una región fiscal */
-export const deleteRegion = (regionId: string): Promise<{ message: string }> => {
-  return authFetch(`/admin/tax/regions/${regionId}`, { method: 'DELETE' }, MessageResponseSchema);
+export const deleteRegion = (
+  regionId: string,
+): Promise<{ message: string }> => {
+  return authFetch(
+    `/admin/tax/regions/${regionId}`,
+    { method: "DELETE" },
+    MessageResponseSchema,
+  );
 };
 
 /** Actualizar una tasa de impuesto existente */
-export const updateTaxRate = (taxRateId: string, updates: Partial<TaxRate>): Promise<TaxRate> => {
-  return authFetch<TaxRate>(`/admin/tax/tax-rates/${taxRateId}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  }, TaxRateSchema);
+export const updateTaxRate = (
+  taxRateId: string,
+  updates: Partial<TaxRate>,
+): Promise<TaxRate> => {
+  return authFetch<TaxRate>(
+    `/admin/tax/tax-rates/${taxRateId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    },
+    TaxRateSchema,
+  );
 };
 
 /** Eliminar una tasa de impuesto */
-export const deleteTaxRate = (taxRateId: string): Promise<{ message: string }> => {
-  return authFetch(`/admin/tax/tax-rates/${taxRateId}`, { method: 'DELETE' }, MessageResponseSchema);
+export const deleteTaxRate = (
+  taxRateId: string,
+): Promise<{ message: string }> => {
+  return authFetch(
+    `/admin/tax/tax-rates/${taxRateId}`,
+    { method: "DELETE" },
+    MessageResponseSchema,
+  );
 };
 
 /** Obtener el código QR de un carrito */
 export const getCartQR = (cartId: string): Promise<{ qr_code: string }> => {
-  return authFetch<{ qr_code: string }>(`/cart/${cartId}/qr`, { method: 'GET' }, z.object({ qr_code: z.string() }));
+  return authFetch<{ qr_code: string }>(
+    `/cart/${cartId}/qr`,
+    { method: "GET" },
+    z.object({ qr_code: z.string() }),
+  );
 };
 
 /** Eliminar la imagen principal de un producto (Legacy) */
 export const removeProductMainImage = (productId: string): Promise<Product> => {
-  return authFetch<Product>(`/images/products/${productId}/image`, { method: 'DELETE' }, ProductSchema);
+  return authFetch<Product>(
+    `/images/products/${productId}/image`,
+    { method: "DELETE" },
+    ProductSchema,
+  );
 };
 
 // ==================== GALERÍA DE IMÁGENES ====================
 // (Usa ProductImageSchema importado de schemas.ts)
 
 /** Obtener todas las imágenes de la galería de un producto */
-export const getProductImages = (productId: string): Promise<ProductImage[]> => {
-  return authFetch<ProductImage[]>(`/products/${productId}/images`, { method: 'GET' }, z.array(ProductImageSchema));
+export const getProductImages = (
+  productId: string,
+): Promise<ProductImage[]> => {
+  return authFetch<ProductImage[]>(
+    `/products/${productId}/images`,
+    { method: "GET" },
+    z.array(ProductImageSchema),
+  );
 };
 
 /** Alias para consistencia con el componente ProductDetailModal */
 export const getProductGallery = getProductImages;
 
 /** Subir una imagen a la galería del producto */
-export const addProductImage = async (productId: string, file: File, isMain: boolean = false): Promise<ProductImage> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('is_main', String(isMain));
-    // AuthFetchForm maneja el token y headers
-    return authFetchForm<ProductImage>(`/products/${productId}/images`, formData, ProductImageSchema);
+export const addProductImage = async (
+  productId: string,
+  file: File,
+  isMain: boolean = false,
+): Promise<ProductImage> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("is_main", String(isMain));
+  // AuthFetchForm maneja el token y headers
+  return authFetchForm<ProductImage>(
+    `/products/${productId}/images`,
+    formData,
+    ProductImageSchema,
+  );
 };
 
 /** Establecer una imagen como principal */
-export const setMainImage = (productId: string, imageId: string): Promise<{ message: string }> => {
-    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}/main`, { method: 'PUT' }, MessageResponseSchema);
+export const setMainImage = (
+  productId: string,
+  imageId: string,
+): Promise<{ message: string }> => {
+  return authFetch<{ message: string }>(
+    `/products/${productId}/images/${imageId}/main`,
+    { method: "PUT" },
+    MessageResponseSchema,
+  );
 };
 
 /** Eliminar una imagen de la galería */
-export const deleteProductImage = (productId: string, imageId: string): Promise<{ message: string }> => {
-    return authFetch<{message: string}>(`/products/${productId}/images/${imageId}`, { method: 'DELETE' }, MessageResponseSchema);
+export const deleteProductImage = (
+  productId: string,
+  imageId: string,
+): Promise<{ message: string }> => {
+  return authFetch<{ message: string }>(
+    `/products/${productId}/images/${imageId}`,
+    { method: "DELETE" },
+    MessageResponseSchema,
+  );
 };
 
 // ==================== DASHBOARD (Analytics) ====================
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-   return authFetch<DashboardStats>('/admin/dashboard/stats', { method: 'GET' }, DashboardStatsSchema);
+  return authFetch<DashboardStats>(
+    "/admin/dashboard/stats",
+    { method: "GET" },
+    DashboardStatsSchema,
+  );
 };
 
 // ==================== BILLING & COMPLIANCE ====================
@@ -606,43 +1026,54 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
  * Wrapper for fetching BLOB data (PDFs, Images)
  */
 export const authFetchBlob = async (endpoint: string): Promise<Blob> => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   const headers: Record<string, string> = {};
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
-    method: 'GET',
+    method: "GET",
     headers,
   });
 
   if (!response.ok) {
-     let errorDetail = "Error desconocido al descargar archivo.";
-     try {
-       const errorJson = await response.json();
-       errorDetail = errorJson.detail || JSON.stringify(errorJson);
-     } catch {
-       errorDetail = response.statusText;
-     }
-     throw new Error(`Error ${response.status}: ${errorDetail}`);
+    let errorDetail = "Error desconocido al descargar archivo.";
+    try {
+      const errorJson = await response.json();
+      errorDetail = errorJson.detail || JSON.stringify(errorJson);
+    } catch {
+      errorDetail = response.statusText;
+    }
+    throw new Error(`Error ${response.status}: ${errorDetail}`);
   }
 
   return await response.blob();
 };
 
-export const checkSMTPConnection = async (): Promise<{ status: string; message: string }> => {
+export const checkSMTPConnection = async (): Promise<{
+  status: string;
+  message: string;
+}> => {
   // Use /api/billing prefix as configured in main.py
-  return authFetch<{ status: string; message: string }>('/billing/smtp/test', { method: 'POST' }, SMTPCheckResponseSchema);
+  return authFetch<{ status: string; message: string }>(
+    "/billing/smtp/test",
+    { method: "POST" },
+    SMTPCheckResponseSchema,
+  );
 };
 
 export const getInvoicePreview = async (): Promise<Blob> => {
-    return authFetchBlob('/billing/preview');
+  return authFetchBlob("/billing/preview");
 };
 
-// Returns ANY because we trust the schema validation inside authFetch if we passed schema, 
+// Returns ANY because we trust the schema validation inside authFetch if we passed schema,
 // but here I am creating a typed return.
 export const getCustomerByCedula = async (cedula: string): Promise<any> => {
-    return authFetch(`/billing/customers/cedula/${cedula}`, { method: 'GET' }, CustomerSchema);
+  return authFetch(
+    `/billing/customers/cedula/${cedula}`,
+    { method: "GET" },
+    CustomerSchema,
+  );
 };
