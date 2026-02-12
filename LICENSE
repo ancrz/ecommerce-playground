@@ -3,7 +3,7 @@ Version 2.0 — Effective Date: February 12, 2026
 
 ================================================================================
 
-Copyright (c) 2026 EfiEmpresa — Sole Proprietorship. All Rights Reserved.
+Copyright (c) 2026 ancrz. All Rights Reserved.
 
 ================================================================================
 
@@ -67,7 +67,7 @@ PURPOSE:
         TypeScript/Zod validation layers. This methodology and its specific
         implementation are proprietary to Licensor.
 
-   1.7. "Licensor" means the copyright owner: EfiEmpresa — Sole Proprietorship.
+   1.7. "Licensor" means the copyright owner: ancrz.
 
    1.8. "Licensee" means any individual or entity accessing or using the
         Software.
@@ -172,7 +172,7 @@ PURPOSE:
         title, and interest in and to such contribution, including all
         intellectual property rights therein.
 
-   4.4. TRADEMARKS. "EfiEmpresa", "Ecommerce Playground", and all associated
+   4.4. TRADEMARKS. "ancrz", "Ecommerce Playground", and all associated
         logos, product names, and service names are trademarks of Licensor.
         Nothing in this Agreement grants Licensee any right to use such
         trademarks without prior written consent.
@@ -340,7 +340,7 @@ PURPOSE:
          the address on file, or sent by registered mail.
 
    11.9. RELATIONSHIP TO OTHER PRODUCTS. This Software shares architectural
-         lineage with other EfiEmpresa products. This license applies solely
+         lineage with other ancrz products. This license applies solely
          to the Ecommerce Playground platform. Use of related products
          (including but not limited to AgentCRM) requires separate licensing
          agreements.
@@ -360,5 +360,5 @@ remedies available under applicable law.
 
 ================================================================================
 
-EfiEmpresa — Sole Proprietorship
+ancrz
 https://github.com/ancrz
